@@ -103,9 +103,11 @@ Rough cost on an 8-core laptop at 1080p: 1-3x realtime, so 40 minutes takes
 roughly 40 minutes to 2 hours. Faster: `REMOTION_FLAGS="--concurrency=<cores>"`.
 
 `out/parts/manifest.json` records a hash per part (timeline content in that
-range + all of `src/`). Change one scene: only its part re-renders. Change a
-component in `src/`: everything re-renders. Audio is always rendered in one
-pass (fast, no frames) so the joins are sample-accurate.
+range + all of `src/`). Edit a scene: its part re-renders, plus every later part
+if the edit changed the scene's length (everything after it shifts). Earlier
+parts are always kept, so fix late chapters freely and settle early chapters
+first. Change a component in `src/`: everything re-renders. Audio is always
+rendered in one pass for the whole video, so there are no clicks at the joins.
 
 ## Delivery extras
 

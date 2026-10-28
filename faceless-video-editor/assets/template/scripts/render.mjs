@@ -51,7 +51,10 @@ const srcHash = sha1(
     .map((f) => f + fs.readFileSync(path.join(ROOT, "src", f), "utf8"))
     .join("\n"),
 );
-const global = { ...t, scenes: undefined, words: undefined, music: undefined, chapters: undefined };
+// Total length only matters to the progress bar; otherwise a line edited near
+// the end would invalidate every part before it.
+const global = { ...t, scenes: undefined, words: undefined, music: undefined, chapters: undefined,
+  durationInFrames: t.progressBar ? t.durationInFrames : undefined };
 const flagsKey = (process.env.REMOTION_FLAGS || "").replace(/--concurrency=\S+/, "");
 
 const dir = path.join(OUT, "parts");
@@ -62,7 +65,7 @@ const parts = [];
 for (const [i, [a, b]] of ranges.entries()) {
   const scenes = t.scenes.filter((s) => s.startFrame <= b && s.startFrame + s.durationInFrames > a);
   const words = t.words.filter((w) => (w.endMs / 1000) * t.fps >= a - t.fps && (w.startMs / 1000) * t.fps <= b + t.fps);
-  const chapters = t.chapters.filter((c) => c.startFrame <= b && c.startFrame + c.durationInFrames > a);
+  const chapters = t.chapters.filter((c) => c.startFrame <= b && c.startFrame + c.durationInFrames > a).map((c) => c.title);
   const key = sha1(JSON.stringify({ a, b, srcHash, global, scenes, words, chapters, flagsKey }));
   const file = path.join(dir, `part-${String(i + 1).padStart(3, "0")}.mp4`);
   parts.push(file);
