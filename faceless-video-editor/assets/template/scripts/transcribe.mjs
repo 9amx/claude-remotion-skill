@@ -3,10 +3,9 @@
 // scenes of project.json, and writes the same per-scene files voiceover.py does:
 //   public/vo/<scene>.mp3 + build/vo/<scene>.json
 // First run compiles whisper.cpp and downloads the model (needs git, make, a C++ compiler).
-import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { BUILD, PUBLIC, ROOT, fail, hasCommand, log, probeDuration, readProject, sceneId, writeJson } from "./lib.mjs";
+import { BUILD, PUBLIC, ROOT, ffmpeg as runFfmpeg, fail, log, probeDuration, readProject, sceneId, splitIntoScenes, writeJson } from "./lib.mjs";
 
 const WHISPER_VERSION = "1.7.5";
 const project = readProject();
@@ -24,10 +23,7 @@ try {
 }
 
 const ffmpeg = (args) => {
-  const r = hasCommand("ffmpeg")
-    ? spawnSync("ffmpeg", ["-y", "-v", "error", ...args], { stdio: "inherit" })
-    : spawnSync("npx", ["remotion", "ffmpeg", "-y", "-v", "error", ...args], { stdio: "inherit", cwd: ROOT });
-  if (r.status !== 0) fail(`ffmpeg failed: ${args.join(" ")}`);
+  if (runFfmpeg(args).status !== 0) fail(`ffmpeg failed: ${args.join(" ")}`);
 };
 
 const whisperDir = path.join(ROOT, ".whisper");
@@ -67,27 +63,15 @@ for (const c of captions) {
 }
 if (!words.length) fail("Whisper returned no words. Is the recording silent?");
 
-// Split transcribed words into scenes proportionally to the script, snapping each
-// boundary to the longest pause within +-3 words so cuts land between sentences.
-const counts = project.scenes.map((s) => s.text.trim().split(/\s+/).length);
-const totalScript = counts.reduce((a, b) => a + b, 0);
-const bounds = [0];
-let cum = 0;
-for (let i = 0; i < counts.length - 1; i++) {
-  cum += counts[i];
-  const guess = Math.round((cum / totalScript) * words.length);
-  let best = guess, bestGap = -1;
-  for (let k = Math.max(bounds[i] + 1, guess - 3); k <= Math.min(words.length - 1, guess + 3); k++) {
-    const gap = words[k].startMs - words[k - 1].endMs;
-    if (gap > bestGap) [best, bestGap] = [k, gap];
-  }
-  bounds.push(best);
-}
-bounds.push(words.length);
+const sceneTokens = project.scenes.map((s) => s.text.trim().split(/\s+/));
+const { bounds, matched } = splitIntoScenes(words, sceneTokens);
+const scriptLen = sceneTokens.flat().length;
+log("transcribe", `${words.length} words transcribed, ${Math.round((matched / scriptLen) * 100)}% matched to the script`);
+if (matched / scriptLen < 0.6) log("transcribe", "low match: does project.json contain what was actually said?");
 
 const totalMs = Math.round((probeDuration(input) ?? words[words.length - 1].endMs / 1000 + 0.5) * 1000);
 fs.mkdirSync(path.join(PUBLIC, "vo"), { recursive: true });
-for (let i = 0; i < counts.length; i++) {
+for (let i = 0; i < sceneTokens.length; i++) {
   const sw = words.slice(bounds[i], bounds[i + 1]);
   if (!sw.length) fail(`Scene ${i + 1} got no words. Does the recording match the script?`);
   const next = words[bounds[i + 1]];

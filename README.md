@@ -79,9 +79,10 @@ topic -> script (hook, retention beats) -> AI voiceover with word timestamps
 - **Editing:** cuts every ~2.8s snapped to speech, zoom-punch on cuts, Ken Burns, scene whooshes, music ducking, progress bar
 - **Styles:** `bold`, `documentary`, `minimal`. Shorts, landscape or square
 - **Any language:** Bengali and Hindi glyphs are bundled; English, Spanish, Urdu and more via edge-tts voices
+- **Long form up to 40+ minutes:** chapters with title cards, subtitles, lower thirds, per-chapter music, YouTube chapter timestamps, rate-limit-aware B-roll, and a chunked render that resumes after a crash and re-renders only what changed
 - **One command:** `npm run auto`, with caching so editing one line re-voices only that line
 
-Try it: *"Make a 40 second Short about why octopuses are so smart"* or *"আমার এই রেকর্ডিং দিয়ে B-roll আর ক্যাপশনসহ একটা faceless ভিডিও বানাও"*.
+Try it: *"Make a 40 second Short about why octopuses are so smart"*, *"Make a 20 minute documentary about the Voyager probes"* or *"আমার এই রেকর্ডিং দিয়ে B-roll আর ক্যাপশনসহ একটা faceless ভিডিও বানাও"*.
 
 Install it the same way as the main skill (folder name `faceless-video-editor`, or upload `faceless-video-editor.skill` on Desktop). It works on its own, and it follows the motion rules of `remotion-motion-graphics` when you customise visuals.
 

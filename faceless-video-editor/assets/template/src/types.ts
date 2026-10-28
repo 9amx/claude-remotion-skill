@@ -18,8 +18,15 @@ export type Scene = {
   audio: string | null;
   text: string;
   emphasis: string | null;
+  lowerThird: { title: string; subtitle?: string } | null;
+  chapter: number;
+  chapterStart: boolean;
   shots: Shot[];
 };
+
+export type Chapter = { title: string; mood: string; startFrame: number; durationInFrames: number };
+
+export type MusicSegment = { src: string; from: number; durationInFrames: number; mood?: string };
 
 export type Timeline = {
   title: string;
@@ -28,10 +35,13 @@ export type Timeline = {
   height: number;
   durationInFrames: number;
   style: string;
-  captions: { style: "pop" | "karaoke" | "boxed"; maxWords: number; position?: number; uppercase?: boolean };
+  captions: { style: "pop" | "karaoke" | "boxed" | "subtitle" | "none"; maxWords: number; position?: number; uppercase?: boolean };
   progressBar: boolean;
-  music: { src: string | null; volume: number };
+  music: { volume: number; segments: MusicSegment[] };
   sfx: boolean;
+  transitions: "scene" | "chapter" | "none";
+  showChapterCards: boolean;
+  chapters: Chapter[];
   scenes: Scene[];
   words: Word[];
 };

@@ -12,7 +12,7 @@
     "timeline": "node scripts/build-timeline.mjs",
     "audio": "node scripts/gen-audio.mjs",
     "studio": "remotion studio src/index.ts",
-    "render": "remotion render src/index.ts Faceless out/video.mp4 --codec h264 --crf 18 --overwrite",
+    "render": "node scripts/render.mjs",
     "check": "node scripts/check.mjs"
   },
   "dependencies": {

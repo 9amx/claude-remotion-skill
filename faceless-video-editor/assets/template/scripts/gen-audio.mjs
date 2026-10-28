@@ -1,12 +1,12 @@
-// Synthesize a royalty-free music bed (sized to the video) and an SFX kit.
-// Zero downloads, deterministic. Skipped for the bed when music.file is set.
-//   public/audio/bed.wav    mood: calm | tense | upbeat
+// Synthesize royalty-free music loops and an SFX kit.
+// Zero downloads, deterministic. Music skipped when music.file is set.
+//   public/audio/bed-<mood>.wav  mood: calm | tense | upbeat (one per mood in use)
 //   public/audio/whoosh.wav scene transitions
 //   public/audio/hit.wav    hook impact on frame 0
 //   public/audio/pop.wav    emphasis text landing
 import fs from "node:fs";
 import path from "node:path";
-import { PUBLIC, fail, log, readJson, readProject } from "./lib.mjs";
+import { PUBLIC, fail, log, readJson } from "./lib.mjs";
 
 const SR = 44100;
 const OUT = path.join(PUBLIC, "audio");
@@ -71,12 +71,15 @@ function wav(samples) {
   fs.writeFileSync(path.join(OUT, "pop.wav"), wav(out));
 }
 
-// ---------- music bed ----------
-const project = readProject();
+// ---------- music beds ----------
+// One seamless loop per mood used in the timeline (bed-<mood>.wav), a whole
+// number of chord cycles up to ~2 minutes. The composition loops it and does
+// the fades, so a 40 minute video costs the same as a 40 second one.
 const timeline = readJson(path.join(PUBLIC, "timeline.json"), null);
-if (!timeline) fail("Run build-timeline first (the bed is sized to the video).");
-if (timeline.music.src !== "audio/bed.wav") {
-  log("audio", "SFX written; music bed skipped (using music.file or mood none).");
+if (!timeline) fail("Run build-timeline first (beds are sized to the video).");
+const moods = [...new Set(timeline.music.segments.map((m) => m.mood).filter(Boolean))];
+if (!moods.length) {
+  log("audio", "SFX written; no synthesized music needed (music.file set or mood none).");
   process.exit(0);
 }
 
@@ -86,31 +89,31 @@ const MOODS = {
   tense: { bpm: 100, chords: [[50, 53, 57], [50, 53, 58], [46, 50, 53], [45, 49, 52]], kick: true, hat: false, pluck: "pulse" },
   upbeat: { bpm: 118, chords: [[60, 64, 67], [55, 59, 62], [57, 60, 64], [53, 57, 60]], kick: true, hat: true, pluck: "arp" },
 };
-const mood = MOODS[project.music.mood] ?? MOODS.calm;
-const total = timeline.durationInFrames / timeline.fps + 1.5;
-const N = secs(total), out = new Float32Array(N);
-const beat = 60 / mood.bpm, bar = beat * 4;
 
-for (let i = 0; i < N; i++) {
-  const t = i / SR;
-  const chord = mood.chords[Math.floor(t / (bar * 2)) % mood.chords.length];
-  const inBar = (t % (bar * 2)) / (bar * 2);
-  // pad: two detuned sines per note, slow swell per chord
-  const swell = Math.min(1, inBar * 6) * (1 - Math.max(0, inBar - 0.9) * 6);
-  let s = 0;
-  for (const n of chord) s += Math.sin(2 * Math.PI * hz(n) * t) + Math.sin(2 * Math.PI * hz(n) * 1.004 * t);
-  s *= 0.05 * swell;
-  // sub bass on the root
-  s += Math.sin(2 * Math.PI * hz(chord[0] - 12) * t) * 0.16 * swell;
-  // rhythmic layer
-  const eighth = beat / 2, te = t % eighth, step = Math.floor(t / eighth);
-  if (mood.pluck === "pulse") s += Math.sin(2 * Math.PI * hz(chord[0]) * t) * Math.exp(-te * 22) * 0.12;
-  else s += Math.sin(2 * Math.PI * hz(chord[step % chord.length] + 12) * t) * Math.exp(-te * 14) * 0.06;
-  const tb = t % beat;
-  if (mood.kick) s += Math.sin(2 * Math.PI * (45 + 80 * Math.exp(-tb * 35)) * tb) * Math.exp(-tb * 9) * 0.35;
-  if (mood.hat && step % 2 === 1) s += rand() * Math.exp(-te * 90) * 0.05;
-  // fade in / out
-  out[i] = s * Math.min(1, t / 0.6) * Math.min(1, (total - t) / 1.5);
+for (const name of moods) {
+  const mood = MOODS[name] ?? MOODS.calm;
+  const beat = 60 / mood.bpm, bar = beat * 4, cycle = bar * 2 * mood.chords.length;
+  const longest = Math.max(...timeline.music.segments.filter((m) => m.mood === name).map((m) => m.durationInFrames / timeline.fps));
+  const total = Math.max(1, Math.ceil(Math.min(longest, 120) / cycle)) * cycle;
+  const N = secs(total), out = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    const t = i / SR;
+    const chord = mood.chords[Math.floor(t / (bar * 2)) % mood.chords.length];
+    const inBar = (t % (bar * 2)) / (bar * 2);
+    // pad: two detuned sines per note, swell per chord (silent at chord edges, so the loop point is seamless)
+    const swell = Math.min(1, inBar * 6) * Math.min(1, (1 - inBar) * 8);
+    let s = 0;
+    for (const n of chord) s += Math.sin(2 * Math.PI * hz(n) * t) + Math.sin(2 * Math.PI * hz(n) * 1.004 * t);
+    s *= 0.05 * swell;
+    s += Math.sin(2 * Math.PI * hz(chord[0] - 12) * t) * 0.16 * swell;
+    const eighth = beat / 2, te = t % eighth, step = Math.floor(t / eighth);
+    if (mood.pluck === "pulse") s += Math.sin(2 * Math.PI * hz(chord[0]) * t) * Math.exp(-te * 22) * 0.12;
+    else s += Math.sin(2 * Math.PI * hz(chord[step % chord.length] + 12) * t) * Math.exp(-te * 14) * 0.06;
+    const tb = t % beat;
+    if (mood.kick) s += Math.sin(2 * Math.PI * (45 + 80 * Math.exp(-tb * 35)) * tb) * Math.exp(-tb * 9) * 0.35;
+    if (mood.hat && step % 2 === 1) s += rand() * Math.exp(-te * 90) * 0.05;
+    out[i] = s;
+  }
+  fs.writeFileSync(path.join(OUT, `bed-${name}.wav`), wav(out));
+  log("audio", `music loop: ${name} @ ${mood.bpm} BPM, ${total.toFixed(1)}s`);
 }
-fs.writeFileSync(path.join(OUT, "bed.wav"), wav(out));
-log("audio", `music bed: ${project.music.mood} @ ${mood.bpm} BPM, ${total.toFixed(1)}s`);

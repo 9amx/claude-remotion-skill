@@ -1,6 +1,7 @@
 // Word-synced captions, 1-4 words per page, active word highlighted.
 // Styles: pop (outlined, active word colored + scaled), karaoke (unspoken
-// words dimmed), boxed (active word on a colored pill).
+// words dimmed), boxed (active word on a colored pill), subtitle (long form:
+// calm sentence-case line at the bottom, no per-word motion), none.
 import { useMemo } from "react";
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import { clamp, springs, type Style } from "../theme";
@@ -41,19 +42,38 @@ export const Captions: React.FC<{ timeline: Timeline; style: Style }> = ({ timel
   const { fps, width, height } = useVideoConfig();
   const portrait = height > width;
   const cfg = timeline.captions;
-  const maxChars = portrait ? 18 : 30;
+  const kind = cfg.style ?? "pop";
+  const subtitle = kind === "subtitle";
+  const maxChars = subtitle ? (portrait ? 32 : 52) : portrait ? 18 : 30;
   const pages = useMemo(() => paginate(timeline.words, cfg.maxWords ?? 3, maxChars), [timeline.words, cfg.maxWords, maxChars]);
 
   const ms = (frame / fps) * 1000;
   const page = pages.find((p) => ms >= p.startMs && ms < p.endMs);
-  if (!page) return null;
+  if (!page || kind === "none") return null;
+  const toF = (t: number) => Math.round((t / 1000) * fps);
+
+  if (subtitle) {
+    const fontSize = portrait ? width * 0.052 : height * 0.044;
+    const p = spring({ frame: frame - toF(page.startMs), fps, config: springs.snappy });
+    const out = page.fadeOut ? interpolate(frame, [toF(page.endMs) - 4, toF(page.endMs)], [1, 0], clamp) : 1;
+    return (
+      <AbsoluteFill style={{ pointerEvents: "none", alignItems: "center" }}>
+        <div style={{
+          position: "absolute", top: (cfg.position ?? (portrait ? 0.7 : 0.86)) * height, maxWidth: width * 0.8,
+          transform: `translateY(-50%) translateY(${interpolate(p, [0, 1], [8, 0])}px)`, opacity: Math.min(p, out),
+          padding: `${fontSize * 0.18}px ${fontSize * 0.45}px`, borderRadius: fontSize * 0.25, background: "rgba(0,0,0,0.55)",
+          fontFamily: style.fonts.caption, fontWeight: 600, fontSize, lineHeight: 1.25, color: style.colors.text, textAlign: "center",
+        }}>
+          {page.words.map((w) => w.text).join(" ")}
+        </div>
+      </AbsoluteFill>
+    );
+  }
 
   const upper = cfg.uppercase ?? style.uppercase;
-  const kind = cfg.style ?? "pop";
   const chars = page.words.reduce((n, w) => n + w.text.length + 1, 0);
   const base = portrait ? width * 0.088 : width * 0.046;
   const fontSize = Math.min(base, (width * 0.86) / (chars * 0.62));
-  const toF = (t: number) => Math.round((t / 1000) * fps);
 
   const enter = spring({ frame: frame - toF(page.startMs), fps, config: springs.snappy });
   const exit = page.fadeOut ? interpolate(frame, [toF(page.endMs) - 4, toF(page.endMs)], [1, 0], clamp) : 1;

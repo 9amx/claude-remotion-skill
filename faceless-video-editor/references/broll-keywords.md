@@ -32,16 +32,18 @@ use for the CTA or for a big-number `emphasis` scene.
 
 ## Fixing a bad clip
 
-Look at the contact sheet. For a wrong shot: change that keyword in
-project.json, delete the matching `public/broll/sNN-K-*.mp4`, then
-`node scripts/auto.mjs --from=broll`. Search results are cached in
-`build/search-cache/`; a changed keyword is a new search. Already-used clip IDs
-are skipped automatically, so the same clip won't appear twice in one video.
+Look at the contact sheet. For a wrong shot, change that keyword in
+project.json and run `node scripts/auto.mjs --from=broll`: a changed keyword
+gets a new search, every other shot keeps its clip, and the unused file is
+deleted. To re-roll a shot with the *same* keyword, delete its file (the path
+is in `build/broll.json` under the scene id) and re-run. Search results are
+cached in `build/search-cache/`, and a clip is never used twice in one video.
 
 ## Free API keys
 
 - Pexels: https://www.pexels.com/api/ - instant, 200 req/hour. Best portrait library.
-- Pixabay: https://pixabay.com/api/docs/ - instant. Mostly landscape; good fallback.
+- Pixabay: https://pixabay.com/api/docs/ - instant, 100 req/minute. Mostly landscape;
+  the workhorse for long form.
 
 Both are free for commercial use; `build/credits.txt` lists the creators so you
 can credit them in the description (appreciated, not required).

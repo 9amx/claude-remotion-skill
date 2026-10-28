@@ -2,7 +2,7 @@
 """Generate one voiceover clip per scene, with word-level timestamps.
 
 Writes public/vo/<scene>.mp3 and build/vo/<scene>.json:
-  {"audio": "vo/s01.mp3", "durationMs": 3120, "words": [{"text", "startMs", "endMs"}]}
+  {"audio": "vo/s001.mp3", "durationMs": 3120, "words": [{"text", "startMs", "endMs"}]}
 
 Providers (project.json -> voice.provider):
   edge        free Microsoft neural voices, real word timestamps   (pip install edge-tts)
@@ -12,6 +12,8 @@ Providers (project.json -> voice.provider):
   file        your own recording -> use `npm run transcribe` instead of this script
 
 Unchanged scenes are cached, so editing one line only re-voices that line.
+Scenes are voiced in parallel (voice.concurrency, default 4) so a 40 minute,
+400 scene script takes minutes, not an hour.
 """
 import asyncio
 import base64
@@ -22,7 +24,9 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 VO_AUDIO = os.path.join(ROOT, "public", "vo")
@@ -39,7 +43,7 @@ def die(msg):
 
 
 def scene_id(i):
-    return f"s{i + 1:02d}"
+    return f"s{i + 1:03d}"
 
 
 def tokens(text):
@@ -208,8 +212,12 @@ def main():
     os.makedirs(VO_AUDIO, exist_ok=True)
     os.makedirs(VO_DATA, exist_ok=True)
     wpm = float(voice_cfg.get("wpm", 165))
+    # Long form: scenes live inside chapters. Same order as scripts/lib.mjs.
+    scenes = project.get("scenes") or [s for ch in project.get("chapters", []) for s in ch.get("scenes", [])]
+    if not scenes:
+        die("project.json has no scenes.")
 
-    for i, scene in enumerate(project["scenes"]):
+    def voice_scene(i, scene):
         sid = scene_id(i)
         text = scene["text"].strip()
         key = hashlib.sha1(json.dumps([voice_cfg, text], sort_keys=True).encode()).hexdigest()[:12]
@@ -219,20 +227,33 @@ def main():
             with open(data_path) as f:
                 cached = json.load(f)
             if cached.get("key") == key and (cached["audio"] is None or os.path.exists(mp3_path)):
-                log(f"{sid} cached")
-                continue
+                return False
 
         if provider == "none":
             total = int(len(tokens(text)) / wpm * 60_000) + 250
             words, audio = estimate_words(text, total), None
         else:
-            words = PROVIDERS[provider](text, voice_cfg, mp3_path)
+            for attempt in range(4):
+                try:
+                    words = PROVIDERS[provider](text, voice_cfg, mp3_path)
+                    break
+                except Exception as e:  # transient 429/503/network: back off and retry
+                    if attempt == 3:
+                        die(f"{sid}: {provider} failed after 4 tries: {e}")
+                    log(f"{sid} retry {attempt + 1} ({e})")
+                    time.sleep(2 ** (attempt + 1))
             total = probe_duration_ms(mp3_path) or (words[-1]["endMs"] + 250)
             audio = f"vo/{sid}.mp3"
 
         with open(data_path, "w") as f:
             json.dump({"key": key, "audio": audio, "durationMs": total, "words": words}, f, indent=1)
         log(f"{sid} {total / 1000:.2f}s  \"{text[:60]}{'...' if len(text) > 60 else ''}\"")
+        return True
+
+    workers = 1 if provider == "none" else int(voice_cfg.get("concurrency", 4))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        done = list(pool.map(lambda a: voice_scene(*a), enumerate(scenes)))
+    log(f"{sum(done)} voiced, {len(done) - sum(done)} cached, {len(done)} scenes")
 
 
 if __name__ == "__main__":

@@ -46,3 +46,22 @@ them. Rephrase or hyphenate. For `emphasis`, keep to 1-4 short words.
 Expected cost is ~0.5-2x realtime per CPU core. Pass render flags through
 `REMOTION_FLAGS`, e.g. `REMOTION_FLAGS="--concurrency=8"`, or
 `REMOTION_FLAGS="--scale=0.5"` for a quick draft.
+
+**Long form: "pexels rate limit reached"**
+Expected on big videos with Pexels only. Add `PIXABAY_API_KEY` and
+`"brollSources": ["pixabay", "pexels"]`, or re-run `--from=broll` in an hour
+(cached searches and existing clips are kept; only gaps are filled), or set
+`"brollMaxWaitMinutes": 60`.
+
+**Long form: render crashed halfway**
+Run `npm run auto -- --from=render` again. Finished parts in `out/parts/` are
+reused if nothing in their range or in `src/` changed.
+
+**Long form: a part re-renders every time**
+Something inside its range changes on every timeline build (e.g. B-roll
+re-picked because a file was deleted), or `src/` was edited. Changing only
+`--concurrency` does not invalidate parts; other `REMOTION_FLAGS` do.
+
+**Long form: disk filling up**
+`out/parts/` holds a second copy of the video until you delete it; `public/broll/`
+holds the trimmed clips. Both are safe to delete after delivery.

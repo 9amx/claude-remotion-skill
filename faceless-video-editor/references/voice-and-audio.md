@@ -32,16 +32,19 @@ Documentary / story: deeper male voice, rate `+0%`. Facts / lists: `+8%`.
 ## Own recording (`provider: "file"`)
 
 `npm run transcribe` (run by `auto`) compiles whisper.cpp once into `.whisper/`,
-transcribes, then splits the recording into the project's scenes in proportion
-to each scene's word count, snapping each cut to the longest pause nearby. Keep
-the project's scene texts close to what was actually said. Non-English: set
+transcribes, then splits the recording into the project's scenes by aligning
+the script's words to the transcript (robust to skipped lines, ad-libs and
+misheard words, so it holds over a 40 minute recording). It logs how much of
+the script matched; under 60% means project.json doesn't match the recording. Non-English: set
 `voice.language` (e.g. `"bn"`) - this switches to the multilingual `small` model.
 Override with `voice.whisperModel` (`medium` for best accuracy).
 
 ## Music
 
-- `music.mood`: `calm` | `tense` | `upbeat` -> synthesized royalty-free bed sized
-  to the video (`public/audio/bed.wav`). `"none"` = no music.
+- `music.mood`: `calm` | `tense` | `upbeat` -> synthesized royalty-free loop
+  (`public/audio/bed-<mood>.wav`, up to ~2 min, looped seamlessly). `"none"` = no
+  music. Long form: each chapter can set its own `mood`; moods crossfade at
+  chapter changes.
 - `music.file`: `"music/track.mp3"` (in `public/`) to use a real track instead.
   Only use tracks the user has rights to (YouTube Audio Library, licensed libraries).
 - `music.volume`: 0.08-0.15 under voice. The composition ducks to this level
