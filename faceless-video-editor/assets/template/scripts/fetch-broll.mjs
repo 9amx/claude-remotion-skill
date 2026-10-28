@@ -18,8 +18,8 @@
 // Review (accuracy): `node scripts/fetch-broll.mjs --review` downloads only small
 // thumbnails and writes build/review/<scene>-<shot>.jpg (candidates numbered 1-6,
 // left to right, top to bottom) + build/review.json. Look at them, then write the
-// winners to build/picks.json, e.g. {"s001-1": 3, "s004-2": 1}. The normal run uses
-// the picks. `--review=all` reviews every shot; by default only shots that matter
+// winners to build/picks.json, e.g. {"s001-1": 3, "s004-2": {"n": 1, "focus": "left"}}
+// (focus = which part of the picture survives the crop). The normal run uses the picks. `--review=all` reviews every shot; by default only shots that matter
 // most or that search is unsure about (hook, emphasis/reveal/split scenes, weak matches).
 //
 // Every downloaded clip is frame-checked (nearly black or green-screen -> next
@@ -37,6 +37,7 @@ const fmt = FORMATS[project.format];
 const KEYS = { pexels: process.env.PEXELS_API_KEY, pixabay: process.env.PIXABAY_API_KEY, openai: process.env.OPENAI_API_KEY };
 const stockSources = (project.brollSources ?? ["pexels", "pixabay"]).filter((s) => KEYS[s]);
 const archiveOn = project.archive !== false; // Wikimedia + NASA need no key
+const realOnly = project.footage === "real";
 const maxWaitMs = (project.brollMaxWaitMinutes ?? 0) * 60_000;
 const trim = project.trimBroll !== false;
 const UA = { "User-Agent": "faceless-video-editor/1.0 (https://github.com/9amx/claude-remotion-skill)" };
@@ -107,7 +108,7 @@ const SOURCES = {
     }).filter(Boolean);
   },
   async pixabay(query) {
-    const q = new URLSearchParams({ key: KEYS.pixabay, q: query.slice(0, 100), per_page: "50", safesearch: "true" });
+    const q = new URLSearchParams({ key: KEYS.pixabay, q: query.slice(0, 100), per_page: "50", safesearch: "true", ...(realOnly ? { video_type: "film" } : {}) });
     const data = await getJson("pixabay", `https://pixabay.com/api/videos/?${q}`);
     return data.hits.map((h) => {
       const f = pickRendition(Object.values(h.videos).filter((x) => x.url));
@@ -141,6 +142,8 @@ const SOURCES = {
       const lic = strip(meta.LicenseShortName?.value);
       // Only licences that allow commercial use and modification (we crop and zoom).
       if (!ii || !/^image\/(jpeg|png)$/.test(ii.mime) || !CC_OK.test(lic) || /\bNC\b|\bND\b|non-?commercial|no ?deriv/i.test(lic)) return null;
+      // Real-footage mode: photographs are JPEG on Commons; PNG is mostly diagrams and drawings.
+      if (realOnly && ii.mime !== "image/jpeg") return null;
       const title = p.title.replace(/^File:/, "").replace(/\.[a-z]+$/i, "");
       const src = ii.thumburl || ii.url;
       return { id: `wikimedia-${p.pageid}`, source: "wikimedia", kind: "image", url: src, ext: /png$/.test(ii.mime) ? "png" : "jpg",
@@ -170,6 +173,8 @@ const SOURCES = {
 // the tie-break. Green-screen / mockup / template clips are never usable.
 const STOP = new Set(["the", "and", "with", "for", "from", "into", "over", "close", "shot", "video", "footage", "photo", "image"]);
 const BLOCK = /green ?screen|chroma|mock-?up|template|alpha channel|lower third|placeholder/i;
+// Real-footage mode: nothing drawn, rendered or generated.
+const NOT_REAL = /\b(animation|animated|cartoon|3d|render(ed|ing)?|cgi|illustration|illustrated|vector|clip ?art|motion graphics?|infographic|ai[- ]generated|generative|drawing|painting|sketch|diagram|schematic|chart|graph|logo|icon|svg|artist'?s (concept|impression|rendering)|concept art)\b/i;
 const wordsOf = (q) => q.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 2 && !STOP.has(w));
 const relevance = (query, text) => {
   const words = wordsOf(query), t = text.toLowerCase();
@@ -181,7 +186,7 @@ const factual = (q) => /\b(1[5-9]\d\d|20\d\d)\b/.test(q) || /\s[A-Z][a-z]/.test(
 
 function rank(cands, query, minSec) {
   return cands
-    .filter((c) => !used.has(c.id) && !BLOCK.test(c.text))
+    .filter((c) => !used.has(c.id) && !BLOCK.test(c.text) && !(realOnly && NOT_REAL.test(c.text)))
     .map((c, i) => {
       const rel = relevance(query, c.text);
       const archive = c.source === "wikimedia" || c.source === "nasa";
@@ -192,9 +197,29 @@ function rank(cands, query, minSec) {
     .sort((a, b) => b.score - a.score);
 }
 
-// All candidates for a keyword, best first. Stops querying sources once there are
-// enough relevant ones, so rate-limited APIs aren't hit needlessly.
+// All candidates for a keyword, best first. If nothing relevant turns up, the
+// query is relaxed (trailing words dropped, then archive-only) before giving up,
+// so a too-specific keyword still finds real footage.
 async function candidatesFor(keyword, minSec, want = 6) {
+  const prefix = keyword.match(/^(photo|archive):/)?.[0] ?? "";
+  const words = keyword.slice(prefix.length).trim().split(/\s+/);
+  const tries = [keyword];
+  for (let n = words.length - 1; n >= 2; n--) tries.push(prefix + words.slice(0, n).join(" "));
+  if (prefix !== "archive:" && archiveOn) tries.push(`archive:${words.join(" ")}`);
+  for (const [t, q] of tries.entries()) {
+    const found = await searchOnce(q, minSec, want);
+    // Accept when something actually matches what was asked (a weaker match only on the last try).
+    if (found.some((c) => c.rel >= 0.5) || (t === tries.length - 1 && found.length)) {
+      if (t > 0) log("broll", `"${keyword}" had no good match; used "${q}"`);
+      return found;
+    }
+  }
+  return [];
+}
+
+// One query across the applicable sources. Stops once there are enough relevant
+// candidates, so rate-limited APIs aren't hit needlessly.
+async function searchOnce(keyword, minSec, want) {
   const mode = keyword.match(/^(photo|archive):/)?.[1] ?? "auto";
   const query = keyword.replace(/^(photo|archive):/, "").trim();
   const archive = archiveOn ? ["wikimedia", "nasa"] : [];
@@ -349,6 +374,7 @@ if (reviewArg) {
   for (const [i, scene] of project.scenes.entries()) {
     const { id, nShots, shotSec, keywords } = shotsOf(scene, i);
     const important = i === 0 || scene.emphasis || [].concat(scene.fx ?? []).includes("reveal") || scene.layout === "split";
+    const isArchive = (c) => c.source === "wikimedia" || c.source === "nasa";
     for (let k = 0; k < nShots; k++) {
       const kw = keywords.length ? keywords[k % keywords.length] : null;
       if (!kw || scene.visual === "kinetic" || /^(file|ai):/.test(kw)) continue;
@@ -356,7 +382,9 @@ if (reviewArg) {
       const cands = (await candidatesFor(kw, shotSec)).slice(0, 6);
       if (!cands.length) continue;
       // Default: review the hook, emphasis/reveal/split scenes and weak matches only.
-      if (!reviewAll && !important && cands[0].rel >= 0.67) continue;
+      // Real-footage mode is stricter: anything short of a full keyword match is reviewed.
+      // Archive images are always reviewed: text can't tell a photo from a drawing.
+      if (!reviewAll && !important && !isArchive(cands[0]) && cands[0].rel >= (realOnly ? 1 : 0.67)) continue;
       // Normalize every thumbnail to the same 320x320 tile, then lay them out 3x2.
       for (const [n, c] of cands.entries()) {
         const raw = path.join(dir, `${key}-raw${n + 1}`), tile = path.join(dir, `${key}-t${n + 1}.jpg`);
@@ -384,8 +412,12 @@ if (reviewArg) {
 // Review picks: reserve every picked clip first (the first shot to pick a clip
 // gets it), and release clips that picks are replacing, so a clip can move from
 // one shot to another. Everything else already on screen stays reserved.
+// A pick is a number (1-6), a candidate id, or {"n": 1, "focus": "left"} to choose
+// which part of the picture survives the crop.
+const pickN = (v) => (v && typeof v === "object" ? v.n ?? v.id : v);
+const pickFocus = (v) => (v && typeof v === "object" && ["center", "left", "right", "top", "bottom"].includes(v.focus) ? v.focus : null);
 const pickFor = (key, kw) => {
-  const rv = review[key], n = picks[key];
+  const rv = review[key], n = pickN(picks[key]);
   return n != null && rv?.keyword === kw ? rv.candidates.find((c) => c.n === Number(n) || c.id === n)?.hit ?? null : null;
 };
 const pickedBy = new Map();
@@ -405,6 +437,7 @@ for (const pid of pickedBy.keys()) used.add(pid);
 
 const plan = {};
 const jobs = [];
+const missing = [];
 for (const [i, scene] of project.scenes.entries()) {
   const { id, nShots, shotSec, keywords } = shotsOf(scene, i);
   plan[id] = [];
@@ -412,6 +445,9 @@ for (const [i, scene] of project.scenes.entries()) {
     const kw = keywords.length ? keywords[k % keywords.length] : null;
     const label = `${id} shot ${k + 1} "${kw}"`;
     if (scene.visual === "kinetic" || !kw) {
+      // An explicit visual: "kinetic" is a choice; a scene with no keywords in
+      // real-footage mode is a gap to fix.
+      if (realOnly && scene.visual !== "kinetic") missing.push(`${id} (no broll keywords)`);
       plan[id].push({ type: "kinetic" });
       continue;
     }
@@ -424,6 +460,12 @@ for (const [i, scene] of project.scenes.entries()) {
       continue;
     }
     if (kw.startsWith("ai:")) {
+      if (realOnly) {
+        log("broll", `${label}: ai: images are off in real-footage mode (footage: "real") - use archive:/photo:/a filmable keyword, or set "footage": "any"`);
+        missing.push(label);
+        plan[id].push({ type: "kinetic" });
+        continue;
+      }
       const prompt = kw.slice(3).trim();
       const shot = { type: "image", src: `broll/ai-${Buffer.from(prompt).toString("base64url").slice(0, 40)}.png`, duration: null, assetId: `ai-${prompt}`,
         keyword: kw, credit: "AI-generated image (OpenAI) - disclose as altered/synthetic content if it looks real" };
@@ -439,19 +481,21 @@ for (const [i, scene] of project.scenes.entries()) {
       picked = null;
     }
     const prev = keepPrev(id, k, kw);
+    const focus = picked ? pickFocus(picks[key]) : null;
     if (prev && (!picked || prev.assetId === picked.id)) {
-      plan[id].push(prev);
+      plan[id].push(focus ? { ...prev, focus } : prev);
       continue;
     }
     const hit = picked ?? (await candidatesFor(kw, shotSec))[0];
     if (!hit) {
-      log("broll", `${label}: nothing found -> kinetic`);
+      log("broll", `${label}: nothing found${realOnly ? "" : " -> kinetic"}`);
+      if (realOnly) missing.push(label);
       fellBack++;
       plan[id].push({ type: "kinetic" });
       continue;
     }
     used.add(hit.id);
-    const shot = shotFromHit(hit, kw);
+    const shot = { ...shotFromHit(hit, kw), ...(focus ? { focus } : {}) };
     plan[id].push(shot);
     jobs.push({ shot, hit, kw, shotSec, label, picked: !!picked });
   }
@@ -465,7 +509,8 @@ await Promise.all(
       try {
         await fetchJob(job);
       } catch (e) {
-        log("broll", `${job.label}: ${e.message} -> kinetic`);
+        log("broll", `${job.label}: ${e.message}${realOnly ? "" : " -> kinetic"}`);
+        if (realOnly) missing.push(job.label);
         Object.assign(job.shot, { type: "kinetic", src: undefined, duration: undefined, assetId: undefined, credit: undefined });
         fellBack++;
       }
@@ -494,4 +539,13 @@ if (credits.some((c) => /^AI-generated/.test(c))) log("broll", "AI images used: 
 if (exhausted.size && fellBack) {
   log("broll", `${fellBack} shots fell back because ${[...exhausted].join(", ")} hit a rate limit. ` +
     "Re-run `node scripts/auto.mjs --from=broll` later: finished searches and downloads are cached.");
+}
+
+// Real-footage mode never ships a placeholder: stop and say which shots need work.
+if (realOnly && missing.length) {
+  log("broll", `\x1b[31m${missing.length} shot(s) have no real footage:\x1b[0m`);
+  for (const m of missing) console.log(`    - ${m}`);
+  log("broll", 'Fix: rewrite those keywords (concrete, filmable, or archive: for real names/dates), add file: assets, ' +
+    'or wait out a rate limit; then re-run --from=broll. ("footage": "any" allows the animated fallback.)');
+  process.exit(1);
 }

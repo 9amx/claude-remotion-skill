@@ -58,7 +58,9 @@ export const Shot: React.FC<{ shot: ShotT; style: Style; seed: number }> = ({ sh
   const punch = interpolate(spring({ frame, fps, config: springs.punch }), [0, 1], [1.12, 1]);
   const kb = interpolate(frame, [0, shot.durationInFrames], shot.zoomIn ? [1, 1.08] : [1.08, 1], { ...clamp, easing: ease.inOut });
   const pan = interpolate(frame, [0, shot.durationInFrames], [0, seed % 2 ? -18 : 18], clamp);
-  const media: React.CSSProperties = { width: "100%", height: "100%", objectFit: "cover" };
+  // focus: which part of a wider/taller source survives the crop (set when picking).
+  const FOCUS = { center: "50% 50%", left: "0% 50%", right: "100% 50%", top: "50% 0%", bottom: "50% 100%" } as const;
+  const media: React.CSSProperties = { width: "100%", height: "100%", objectFit: "cover", objectPosition: FOCUS[shot.focus ?? "center"] };
 
   return (
     <AbsoluteFill style={{ overflow: "hidden" }}>

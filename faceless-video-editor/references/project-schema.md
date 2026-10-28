@@ -8,6 +8,7 @@
   "editStyle": "viral",              // viral | story | explainer | calm - pacing, transitions, zooms, SFX (see editing-playbook.md)
   "style": "bold",                   // colors/fonts: bold | documentary | minimal (default from editStyle)
   "targetSeconds": 35,               // lint compares the script's estimated length to this
+  "footage": "real",                 // real (default): only real filmed/photographed footage, stop on gaps | any
   "voice": {
     "provider": "edge",              // edge | elevenlabs | openai | file | none
     "voice": "en-US-AndrewNeural",   // provider-specific voice name / ID

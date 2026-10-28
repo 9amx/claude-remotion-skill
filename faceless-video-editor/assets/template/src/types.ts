@@ -12,6 +12,7 @@ export type Shot = {
   zoomIn: boolean;
   playbackRate?: number;
   trimBefore?: number;
+  focus?: "center" | "left" | "right" | "top" | "bottom";
 };
 
 export type Scene = {

@@ -142,6 +142,22 @@ is available in this session, or the user supplies files, use real sound:
    YouTube channel in their Epidemic account so uploads aren't claimed. Never
    download with someone else's account or use tracks after the subscription ends.
 
+## Real footage only (default)
+
+`"footage": "real"` is the default, because accuracy is the point of this skill:
+- Only real filmed or photographed footage. No `ai:` images; stock tagged as
+  animation, 3D, CGI, illustration, cartoon, vector, diagram or "artist's
+  concept" is filtered out; Wikimedia is limited to JPEG photographs; Pixabay
+  video to filmed footage.
+- No silent placeholders: if a shot finds nothing, the query is relaxed
+  automatically (trailing words dropped, then the archives). If still nothing,
+  the run STOPS and lists the shots - fix those keywords (concrete, filmable, or
+  `archive:` for real names / places / dates) or add `file:` assets. Never paper
+  over it with `visual: "kinetic"` except for a CTA.
+- Prefer real imagery of the actual subject over generic stock whenever the
+  line names something real: `archive:` first, stock second.
+- `"footage": "any"` turns all of this off (AI stills, animation, kinetic fallback).
+
 ## Step 3 - Set up, then pick the footage yourself
 
 ```bash
@@ -165,7 +181,12 @@ footage accurate:
    candidate's source/text). Pick the candidate that shows what the LINE says,
    not just the keyword. Reject green screens, watermarks, text-heavy frames,
    dark or blurry tiles, and anything that contradicts the line.
-2. Write the picks to `build/picks.json`: `{"s001-1": 3, "s002-2": 1}`.
+2. Write the picks to `build/picks.json`: `{"s001-1": 3, "s002-2": 1}`. If the
+   right content is only part of the picture (side-by-side images, a wide
+   panorama in a 9:16 Short), add a crop focus:
+   `{"s004-1": {"n": 1, "focus": "left"}}` (left / right / top / bottom / center).
+   Archive candidates are always on a sheet: text can't tell a photo from a
+   drawing, so check every archive pick is a real photograph.
 3. No candidate fits? Change that keyword in project.json instead: more concrete
    words, `archive:` for real people / places / events / dates (Wikimedia
    Commons + NASA), `photo:` for stills, `ai:<prompt>` for something that

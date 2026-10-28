@@ -52,6 +52,18 @@ use for the CTA or for a big-number `emphasis` scene.
 Still look at the contact sheet: relevance scoring can't see that a "phone
 settings" clip shows lipstick.
 
+## Real-footage mode (default)
+
+With `"footage": "real"` the fetcher drops anything drawn, rendered or generated
+(animation, 3D, CGI, illustration, cartoon, vector, diagram, artist's concept),
+takes only JPEG photographs from Wikimedia and filmed footage from Pixabay, and
+refuses `ai:`. A keyword with no real match is relaxed automatically ("brain scan
+animation" -> "brain scan", then archive); if nothing real exists the run stops
+and lists the shot instead of inserting a placeholder.
+
+Crop focus: when only part of a picture is right, pick it with
+`{"n": 2, "focus": "left"}` in `build/picks.json` (left / right / top / bottom).
+
 ## Fixing a bad clip
 
 Look at the contact sheet. For a wrong shot, change that keyword in

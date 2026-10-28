@@ -62,6 +62,11 @@ export function readProject() {
   p.punchIns = p.punchIns ?? es.punchIns;
   p.hookShake = p.hookShake ?? es.hookShake;
   p.sfxLevel = p.sfx === false ? 0 : (p.sfxLevel ?? es.sfx);
+  // "real" (default): only real filmed / photographed footage - no AI images, no
+  // CGI / animation / illustration stock, and no silent fallback to the animated
+  // background when nothing is found. "any" allows all of those.
+  p.footage = p.footage || "real";
+  if (!["real", "any"].includes(p.footage)) fail('footage must be "real" or "any".');
   return p;
 }
 

@@ -75,7 +75,7 @@ const ABSTRACT = /^(success|motivation|happiness|love|life|time|money|business|f
 const kwCount = new Map();
 p.scenes.forEach((s, i) => {
   if (s.visual === "kinetic") return;
-  if (!s.broll?.length) warnings.push(`${at(i)}: no broll keywords - this scene will be the kinetic fallback.`);
+  if (!s.broll?.length && p.footage !== "real") warnings.push(`${at(i)}: no broll keywords - this scene will be the kinetic fallback.`);
   for (const k of s.broll ?? []) {
     if (k.startsWith("file:")) continue;
     const q = k.replace(/^photo:/, "").trim();
@@ -86,7 +86,13 @@ p.scenes.forEach((s, i) => {
   if (s.layout === "split" && (s.broll?.length ?? 0) < 2) warnings.push(`${at(i)}: split layout needs two broll entries (left/top and right/bottom).`);
 });
 const aiShots = p.scenes.flatMap((sc) => sc.broll ?? []).filter((k) => k.startsWith("ai:")).length;
-if (aiShots) notes.push(`${aiShots} ai: images: fine for illustration; never to depict a real event or person. Tick YouTube's altered/synthetic disclosure if they look real.`);
+if (p.footage === "real") {
+  if (aiShots) errors.push(`${aiShots} ai: keyword(s) in real-footage mode: replace with archive:, photo: or a filmable keyword (or set "footage": "any").`);
+  p.scenes.forEach((sc, i) => {
+    if (sc.visual === "kinetic") warnings.push(`${at(i)}: visual "kinetic" is an animated background, not real footage - fine for a CTA, nowhere else.`);
+    else if (!sc.broll?.length) errors.push(`${at(i)}: no broll keywords - real-footage mode needs real footage for every scene.`);
+  });
+} else if (aiShots) notes.push(`${aiShots} ai: images: fine for illustration; never to depict a real event or person. Tick YouTube's altered/synthetic disclosure if they look real.`);
 const realNoArchive = p.scenes.flatMap((sc) => sc.broll ?? []).filter((k) => !/^(archive|photo|file|ai):/.test(k) && (/\b(1[5-9]\d\d|20\d\d)\b/.test(k) || /\s[A-Z][a-z]/.test(k)));
 if (realNoArchive.length) notes.push(`keywords naming real things (${realNoArchive.slice(0, 3).map((k) => `"${k}"`).join(", ")}): consider archive: for accurate imagery (Wikimedia/NASA).`);
 for (const [k, n] of kwCount) if (n > (shorts ? 3 : 8)) warnings.push(`keyword "${k}" used ${n} times - viewers notice repeated footage. Vary it.`);
