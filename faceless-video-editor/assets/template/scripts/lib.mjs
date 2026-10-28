@@ -9,6 +9,13 @@ export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 export const PUBLIC = path.join(ROOT, "public");
 export const BUILD = path.join(ROOT, "build");
 
+// Remotion's CLI run through node directly: `npx` is a .cmd file on Windows,
+// which newer Node versions refuse to spawn without a shell.
+export const REMOTION = [process.execPath, path.join(ROOT, "node_modules", "@remotion", "cli", "remotion-cli.js")];
+export const remotionCmd = (args) => [REMOTION[0], [REMOTION[1], ...args]];
+// "python3" on macOS/Linux, usually "python" (or the "py" launcher) on Windows.
+export const PYTHON = ["python3", "python", "py"].find((c) => spawnSync(c, ["--version"], { encoding: "utf8" }).status === 0) ?? "python3";
+
 export const FORMATS = {
   shorts: { width: 1080, height: 1920, orientation: "portrait" },
   landscape: { width: 1920, height: 1080, orientation: "landscape" },
@@ -35,7 +42,7 @@ export function readProject() {
     p.chapters = [{ title: p.title ?? "" }];
     p.scenes = (p.scenes || []).map((s, k) => ({ ...s, chapter: 0, chapterStart: k === 0 }));
   }
-  p.chapters = p.chapters.map((ch) => ({ title: ch.title ?? "", mood: ch.mood ?? p.music.mood }));
+  p.chapters = p.chapters.map((ch) => ({ title: ch.title ?? "", mood: ch.mood ?? p.music.mood, music: ch.music ?? null }));
   if (p.scenes.length === 0) fail("project.json needs a non-empty scenes (or chapters[].scenes) array.");
   const long = p.format !== "shorts";
   p.fps = p.fps || 30;
@@ -72,6 +79,27 @@ export const TRANSITIONS = ["whip", "zoom", "glitch", "flash", "dip", "fade", "c
 export const LOOKS = ["normal", "flashback", "dramatic", "night", "vhs", "dream"];
 export const FX = ["shake", "freeze", "reveal", "punch"];
 
+// Sound you supply (e.g. downloaded from Epidemic Sound) always wins over the
+// synthesized kit. Drop files in public/sfx/ named after the slot, with optional
+// variants that rotate so repeated cuts don't sound identical:
+//   public/sfx/whoosh-1.mp3, whoosh-2.mp3, hit.wav, riser.mp3, ...
+export const SFX_NAMES = ["hit", "whoosh", "pop", "riser", "scratch", "glitch", "tick"];
+const AUDIO_EXT = /\.(mp3|wav|m4a|aac|ogg|flac)$/i;
+export function userSfx() {
+  const dir = path.join(PUBLIC, "sfx");
+  const out = {};
+  if (!fs.existsSync(dir)) return out;
+  for (const f of fs.readdirSync(dir).sort()) {
+    const m = /^([a-z]+)(-\d+)?\.[a-z0-9]+$/i.exec(f);
+    if (m && AUDIO_EXT.test(f) && SFX_NAMES.includes(m[1].toLowerCase())) (out[m[1].toLowerCase()] ??= []).push(f);
+  }
+  return out;
+}
+// Normalized copies of user sound live in public/audio/user/ (built by gen-audio).
+export const stem = (f) => path.basename(f).replace(/\.[^.]+$/, "");
+export const userSfxPath = (file) => `audio/user/sfx-${stem(file)}.wav`;
+export const userMusicPath = (file) => `audio/user/music-${stem(file)}.m4a`;
+
 // Script markup: *word* marks a word to highlight (accent color, punch-in zoom).
 // The asterisks never reach the voice.
 export const stripMarkup = (text) => text.replace(/\*/g, "");
@@ -92,7 +120,7 @@ export function probeDuration(file) {
   const args = ["-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", file];
   let r = spawnSync("ffprobe", args, { encoding: "utf8" });
   if (r.status !== 0 || !r.stdout.trim()) {
-    r = spawnSync("npx", ["remotion", "ffprobe", ...args], { encoding: "utf8", cwd: ROOT });
+    r = spawnSync(...remotionCmd(["ffprobe", ...args]), { encoding: "utf8", cwd: ROOT });
   }
   const d = parseFloat((r.stdout || "").trim().split("\n").pop());
   return Number.isFinite(d) ? d : null;
@@ -104,10 +132,18 @@ export function hasCommand(cmd) {
 
 // System ffmpeg if installed, else the one bundled with Remotion.
 export function ffmpeg(args, { capture = false } = {}) {
-  const cmd = hasCommand("ffmpeg") ? ["ffmpeg"] : ["npx", "remotion", "ffmpeg"];
-  return spawnSync(cmd[0], [...cmd.slice(1), "-y", "-v", capture ? "info" : "error", ...args], {
+  const ffArgs = ["-y", "-v", capture ? "info" : "error", ...args];
+  const [cmd, cmdArgs] = hasCommand("ffmpeg") ? ["ffmpeg", ffArgs] : remotionCmd(["ffmpeg", ...ffArgs]);
+  return spawnSync(cmd, cmdArgs, {
     cwd: ROOT, encoding: "utf8", stdio: capture ? "pipe" : "inherit", maxBuffer: 64 * 1024 * 1024,
   });
+}
+
+// Raw decoded output (e.g. a few RGB frames) as a Buffer.
+export function ffmpegRaw(args) {
+  const [cmd, cmdArgs] = hasCommand("ffmpeg") ? ["ffmpeg", ["-v", "error", ...args]] : remotionCmd(["ffmpeg", "-v", "error", ...args]);
+  const r = spawnSync(cmd, cmdArgs, { cwd: ROOT, maxBuffer: 64 * 1024 * 1024 });
+  return r.status === 0 ? r.stdout : null;
 }
 
 export const sha1 = (s) => createHash("sha1").update(s).digest("hex").slice(0, 12);

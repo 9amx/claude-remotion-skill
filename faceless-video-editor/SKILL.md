@@ -99,20 +99,90 @@ keys and `"brollSources": ["pixabay", "pexels"]` - Pexels alone hits its hourly
 limit on a 40 minute video (re-running `--from=broll` fills the gaps).
 Template: `assets/template/project.longform.example.json`.
 
-## Step 3 - Set up and run
+## Music and SFX from a pro library (Epidemic Sound connector)
+
+Synthesized music and SFX are a fallback. If an Epidemic Sound connector (MCP)
+is available in this session, or the user supplies files, use real sound:
+
+1. **Music**: search by the video's mood, genre and energy (e.g. "dark
+   suspense documentary underscore", "upbeat lo-fi", "inspiring piano"), prefer
+   instrumental / no vocals under narration, and ask for a version close to the
+   video length (the connector can make length-adjusted or looping versions).
+   Download into `public/music/` and set `"music": {"file": "music/<name>.mp3"}`.
+   Flow with the connector: search recordings (filter `vocals: false`) ->
+   create an edit with `targetDurationMs` = the video length (max 5 minutes;
+   poll the job, usually done in seconds) -> download the edit. For anything
+   longer use one track per chapter, or `loopable: true`. Download links are
+   signed and expire: fetch the file (e.g. `curl -L -o public/music/x.mp3 "<url>"`)
+   right after getting the link.
+   Long form: one track per chapter mood, `chapters[].music: "music/<name>.mp3"`;
+   they crossfade at chapter changes.
+2. **SFX**: download 1-3 variants per slot into `public/sfx/` named
+   `<slot>.mp3` or `<slot>-1.mp3`, `<slot>-2.mp3` (variants rotate so repeated
+   cuts don't sound identical). Slots and good searches:
+   | slot | plays on | search for |
+   |---|---|---|
+   | `whoosh` | whip/zoom/flash transitions | "whoosh transition fast", "swoosh short" |
+   | `hit` | frame 0, reveals | "cinematic impact boom", "hit deep" |
+   | `riser` | before a reveal (~1.2s) | "riser short tension build" |
+   | `pop` | emphasis text landing | "pop ui", "text appear" |
+   | `scratch` | freeze frames | "record scratch" |
+   | `glitch` | glitch transitions | "glitch digital short" |
+   | `tick` | highlighted words | "click soft ui" |
+   Prefer short, punchy files (whoosh/pop/tick under ~1.5s, riser ~1-2s). The
+   pipeline measures each file's loudest moment and lines THAT up with the
+   cut / word / reveal, so where the peak sits inside the file doesn't matter.
+   Any slot without a file uses the synthesized one.
+3. The `audio` step normalizes everything (SFX peaks to -1 dB, music to -14 LUFS)
+   so `sfxLevel` and `music.volume` behave the same with any source, and
+   measures where each SFX peaks. Nothing in `public/sfx/` or `public/music/` is
+   ever overwritten.
+4. Licensing: downloads are covered by the user's active subscription (a
+   Business plan also covers client work). Remind the user to connect their
+   YouTube channel in their Epidemic account so uploads aren't claimed. Never
+   download with someone else's account or use tracks after the subscription ends.
+
+## Step 3 - Set up, then pick the footage yourself
 
 ```bash
 cp -r <this-skill>/assets/template ./my-video && cd my-video
 npm install
 pip install edge-tts            # free TTS; skip if using elevenlabs/openai/file
-# write project.json (Step 2)
-export PEXELS_API_KEY=...       # free at pexels.com/api - strongly recommended
-npm run auto
+# write project.json (Step 2); keys come from the user's environment:
+# PIXABAY_API_KEY / PEXELS_API_KEY (stock), OPENAI_API_KEY (ai: images, optional)
+node scripts/auto.mjs --review
 ```
-`npm run auto` runs every step and prints what it did. Re-run from a step with
-`node scripts/auto.mjs --from=broll` (steps: lint, voice, broll, timeline, audio,
-render, master, check). Voiceover and downloads are cached, so editing one
-scene's text only re-voices that scene.
+`--review` runs lint and the voiceover, then builds **candidate sheets** in
+`build/review/<scene>-<shot>.jpg`: up to 6 options per shot, numbered 1-6 left to
+right, top to bottom, from every source that fits the keyword. By default it
+covers the shots that matter most or that search is unsure about (the hook,
+emphasis / reveal / split scenes, weak matches); `node scripts/fetch-broll.mjs
+--review=all` covers every shot.
+
+**Do the picking yourself, without asking the user** - this is what makes the
+footage accurate:
+1. Look at every sheet (`build/review.json` has the keyword, the line and each
+   candidate's source/text). Pick the candidate that shows what the LINE says,
+   not just the keyword. Reject green screens, watermarks, text-heavy frames,
+   dark or blurry tiles, and anything that contradicts the line.
+2. Write the picks to `build/picks.json`: `{"s001-1": 3, "s002-2": 1}`.
+3. No candidate fits? Change that keyword in project.json instead: more concrete
+   words, `archive:` for real people / places / events / dates (Wikimedia
+   Commons + NASA), `photo:` for stills, `ai:<prompt>` for something that
+   can't be filmed (needs OPENAI_API_KEY; never for real events), or `file:` for
+   the user's own asset. Re-run `node scripts/fetch-broll.mjs --review` and
+   check the new sheet.
+4. Continue: `node scripts/auto.mjs --from=broll` (downloads, frame-checks,
+   renders, masters, checks).
+
+Without picks the fetcher still chooses automatically (relevance-scored, with
+black / green-screen clips rejected), so `npm run auto` works end to end; the
+review is how you get from "plausible" to "accurate". Re-run any step with
+`node scripts/auto.mjs --from=<step>` (lint, voice, broll, timeline, audio,
+render, master, check). Voice, searches and downloads are cached.
+
+CC BY / BY-SA archive images need attribution: the run says so - put
+`build/credits.txt` in the video description.
 
 User has their own recording? Put it in `public/`, set
 `"voice": {"provider": "file", "file": "my-voice.mp3"}` - the pipeline transcribes
@@ -120,8 +190,9 @@ it locally with whisper.cpp, splits it into the scenes and jump-cuts pauses
 over 0.4s (`voice.tightenPauses: false` to keep them).
 
 If the render can't download Chrome, set `REMOTION_BROWSER=/path/to/chrome`
-(Playwright's `chrome-headless-shell` works). No B-roll key? Shots fall back to an
-animated kinetic background - fine for a test, not for a real upload; tell the user.
+(Playwright's `chrome-headless-shell` works). No stock key? Archive photos and
+`file:` assets still work; other shots fall back to an animated kinetic
+background - fine for a test, not for a real upload; tell the user.
 
 ## Step 4 - VERIFY (mandatory, never skip)
 

@@ -91,7 +91,8 @@ for (let i = 0; i < sceneTokens.length; i++) {
   let durationMs = end - start;
   let timed = sw.map((w) => ({ text: w.text, startMs: w.startMs - start, endMs: w.endMs - start }));
   const t = maxPause ? tightenSegments(sw, start, end, maxPause) : null;
-  if (t && t.segments.length > 1) {
+  // Always cut with tightening on: it also trims dead air at the scene's edges.
+  if (t) {
     // atrim each kept segment, concat; short fades hide the joins.
     const parts = t.segments.map(([a, b], k) =>
       `[0:a]atrim=start=${(a / 1000).toFixed(3)}:end=${(b / 1000).toFixed(3)},asetpts=PTS-STARTPTS,afade=t=in:d=0.02,afade=t=out:st=${((b - a) / 1000 - 0.02).toFixed(3)}:d=0.02[p${k}]`);

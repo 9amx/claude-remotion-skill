@@ -57,7 +57,9 @@ def norm(word):
 
 
 def probe_duration_ms(path):
-    for cmd in (["ffprobe"], ["npx", "remotion", "ffprobe"]):
+    # System ffprobe, else Remotion's bundled one run through node (works on Windows too).
+    cli = os.path.join(ROOT, "node_modules", "@remotion", "cli", "remotion-cli.js")
+    for cmd in (["ffprobe"], [shutil.which("node") or "node", cli, "ffprobe"]):
         if cmd[0] == "ffprobe" and not shutil.which("ffprobe"):
             continue
         try:

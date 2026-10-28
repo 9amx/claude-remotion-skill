@@ -10,7 +10,7 @@
 //   public/audio/tick.wav   highlighted caption words
 import fs from "node:fs";
 import path from "node:path";
-import { PUBLIC, fail, log, readJson } from "./lib.mjs";
+import { PUBLIC, ffmpeg, fail, log, readJson, userMusicPath, userSfx, userSfxPath } from "./lib.mjs";
 
 const SR = 44100;
 const OUT = path.join(PUBLIC, "audio");
@@ -122,15 +122,77 @@ function wav(samples) {
   fs.writeFileSync(path.join(OUT, "tick.wav"), wav(out));
 }
 
+// ---------- your own sound (public/sfx/, music files) ----------
+// Pro libraries ship at very different levels; normalize so sfxLevel and
+// music.volume mean the same thing whatever the source. Cached by mtime.
+const timeline = readJson(path.join(PUBLIC, "timeline.json"), null);
+if (!timeline) fail("Run build-timeline first (beds are sized to the video).");
+const fresh = (src, dest) => fs.existsSync(dest) && fs.statSync(dest).mtimeMs > fs.statSync(src).mtimeMs;
+fs.mkdirSync(path.join(OUT, "user"), { recursive: true });
+for (const files of Object.values(userSfx())) {
+  for (const f of files) {
+    const src = path.join(PUBLIC, "sfx", f), dest = path.join(PUBLIC, userSfxPath(f));
+    if (fresh(src, dest)) continue;
+    // Convert first (mono -> stereo changes the level), then measure and set the peak to -1 dBFS.
+    const tmp = dest.replace(/\.wav$/, ".tmp.wav");
+    if (ffmpeg(["-i", src, "-ar", "48000", "-ac", "2", tmp]).status !== 0) fail(`could not read public/sfx/${f}`);
+    const m = /max_volume:\s*(-?[\d.]+) dB/.exec(ffmpeg(["-i", tmp, "-af", "volumedetect", "-f", "null", "-"], { capture: true }).stderr || "");
+    const gain = m ? Math.min(20, -1 - parseFloat(m[1])) : 0; // cap: never blow up a near-silent file
+    ffmpeg(["-i", tmp, "-af", `volume=${gain.toFixed(2)}dB`, dest]);
+    fs.rmSync(tmp);
+    log("audio", `own SFX: ${f} (${gain >= 0 ? "+" : ""}${gain.toFixed(1)} dB)`);
+  }
+}
+for (const seg of timeline.music.segments.filter((m) => m.file)) {
+  const src = path.join(PUBLIC, seg.file), dest = path.join(PUBLIC, userMusicPath(seg.file));
+  if (fresh(src, dest)) continue;
+  if (ffmpeg(["-i", src, "-vn", "-af", "loudnorm=I=-14:TP=-1.5:LRA=11", "-ar", "48000", "-ac", "2", "-c:a", "aac", "-b:a", "192k", dest]).status !== 0) fail(`could not read ${seg.file}`);
+  log("audio", `own music: ${seg.file} (normalized to -14 LUFS)`);
+}
+
+// ---------- SFX alignment ----------
+// Library SFX put their energy anywhere: a whoosh peaks ~0.4s in, a riser just
+// before it stops, a glitch is a flat 0.7s burst. Movement sounds (whoosh,
+// riser) should PEAK on the cut / reveal; impacts and UI sounds (hit, glitch,
+// scratch, pop, tick) should START on it. Write each file's offset to its
+// alignment point into the timeline; the composition starts it that much early.
+const PEAK_ALIGNED = new Set(["whoosh", "riser"]);
+function alignMs(file, mode) {
+  const b = fs.readFileSync(file);
+  let off = 12, ch = 1, sr = 44100, data = null;
+  while (off + 8 <= b.length) {
+    const id = b.toString("ascii", off, off + 4), size = b.readUInt32LE(off + 4);
+    if (id === "fmt ") [ch, sr] = [b.readUInt16LE(off + 10), b.readUInt32LE(off + 12)];
+    if (id === "data") { data = b.subarray(off + 8, Math.min(b.length, off + 8 + size)); break; }
+    off += 8 + size + (size % 2);
+  }
+  if (!data) return 0;
+  const frames = Math.floor(data.length / (2 * ch)), win = Math.round(sr / 100); // 10ms windows, all channels
+  const env = [];
+  for (let w = 0; w * win < frames; w++) {
+    let e = 0;
+    for (let i = w * win; i < Math.min(frames, (w + 1) * win); i++) for (let c = 0; c < ch; c++) e += Math.abs(data.readInt16LE((i * ch + c) * 2));
+    env.push(e);
+  }
+  const max = Math.max(...env);
+  const at = mode === "peak" ? env.indexOf(max) : env.findIndex((e) => e >= max * 0.3); // onset: first window at 30% of max
+  return Math.max(0, at) * 10;
+}
+timeline.sfxPeaks = {};
+for (const [slot, list] of Object.entries(timeline.sfxFiles ?? {})) {
+  for (const src of list) {
+    if (fs.existsSync(path.join(PUBLIC, src))) timeline.sfxPeaks[src] = alignMs(path.join(PUBLIC, src), PEAK_ALIGNED.has(slot) ? "peak" : "onset");
+  }
+}
+fs.writeFileSync(path.join(PUBLIC, "timeline.json"), JSON.stringify(timeline, null, 2));
+
 // ---------- music beds ----------
 // One seamless loop per mood used in the timeline (bed-<mood>.wav), a whole
 // number of chord cycles up to ~2 minutes. The composition loops it and does
 // the fades, so a 40 minute video costs the same as a 40 second one.
-const timeline = readJson(path.join(PUBLIC, "timeline.json"), null);
-if (!timeline) fail("Run build-timeline first (beds are sized to the video).");
 const moods = [...new Set(timeline.music.segments.map((m) => m.mood).filter(Boolean))];
 if (!moods.length) {
-  log("audio", "SFX written; no synthesized music needed (music.file set or mood none).");
+  log("audio", "SFX ready; no synthesized music needed (own music or mood none).");
   process.exit(0);
 }
 

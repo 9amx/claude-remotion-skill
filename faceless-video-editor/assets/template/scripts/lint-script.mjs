@@ -85,6 +85,10 @@ p.scenes.forEach((s, i) => {
   }
   if (s.layout === "split" && (s.broll?.length ?? 0) < 2) warnings.push(`${at(i)}: split layout needs two broll entries (left/top and right/bottom).`);
 });
+const aiShots = p.scenes.flatMap((sc) => sc.broll ?? []).filter((k) => k.startsWith("ai:")).length;
+if (aiShots) notes.push(`${aiShots} ai: images: fine for illustration; never to depict a real event or person. Tick YouTube's altered/synthetic disclosure if they look real.`);
+const realNoArchive = p.scenes.flatMap((sc) => sc.broll ?? []).filter((k) => !/^(archive|photo|file|ai):/.test(k) && (/\b(1[5-9]\d\d|20\d\d)\b/.test(k) || /\s[A-Z][a-z]/.test(k)));
+if (realNoArchive.length) notes.push(`keywords naming real things (${realNoArchive.slice(0, 3).map((k) => `"${k}"`).join(", ")}): consider archive: for accurate imagery (Wikimedia/NASA).`);
 for (const [k, n] of kwCount) if (n > (shorts ? 3 : 8)) warnings.push(`keyword "${k}" used ${n} times - viewers notice repeated footage. Vary it.`);
 
 // ---------- pattern interrupts ----------

@@ -21,7 +21,7 @@
       "title": "Cold Open",
       "mood": "tense",
       "broll": [
-        "deep space stars",
+        "archive:Voyager spacecraft",
         "radio telescope night"
       ],
       "scenes": [
@@ -41,7 +41,7 @@
       "title": "The Launch",
       "mood": "calm",
       "broll": [
-        "rocket launch",
+        "archive:Voyager launch 1977",
         "nasa control room"
       ],
       "scenes": [
@@ -62,7 +62,7 @@
         {
           "text": "NASA built two of them, and bolted a golden record to each, just in case someone out there was listening.",
           "broll": [
-            "photo:golden record",
+            "archive:Voyager Golden Record",
             "vinyl record spinning"
           ]
         }
