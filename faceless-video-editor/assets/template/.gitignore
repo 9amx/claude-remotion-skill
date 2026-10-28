@@ -6,3 +6,4 @@ public/broll/
 public/audio/
 public/timeline.json
 .whisper/
+__pycache__/
