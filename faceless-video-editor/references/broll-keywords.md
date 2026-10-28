@@ -24,7 +24,9 @@ scene at 2.8s/shot = 3 shots = keywords 1, 2, 1 (give 3 keywords to avoid a repe
 | Entry | Meaning |
 |---|---|
 | `"city traffic night"` | search Pexels video, then Pixabay, then Pexels photo |
-| `"photo:old map of london"` | photo only (Ken Burns). Good for history, places, documents |
+| `"photo:old map of london"` | photos only (stock + archive, Ken Burns). Good for places, documents |
+| `"archive:Apollo 11 launch"` | Wikimedia Commons + NASA only: real people, places, events, dates. CC/PD licences that allow commercial use; CC BY needs the credits in the description |
+| `"ai:a 1950s lab with pigeons in boxes"` | generated still (OPENAI_API_KEY). For things that can't be filmed; never to "show" a real event. Disclose if it looks real |
 | `"file:intro.mp4"` / `"file:chart.png"` | user's own asset in `public/` |
 
 Scene-level `"visual": "kinetic"` skips B-roll entirely (animated background) -
@@ -41,7 +43,11 @@ use for the CTA or for a big-number `emphasis` scene.
   are nearly black or chroma-key green (green-screen mockups), then takes the
   next result automatically. Clips tagged green screen / mockup / template are
   skipped before download.
-- `photo:` searches Pexels photos, then Pixabay photos.
+- `photo:` searches stock photos and the archives; plain keywords that name
+  something real (a year, a proper noun) automatically include Wikimedia / NASA
+  results too.
+- Review sheets (`--review`) let Claude look at 6 candidates per shot and pick
+  the one that matches the line; see SKILL.md Step 3.
 
 Still look at the contact sheet: relevance scoring can't see that a "phone
 settings" clip shows lipstick.

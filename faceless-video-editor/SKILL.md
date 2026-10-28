@@ -142,20 +142,47 @@ is available in this session, or the user supplies files, use real sound:
    YouTube channel in their Epidemic account so uploads aren't claimed. Never
    download with someone else's account or use tracks after the subscription ends.
 
-## Step 3 - Set up and run
+## Step 3 - Set up, then pick the footage yourself
 
 ```bash
 cp -r <this-skill>/assets/template ./my-video && cd my-video
 npm install
 pip install edge-tts            # free TTS; skip if using elevenlabs/openai/file
-# write project.json (Step 2)
-export PEXELS_API_KEY=...       # free at pexels.com/api - strongly recommended
-npm run auto
+# write project.json (Step 2); keys come from the user's environment:
+# PIXABAY_API_KEY / PEXELS_API_KEY (stock), OPENAI_API_KEY (ai: images, optional)
+node scripts/auto.mjs --review
 ```
-`npm run auto` runs every step and prints what it did. Re-run from a step with
-`node scripts/auto.mjs --from=broll` (steps: lint, voice, broll, timeline, audio,
-render, master, check). Voiceover and downloads are cached, so editing one
-scene's text only re-voices that scene.
+`--review` runs lint and the voiceover, then builds **candidate sheets** in
+`build/review/<scene>-<shot>.jpg`: up to 6 options per shot, numbered 1-6 left to
+right, top to bottom, from every source that fits the keyword. By default it
+covers the shots that matter most or that search is unsure about (the hook,
+emphasis / reveal / split scenes, weak matches); `node scripts/fetch-broll.mjs
+--review=all` covers every shot.
+
+**Do the picking yourself, without asking the user** - this is what makes the
+footage accurate:
+1. Look at every sheet (`build/review.json` has the keyword, the line and each
+   candidate's source/text). Pick the candidate that shows what the LINE says,
+   not just the keyword. Reject green screens, watermarks, text-heavy frames,
+   dark or blurry tiles, and anything that contradicts the line.
+2. Write the picks to `build/picks.json`: `{"s001-1": 3, "s002-2": 1}`.
+3. No candidate fits? Change that keyword in project.json instead: more concrete
+   words, `archive:` for real people / places / events / dates (Wikimedia
+   Commons + NASA), `photo:` for stills, `ai:<prompt>` for something that
+   can't be filmed (needs OPENAI_API_KEY; never for real events), or `file:` for
+   the user's own asset. Re-run `node scripts/fetch-broll.mjs --review` and
+   check the new sheet.
+4. Continue: `node scripts/auto.mjs --from=broll` (downloads, frame-checks,
+   renders, masters, checks).
+
+Without picks the fetcher still chooses automatically (relevance-scored, with
+black / green-screen clips rejected), so `npm run auto` works end to end; the
+review is how you get from "plausible" to "accurate". Re-run any step with
+`node scripts/auto.mjs --from=<step>` (lint, voice, broll, timeline, audio,
+render, master, check). Voice, searches and downloads are cached.
+
+CC BY / BY-SA archive images need attribution: the run says so - put
+`build/credits.txt` in the video description.
 
 User has their own recording? Put it in `public/`, set
 `"voice": {"provider": "file", "file": "my-voice.mp3"}` - the pipeline transcribes
@@ -163,8 +190,9 @@ it locally with whisper.cpp, splits it into the scenes and jump-cuts pauses
 over 0.4s (`voice.tightenPauses: false` to keep them).
 
 If the render can't download Chrome, set `REMOTION_BROWSER=/path/to/chrome`
-(Playwright's `chrome-headless-shell` works). No B-roll key? Shots fall back to an
-animated kinetic background - fine for a test, not for a real upload; tell the user.
+(Playwright's `chrome-headless-shell` works). No stock key? Archive photos and
+`file:` assets still work; other shots fall back to an animated kinetic
+background - fine for a test, not for a real upload; tell the user.
 
 ## Step 4 - VERIFY (mandatory, never skip)
 
