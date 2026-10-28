@@ -22,7 +22,7 @@
     "tightenPauses": true,           // file only: jump-cut pauses longer than maxPauseMs
     "maxPauseMs": 400
   },
-  "music": { "mood": "tense", "file": null, "volume": 0.12 },
+  "music": { "mood": "tense", "file": null, "volume": 0.12 },  // file: own track in public/ (e.g. "music/track.mp3")
   "captions": {
     "style": "pop",                  // pop | karaoke | boxed | subtitle | none (default from editStyle; subtitle for long form)
     "maxWords": 3,                   // words per caption page (1-4; subtitle default 8)
@@ -67,10 +67,10 @@ Long form: replace `scenes` with chapters (never both). Scene fields are the sam
 
 ```jsonc
 "chapters": [
-  { "title": "The Launch", "mood": "calm", "broll": ["fallback keyword"], "scenes": [ ... ] }
+  { "title": "The Launch", "mood": "calm", "music": "music/launch.mp3", "broll": ["fallback keyword"], "scenes": [ ... ] }
 ]
 ```
-`mood` overrides `music.mood` for that chapter; `broll` is used by scenes that
+`mood` overrides `music.mood` for that chapter; `music` is an own track for it (file in public/); `broll` is used by scenes that
 have none; `look` is the default look for its scenes.
 
 ## Generated files
@@ -83,7 +83,9 @@ have none; `look` is the default look for its scenes.
 | `build/credits.txt` | broll | stock creators |
 | `public/timeline.json` | timeline | everything the composition renders |
 | `build/youtube-chapters.txt` | timeline | chapter timestamps for the description (2+ chapters) |
-| `public/audio/*.wav` | audio | music loops per mood + SFX |
+| `public/audio/*.wav` | audio | synthesized music loops per mood + SFX kit |
+| `public/sfx/`, `public/music/` | you / Claude | own SFX (slot-named) and music; never overwritten |
+| `public/audio/user/` | audio | normalized copies of your own SFX and music |
 | `out/parts/` | render | long form: cached parts, audio, manifest |
 | `out/video.mp4`, `out/final.mp4` | render, master | raw render, loudness-mastered final |
 | `out/check/` | check | key frames + contact sheets |

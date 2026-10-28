@@ -80,6 +80,7 @@ topic -> script (hook, retention beats) -> AI voiceover with word timestamps
 - **Styles:** `bold`, `documentary`, `minimal`. Shorts, landscape or square
 - **Any language:** Bengali and Hindi glyphs are bundled; English, Spanish, Urdu and more via edge-tts voices
 - **Real editing toolkit:** edit styles (`viral`, `story`, `explainer`, `calm`), punch-in zooms on highlighted words, whip / zoom / glitch / flash / dip / crossfade transitions, looks (flashback, dramatic, night, VHS, dream), split screen, freeze frames, count-up numbers, list badges, and riser-into-silence reveals
+- **Pro music and SFX:** with the [Epidemic Sound connector](https://www.epidemicsound.com/tools/mcp/) in Claude (paid subscription), Claude picks music per mood or chapter and real SFX for every slot. Any files in `public/music/` and `public/sfx/` work too. Everything is loudness-normalized; without them a synthesized kit is used
 - **Hook and retention gate:** a script lint that blocks warm-up hooks and checks word budget, pacing and pattern interrupts before any rendering, plus a retention report on the finished video
 - **Long form up to 40+ minutes:** chapters with title cards, subtitles, lower thirds, per-chapter music, YouTube chapter timestamps, rate-limit-aware B-roll, and a chunked render that resumes after a crash and re-renders only what changed
 - **One command:** `npm run auto`, with caching so editing one line re-voices only that line

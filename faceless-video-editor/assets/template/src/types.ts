@@ -38,7 +38,7 @@ export type Scene = {
 
 export type Chapter = { title: string; mood: string; startFrame: number; durationInFrames: number };
 
-export type MusicSegment = { src: string; from: number; durationInFrames: number; mood?: string };
+export type MusicSegment = { src: string; from: number; durationInFrames: number; mood?: string; file?: string };
 
 export type Timeline = {
   title: string;
@@ -52,6 +52,7 @@ export type Timeline = {
   music: { volume: number; segments: MusicSegment[] };
   sfx: boolean;
   sfxLevel: number;
+  sfxFiles?: Record<string, string[]>; // slot -> files (own SFX variants or the synthesized one)
   editStyle: string;
   reveals: number[]; // absolute frames where a reveal lands
   transitions: "scene" | "chapter" | "none";

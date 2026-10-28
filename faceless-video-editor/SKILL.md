@@ -99,6 +99,40 @@ keys and `"brollSources": ["pixabay", "pexels"]` - Pexels alone hits its hourly
 limit on a 40 minute video (re-running `--from=broll` fills the gaps).
 Template: `assets/template/project.longform.example.json`.
 
+## Music and SFX from a pro library (Epidemic Sound connector)
+
+Synthesized music and SFX are a fallback. If an Epidemic Sound connector (MCP)
+is available in this session, or the user supplies files, use real sound:
+
+1. **Music**: search by the video's mood, genre and energy (e.g. "dark
+   suspense documentary underscore", "upbeat lo-fi", "inspiring piano"), prefer
+   instrumental / no vocals under narration, and ask for a version close to the
+   video length (the connector can make length-adjusted or looping versions).
+   Download into `public/music/` and set `"music": {"file": "music/<name>.mp3"}`.
+   Long form: one track per chapter mood, `chapters[].music: "music/<name>.mp3"`;
+   they crossfade at chapter changes.
+2. **SFX**: download 1-3 variants per slot into `public/sfx/` named
+   `<slot>.mp3` or `<slot>-1.mp3`, `<slot>-2.mp3` (variants rotate so repeated
+   cuts don't sound identical). Slots and good searches:
+   | slot | plays on | search for |
+   |---|---|---|
+   | `whoosh` | whip/zoom/flash transitions | "whoosh transition fast", "swoosh short" |
+   | `hit` | frame 0, reveals | "cinematic impact boom", "hit deep" |
+   | `riser` | before a reveal (~1.2s) | "riser short tension build" |
+   | `pop` | emphasis text landing | "pop ui", "text appear" |
+   | `scratch` | freeze frames | "record scratch" |
+   | `glitch` | glitch transitions | "glitch digital short" |
+   | `tick` | highlighted words | "click soft ui" |
+   Keep SFX short (under ~1.5s; a riser ~1-1.5s). Any slot without a file uses
+   the synthesized one.
+3. The `audio` step normalizes everything (SFX peaks to -1 dB, music to -14 LUFS)
+   so `sfxLevel` and `music.volume` behave the same with any source. Nothing in
+   `public/sfx/` or `public/music/` is ever overwritten.
+4. Licensing: downloads are covered by the user's active subscription (a
+   Business plan also covers client work). Remind the user to connect their
+   YouTube channel in their Epidemic account so uploads aren't claimed. Never
+   download with someone else's account or use tracks after the subscription ends.
+
 ## Step 3 - Set up and run
 
 ```bash

@@ -2,7 +2,7 @@
 // the single file the Remotion composition renders from.
 import path from "node:path";
 import fs from "node:fs";
-import { BUILD, FORMATS, FX, LOOKS, PUBLIC, TRANSITIONS, fail, log, readJson, readProject, sceneId, timecode, writeJson } from "./lib.mjs";
+import { BUILD, FORMATS, FX, LOOKS, PUBLIC, SFX_NAMES, TRANSITIONS, fail, log, readJson, readProject, sceneId, timecode, userMusicPath, userSfx, userSfxPath, writeJson } from "./lib.mjs";
 
 const project = readProject();
 const { width, height } = FORMATS[project.format];
@@ -127,18 +127,33 @@ const chapters = project.chapters.map((ch, c) => {
 }).filter(Boolean);
 chapters.forEach((ch, c) => (ch.durationInFrames = (chapters[c + 1]?.startFrame ?? durationInFrames) - ch.startFrame));
 
-// Music: one looped bed per run of chapters sharing a mood; crossfaded in the composition.
+// Music: per chapter, the chapter's own track (chapters[].music, a file in
+// public/) or the synthesized loop for its mood; runs sharing a source merge and
+// crossfade in the composition. music.file overrides everything.
 const bedFor = (mood) => (mood === "none" ? null : `audio/bed-${mood}.wav`);
+const checkFile = (f) => {
+  if (!fs.existsSync(path.join(PUBLIC, f))) fail(`music file not found in public/: ${f}`);
+  return f;
+};
 const musicSegments = [];
 if (project.music.file) {
-  musicSegments.push({ src: project.music.file, from: 0, durationInFrames });
+  musicSegments.push({ src: userMusicPath(checkFile(project.music.file)), file: project.music.file, from: 0, durationInFrames });
 } else {
-  for (const ch of chapters) {
+  for (const [c, ch] of chapters.entries()) {
+    const own = project.chapters[c].music;
+    const seg = own ? { src: userMusicPath(checkFile(own)), file: own } : { mood: ch.mood, src: bedFor(ch.mood) };
     const last = musicSegments[musicSegments.length - 1];
-    if (last && last.mood === ch.mood) last.durationInFrames += ch.durationInFrames;
-    else musicSegments.push({ mood: ch.mood, src: bedFor(ch.mood), from: ch.startFrame, durationInFrames: ch.durationInFrames });
+    if (last && last.src === seg.src) last.durationInFrames += ch.durationInFrames;
+    else musicSegments.push({ ...seg, from: ch.startFrame, durationInFrames: ch.durationInFrames });
   }
 }
+
+// SFX: user files (variants rotate) or the synthesized kit.
+const user = userSfx();
+const sfxFiles = Object.fromEntries(SFX_NAMES.map((n) => [n, user[n] ? user[n].map(userSfxPath) : [`audio/${n}.wav`]]));
+const custom = Object.keys(user);
+if (custom.length) log("timeline", `own SFX: ${custom.map((n) => `${n} x${user[n].length}`).join(", ")}`);
+
 const timeline = {
   title: project.title ?? "",
   fps,
@@ -151,6 +166,7 @@ const timeline = {
   music: { volume: project.music.volume, segments: musicSegments.filter((m) => m.src) },
   sfx: project.sfxLevel > 0,
   sfxLevel: project.sfxLevel,
+  sfxFiles,
   editStyle: project.editStyle,
   reveals,
   transitions: project.transitions,

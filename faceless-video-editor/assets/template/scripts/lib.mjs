@@ -42,7 +42,7 @@ export function readProject() {
     p.chapters = [{ title: p.title ?? "" }];
     p.scenes = (p.scenes || []).map((s, k) => ({ ...s, chapter: 0, chapterStart: k === 0 }));
   }
-  p.chapters = p.chapters.map((ch) => ({ title: ch.title ?? "", mood: ch.mood ?? p.music.mood }));
+  p.chapters = p.chapters.map((ch) => ({ title: ch.title ?? "", mood: ch.mood ?? p.music.mood, music: ch.music ?? null }));
   if (p.scenes.length === 0) fail("project.json needs a non-empty scenes (or chapters[].scenes) array.");
   const long = p.format !== "shorts";
   p.fps = p.fps || 30;
@@ -78,6 +78,27 @@ export const EDIT_STYLES = {
 export const TRANSITIONS = ["whip", "zoom", "glitch", "flash", "dip", "fade", "cut"];
 export const LOOKS = ["normal", "flashback", "dramatic", "night", "vhs", "dream"];
 export const FX = ["shake", "freeze", "reveal", "punch"];
+
+// Sound you supply (e.g. downloaded from Epidemic Sound) always wins over the
+// synthesized kit. Drop files in public/sfx/ named after the slot, with optional
+// variants that rotate so repeated cuts don't sound identical:
+//   public/sfx/whoosh-1.mp3, whoosh-2.mp3, hit.wav, riser.mp3, ...
+export const SFX_NAMES = ["hit", "whoosh", "pop", "riser", "scratch", "glitch", "tick"];
+const AUDIO_EXT = /\.(mp3|wav|m4a|aac|ogg|flac)$/i;
+export function userSfx() {
+  const dir = path.join(PUBLIC, "sfx");
+  const out = {};
+  if (!fs.existsSync(dir)) return out;
+  for (const f of fs.readdirSync(dir).sort()) {
+    const m = /^([a-z]+)(-\d+)?\.[a-z0-9]+$/i.exec(f);
+    if (m && AUDIO_EXT.test(f) && SFX_NAMES.includes(m[1].toLowerCase())) (out[m[1].toLowerCase()] ??= []).push(f);
+  }
+  return out;
+}
+// Normalized copies of user sound live in public/audio/user/ (built by gen-audio).
+export const stem = (f) => path.basename(f).replace(/\.[^.]+$/, "");
+export const userSfxPath = (file) => `audio/user/sfx-${stem(file)}.wav`;
+export const userMusicPath = (file) => `audio/user/music-${stem(file)}.m4a`;
 
 // Script markup: *word* marks a word to highlight (accent color, punch-in zoom).
 // The asterisks never reach the voice.

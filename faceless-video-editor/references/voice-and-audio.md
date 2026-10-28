@@ -50,6 +50,18 @@ Override with `voice.whisperModel` (`medium` for best accuracy).
 - `music.volume`: 0.08-0.15 under voice. The composition ducks to this level
   during speech and swells x2.2 in the outro.
 
+## Your own music and SFX (Epidemic Sound, Artlist, YouTube Audio Library...)
+
+- Music: `music.file` (whole video) or `chapters[].music` (per chapter) pointing
+  at a file in `public/`, e.g. `public/music/track.mp3`. Normalized to -14 LUFS
+  into `public/audio/user/` before rendering.
+- SFX: files in `public/sfx/` named after a slot (`whoosh`, `hit`, `riser`,
+  `pop`, `scratch`, `glitch`, `tick`), optionally numbered (`whoosh-1.mp3`,
+  `whoosh-2.mp3`) to rotate variants. Peak-normalized to -1 dB. Files with other
+  names are ignored. Slots without a file fall back to the synthesized kit.
+- With the Epidemic Sound connector in Claude, see "Music and SFX from a pro
+  library" in SKILL.md for search terms per slot.
+
 ## SFX
 
 Synthesized into `public/audio/`: `hit.wav` (frame 0), `whoosh.wav` (scene
