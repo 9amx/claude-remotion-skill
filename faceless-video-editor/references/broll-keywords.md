@@ -30,6 +30,22 @@ scene at 2.8s/shot = 3 shots = keywords 1, 2, 1 (give 3 keywords to avoid a repe
 Scene-level `"visual": "kinetic"` skips B-roll entirely (animated background) -
 use for the CTA or for a big-number `emphasis` scene.
 
+## What the fetcher does for you
+
+- **Relevance**: each hit is scored by how many keyword words appear in its
+  tags (Pixabay) or page slug / alt text (Pexels), then orientation, then
+  length. So write the words you want to SEE: they are matched literally.
+- **Sharpness**: picks the smallest rendition that fills the frame with at most
+  ~1.35x upscaling (a landscape clip in a 9:16 Short needs ~1440p+).
+- **Frame check**: after download it samples three frames and rejects clips that
+  are nearly black or chroma-key green (green-screen mockups), then takes the
+  next result automatically. Clips tagged green screen / mockup / template are
+  skipped before download.
+- `photo:` searches Pexels photos, then Pixabay photos.
+
+Still look at the contact sheet: relevance scoring can't see that a "phone
+settings" clip shows lipstick.
+
 ## Fixing a bad clip
 
 Look at the contact sheet. For a wrong shot, change that keyword in

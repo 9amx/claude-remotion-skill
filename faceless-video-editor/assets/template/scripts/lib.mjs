@@ -139,6 +139,13 @@ export function ffmpeg(args, { capture = false } = {}) {
   });
 }
 
+// Raw decoded output (e.g. a few RGB frames) as a Buffer.
+export function ffmpegRaw(args) {
+  const [cmd, cmdArgs] = hasCommand("ffmpeg") ? ["ffmpeg", ["-v", "error", ...args]] : remotionCmd(["ffmpeg", "-v", "error", ...args]);
+  const r = spawnSync(cmd, cmdArgs, { cwd: ROOT, maxBuffer: 64 * 1024 * 1024 });
+  return r.status === 0 ? r.stdout : null;
+}
+
 export const sha1 = (s) => createHash("sha1").update(s).digest("hex").slice(0, 12);
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 

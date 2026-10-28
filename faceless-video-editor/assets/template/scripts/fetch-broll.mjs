@@ -8,7 +8,7 @@
 // what is missing (e.g. shots that fell back after an hourly rate limit).
 import fs from "node:fs";
 import path from "node:path";
-import { BUILD, FORMATS, PUBLIC, ffmpeg, log, probeDuration, readJson, readProject, sceneId, sleep, writeJson } from "./lib.mjs";
+import { BUILD, FORMATS, PUBLIC, ffmpeg, ffmpegRaw, log, probeDuration, readJson, readProject, sceneId, sleep, writeJson } from "./lib.mjs";
 
 const project = readProject();
 const fmt = FORMATS[project.format];
@@ -18,7 +18,6 @@ const maxWaitMs = (project.brollMaxWaitMinutes ?? 0) * 60_000;
 const trim = project.trimBroll !== false;
 const exhausted = new Set();
 const used = new Set();
-const credits = [];
 const VIDEO_EXT = /\.(mp4|mov|webm|mkv)$/i;
 let searches = 0, fellBack = 0;
 
@@ -57,22 +56,47 @@ async function getJson(source, url, headers = {}) {
   }
 }
 
-// Smallest rendition that still covers the frame's short side, else the biggest one.
+// Smallest rendition that fills the frame (objectFit: cover) with at most ~1.35x
+// upscaling, else the biggest. A landscape clip in a 9:16 frame is cropped, so it
+// needs ~1440p+ to stay sharp; "covers the short side" alone gave blurry Shorts.
 function pickRendition(files) {
-  const need = Math.min(fmt.width, fmt.height);
+  const coverScale = (f) => Math.max(fmt.width / f.width, fmt.height / f.height);
   const sorted = files.filter((f) => f.width && f.height).sort((a, b) => a.width * a.height - b.width * b.height);
-  return sorted.find((f) => Math.min(f.width, f.height) >= need) || sorted[sorted.length - 1];
+  return sorted.find((f) => coverScale(f) <= 1.35) || sorted[sorted.length - 1];
 }
 
 const orientationOk = (w, h) =>
   fmt.orientation === "portrait" ? h >= w : fmt.orientation === "landscape" ? w >= h : true;
+
+// ---------- choosing the best hit ----------
+// Stock search ranks loosely: Pixabay happily returns lipstick for "phone
+// settings". Score each hit by how many keyword words its tags (Pixabay) or page
+// slug / alt text (Pexels) contain, then orientation, then length, keeping the
+// API's own order as the tie-break. Green-screen / mockup / template clips are
+// never usable as B-roll.
+const STOP = new Set(["the", "and", "with", "for", "from", "into", "over", "close", "shot", "video", "footage", "photo"]);
+const BLOCK = /green ?screen|chroma|mock-?up|template|alpha channel|lower third|placeholder/i;
+function best(pool, query, textOf, dimsOf, minSec) {
+  const words = query.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 2 && !STOP.has(w));
+  const scored = pool
+    .map((x, i) => {
+      const text = textOf(x).toLowerCase();
+      if (BLOCK.test(text)) return null;
+      const rel = words.length ? words.filter((w) => text.includes(w)).length / words.length : 0;
+      const [w, h] = dimsOf(x);
+      return { x, score: rel * 3 + (orientationOk(w, h) ? 1 : 0) + ((x.duration ?? minSec) >= minSec ? 0.5 : 0) - i * 0.02 };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.score - a.score);
+  return scored[0]?.x ?? null;
+}
 
 const SEARCH = {
   async pexels(query, minSec) {
     const q = new URLSearchParams({ query, per_page: "30", orientation: fmt.orientation, size: "medium" });
     const data = await getJson("pexels", `https://api.pexels.com/videos/search?${q}`, { Authorization: KEYS.pexels });
     const pool = data.videos.filter((v) => !used.has(`pexels-${v.id}`));
-    const v = pool.find((x) => x.duration >= minSec) || pool[0];
+    const v = best(pool, query, (x) => `${x.url} ${(x.tags ?? []).join(" ")}`, (x) => [x.width, x.height], minSec);
     if (!v) return null;
     const file = pickRendition(v.video_files.filter((f) => f.file_type === "video/mp4"));
     return file && { id: `pexels-${v.id}`, url: file.link, ext: "mp4", credit: `${v.user?.name ?? "Pexels"} - ${v.url}` };
@@ -81,16 +105,24 @@ const SEARCH = {
     const q = new URLSearchParams({ key: KEYS.pixabay, q: query.slice(0, 100), per_page: "50", safesearch: "true" });
     const data = await getJson("pixabay", `https://pixabay.com/api/videos/?${q}`);
     const pool = data.hits.filter((h) => !used.has(`pixabay-${h.id}`));
-    const ranked = [...pool.filter((h) => orientationOk(h.videos.large.width, h.videos.large.height)), ...pool];
-    const h = ranked.find((x) => x.duration >= minSec) || ranked[0];
+    const dims = (h) => { const v = h.videos.large?.width ? h.videos.large : h.videos.medium; return [v.width, v.height]; };
+    const h = best(pool, query, (x) => x.tags ?? "", dims, minSec);
     if (!h) return null;
     const file = pickRendition(Object.values(h.videos).filter((f) => f.url));
     return file && { id: `pixabay-${h.id}`, url: file.url, ext: "mp4", credit: `${h.user} - ${h.pageURL}` };
   },
+  async pixabayPhoto(query) {
+    const orientation = fmt.orientation === "portrait" ? "vertical" : fmt.orientation === "landscape" ? "horizontal" : "all";
+    const q = new URLSearchParams({ key: KEYS.pixabay, q: query.slice(0, 100), image_type: "photo", orientation, per_page: "30", safesearch: "true" });
+    const data = await getJson("pixabay", `https://pixabay.com/api/?${q}`);
+    const p = best(data.hits.filter((x) => !used.has(`pixabay-photo-${x.id}`)), query, (x) => x.tags ?? "", (x) => [x.imageWidth, x.imageHeight], 0);
+    // fullHDURL needs Pixabay "full API access"; largeImageURL (1280px) works for every key.
+    return p && { id: `pixabay-photo-${p.id}`, url: p.fullHDURL || p.largeImageURL, ext: "jpg", credit: `${p.user} - ${p.pageURL}` };
+  },
   async photo(query) {
     const q = new URLSearchParams({ query, per_page: "30", orientation: fmt.orientation });
     const data = await getJson("pexels", `https://api.pexels.com/v1/search?${q}`, { Authorization: KEYS.pexels });
-    const p = data.photos.find((x) => !used.has(`pexels-photo-${x.id}`));
+    const p = best(data.photos.filter((x) => !used.has(`pexels-photo-${x.id}`)), query, (x) => `${x.url} ${x.alt ?? ""}`, (x) => [x.width, x.height], 0);
     return p && { id: `pexels-photo-${p.id}`, url: p.src.large2x, ext: "jpg", credit: `${p.photographer} - ${p.url}` };
   },
 };
@@ -100,6 +132,7 @@ async function findShot(keyword, minSec) {
   const query = keyword.replace(/^photo:/, "").trim();
   const tries = photoOnly ? [] : sources.map((s) => () => SEARCH[s](query, minSec));
   if (KEYS.pexels) tries.push(() => SEARCH.photo(query));
+  if (KEYS.pixabay) tries.push(() => SEARCH.pixabayPhoto(query));
   for (const t of tries) {
     try {
       const hit = await t();
@@ -150,10 +183,9 @@ for (const [i, scene] of project.scenes.entries()) {
     const prev = keepPrev(id, k, kw);
     if (prev) {
       plan[id].push(prev);
-      if (prev.credit) credits.push(prev.credit);
       continue;
     }
-    const hit = sources.length || KEYS.pexels ? await findShot(kw, shotSec) : null;
+    const hit = sources.length || KEYS.pexels || KEYS.pixabay ? await findShot(kw, shotSec) : null;
     if (!hit) {
       if (sources.length) log("broll", `${id} shot ${k + 1}: nothing for "${kw}" -> kinetic`);
       fellBack++;
@@ -161,10 +193,9 @@ for (const [i, scene] of project.scenes.entries()) {
       continue;
     }
     used.add(hit.id);
-    credits.push(hit.credit);
     const shot = { type: hit.ext === "mp4" ? "video" : "image", src: `broll/${hit.id}.${hit.ext}`, duration: null, assetId: hit.id, keyword: kw, credit: hit.credit };
     plan[id].push(shot);
-    jobs.push({ shot, hit, shotSec, label: `${id} shot ${k + 1} "${kw}"` });
+    jobs.push({ shot, hit, kw, shotSec, label: `${id} shot ${k + 1} "${kw}"` });
   }
 }
 
@@ -177,7 +208,7 @@ async function download(url, dest) {
   fs.renameSync(dest + ".part", dest);
 }
 
-async function fetchJob({ shot, hit, shotSec, label }) {
+async function fetchOnce({ shot, hit, shotSec }) {
   const abs = path.join(PUBLIC, shot.src);
   // A trimmed copy is named by the length it keeps; reuse it if it is long enough.
   const keep = Math.ceil(shotSec + 2);
@@ -200,7 +231,50 @@ async function fetchJob({ shot, hit, shotSec, label }) {
       shot.duration = probeDuration(trimmed);
     }
   }
-  log("broll", `${label} -> ${shot.src}`);
+}
+
+// Look at the clip before trusting it: nearly black footage and green-screen
+// mockups are common stock results that search scores can't see.
+function frameProblem(file, duration) {
+  const times = duration ? [0.2, 0.5, 0.8].map((f) => duration * f) : [0];
+  let luma = 0, green = 0, n = 0;
+  for (const t of times) {
+    const buf = ffmpegRaw([...(duration ? ["-ss", t.toFixed(2)] : []), "-i", file, "-frames:v", "1", "-vf", "scale=48:-2", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]);
+    if (!buf?.length) continue;
+    let l = 0, g = 0;
+    for (let i = 0; i < buf.length; i += 3) {
+      const [r, gg, b] = [buf[i], buf[i + 1], buf[i + 2]];
+      l += 0.299 * r + 0.587 * gg + 0.114 * b;
+      if (gg > 120 && gg > r * 1.6 && gg > b * 1.6) g++;
+    }
+    luma += l / (buf.length / 3);
+    green = Math.max(green, g / (buf.length / 3));
+    n++;
+  }
+  if (!n) return "unreadable";
+  if (luma / n < 20) return "nearly black";
+  if (green > 0.12) return "green screen";
+  return null;
+}
+
+async function fetchJob(job) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await fetchOnce(job);
+    const file = path.join(PUBLIC, job.shot.src);
+    const problem = frameProblem(file, job.shot.type === "video" ? job.shot.duration : null);
+    if (!problem) {
+      log("broll", `${job.label} -> ${job.shot.src}`);
+      return;
+    }
+    fs.rmSync(file, { force: true });
+    const next = await findShot(job.kw, job.shotSec);
+    log("broll", `${job.label}: ${path.basename(job.shot.src)} is ${problem}, ${next ? "trying the next result" : "no more results"}`);
+    if (!next) break;
+    used.add(next.id);
+    job.hit = next;
+    Object.assign(job.shot, { type: next.ext === "mp4" ? "video" : "image", src: `broll/${next.id}.${next.ext}`, duration: null, assetId: next.id, credit: next.credit });
+  }
+  throw new Error("no usable clip");
 }
 
 const queue = [...jobs];
@@ -211,7 +285,7 @@ await Promise.all(
         await fetchJob(job);
       } catch (e) {
         log("broll", `${job.label}: ${e.message} -> kinetic`);
-        Object.assign(job.shot, { type: "kinetic", src: undefined, duration: undefined, assetId: undefined });
+        Object.assign(job.shot, { type: "kinetic", src: undefined, duration: undefined, assetId: undefined, credit: undefined });
         fellBack++;
       }
     }
@@ -219,6 +293,7 @@ await Promise.all(
 );
 
 writeJson(path.join(BUILD, "broll.json"), plan);
+const credits = Object.values(plan).flat().map((s) => s.credit).filter(Boolean);
 // Delete downloads no shot uses any more (changed keywords, earlier picks).
 const keep = new Set(Object.values(plan).flat().map((s) => s.src).filter(Boolean).map((s) => path.basename(s)));
 const brollDir = path.join(PUBLIC, "broll");
