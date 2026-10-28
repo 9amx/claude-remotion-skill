@@ -3,6 +3,7 @@
 
 Writes public/vo/<scene>.mp3 and build/vo/<scene>.json:
   {"audio": "vo/s001.mp3", "durationMs": 3120, "words": [{"text", "startMs", "endMs"}]}
+Words keep the script's *highlight* markup; the voice never hears the asterisks.
 
 Providers (project.json -> voice.provider):
   edge        free Microsoft neural voices, real word timestamps   (pip install edge-tts)
@@ -52,7 +53,7 @@ def tokens(text):
 
 def norm(word):
     # Strip punctuation only; keeps combining vowel signs of Indic scripts intact.
-    return re.sub(r"[\s.,!?;:\"'“”‘’()\[\]…—–\-।॥]", "", word.lower())
+    return re.sub(r"[\s.,!?;:\"'“”‘’()\[\]…—–\-।॥*]", "", word.lower())
 
 
 def probe_duration_ms(path):
@@ -219,8 +220,9 @@ def main():
 
     def voice_scene(i, scene):
         sid = scene_id(i)
-        text = scene["text"].strip()
-        key = hashlib.sha1(json.dumps([voice_cfg, text], sort_keys=True).encode()).hexdigest()[:12]
+        text = scene["text"].strip()  # may contain *highlight* markup
+        spoken = text.replace("*", "")
+        key = hashlib.sha1(json.dumps([voice_cfg, spoken], sort_keys=True).encode()).hexdigest()[:12]
         data_path = os.path.join(VO_DATA, f"{sid}.json")
         mp3_path = os.path.join(VO_AUDIO, f"{sid}.mp3")
         if os.path.exists(data_path):
@@ -235,7 +237,7 @@ def main():
         else:
             for attempt in range(4):
                 try:
-                    words = PROVIDERS[provider](text, voice_cfg, mp3_path)
+                    words = PROVIDERS[provider](spoken, voice_cfg, mp3_path)
                     break
                 except Exception as e:  # transient 429/503/network: back off and retry
                     if attempt == 3:
@@ -244,6 +246,7 @@ def main():
                     time.sleep(2 ** (attempt + 1))
             total = probe_duration_ms(mp3_path) or (words[-1]["endMs"] + 250)
             audio = f"vo/{sid}.mp3"
+            words = align_to_script(text, words)  # put the markup back on the timed words
 
         with open(data_path, "w") as f:
             json.dump({"key": key, "audio": audio, "durationMs": total, "words": words}, f, indent=1)

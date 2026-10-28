@@ -27,6 +27,9 @@ Count words before running. If over, cut sentences - don't raise the rate past +
 
 ## Hook patterns that work
 
+More archetypes, the first-frame rules and the hook checklist are in
+`editing-playbook.md`; `scripts/lint-script.mjs` enforces the basics.
+
 - **Stakes**: "This one habit is quietly costing you two hours a day."
 - **Contradiction**: "The safest seat on a plane isn't where you think."
 - **Specific number**: "In 1983 one man stopped a nuclear war by doing nothing."
@@ -35,6 +38,13 @@ Count words before running. If over, cut sentences - don't raise the rate past +
 
 Banned openers: "Did you know", "In this video", "Hey guys", "Have you ever
 wondered", "Today we're going to", any greeting.
+
+## Highlights
+
+Wrap the one or two words that carry each scene in asterisks: the number, the
+twist, the "never". `It costs *$4,000* a year.` They get the accent caption
+color, a punch-in zoom (viral/explainer) and a tick. Numbers are highlighted
+automatically, so mark words, not every digit.
 
 ## Line-level rules
 

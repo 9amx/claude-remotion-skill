@@ -9,8 +9,9 @@ subtitles instead of pop captions, and a chunked render you can resume.
 |---|---|---|
 | Captions | `pop`, 3 words | `subtitle`, up to 8 words, bottom |
 | Style default | `bold` | `documentary` |
-| Shot length | 2.8s | 5s |
-| Transitions (flash + whoosh) | every scene | every chapter |
+| Edit style default | `viral` | `story` (see editing-playbook.md) |
+| Shot length | 2.2s (viral) | 5s (story) |
+| Transitions | every scene, cycling whip/zoom/glitch/flash | dip to black at every chapter |
 | Chapter title cards | - | first 3.2s of each chapter |
 | Music | one loop | one loop per mood, crossfaded at chapter changes |
 | Render | single pass | ~5 min parts, cached, joined without re-encoding |

@@ -4,6 +4,10 @@
 //   public/audio/whoosh.wav scene transitions
 //   public/audio/hit.wav    hook impact on frame 0
 //   public/audio/pop.wav    emphasis text landing
+//   public/audio/riser.wav  build into a reveal (fx "reveal")
+//   public/audio/scratch.wav freeze frame (fx "freeze")
+//   public/audio/glitch.wav glitch transition
+//   public/audio/tick.wav   highlighted caption words
 import fs from "node:fs";
 import path from "node:path";
 import { PUBLIC, fail, log, readJson } from "./lib.mjs";
@@ -69,6 +73,53 @@ function wav(samples) {
     out[i] = Math.sin(ph) * Math.exp(-t * 8);
   }
   fs.writeFileSync(path.join(OUT, "pop.wav"), wav(out));
+}
+
+{
+  // riser: noise + tone sweeping up for 1.2s, stopping dead at the peak (the reveal lands on silence + hit)
+  const N = secs(1.2), out = new Float32Array(N);
+  let ph = 0, lp = 0;
+  for (let i = 0; i < N; i++) {
+    const t = i / N;
+    ph += (2 * Math.PI * (180 + 900 * t * t)) / SR;
+    lp += (0.02 + 0.4 * t * t) * (rand() - lp);
+    out[i] = (Math.sin(ph) * 0.5 + lp) * t ** 2.2;
+  }
+  fs.writeFileSync(path.join(OUT, "riser.wav"), wav(out));
+}
+{
+  // record scratch: fast pitch wobble on filtered noise (freeze frames)
+  const N = secs(0.38), out = new Float32Array(N);
+  let ph = 0, lp = 0;
+  for (let i = 0; i < N; i++) {
+    const t = i / N;
+    ph += (2 * Math.PI * (300 + 700 * Math.sin(t * Math.PI * 3))) / SR;
+    lp += 0.35 * (rand() - lp);
+    out[i] = (Math.sin(ph) * 0.6 + lp * 0.7) * Math.sin(Math.PI * t) * (1 - t * 0.5);
+  }
+  fs.writeFileSync(path.join(OUT, "scratch.wav"), wav(out));
+}
+{
+  // glitch: bit-crushed square buzz with stutters (glitch transitions)
+  const N = secs(0.25), out = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    const t = i / SR;
+    const gate = Math.floor(t * 40) % 3 !== 1 ? 1 : 0;
+    const sq = Math.sign(Math.sin(2 * Math.PI * 220 * t)) * 0.4 + Math.round(rand() * 3) / 6;
+    out[i] = sq * gate * Math.exp(-t * 6);
+  }
+  fs.writeFileSync(path.join(OUT, "glitch.wav"), wav(out));
+}
+{
+  // tick: tiny click for highlighted caption words
+  const N = secs(0.06), out = new Float32Array(N);
+  let ph = 0;
+  for (let i = 0; i < N; i++) {
+    const t = i / N;
+    ph += (2 * Math.PI * 2100) / SR;
+    out[i] = Math.sin(ph) * Math.exp(-t * 12);
+  }
+  fs.writeFileSync(path.join(OUT, "tick.wav"), wav(out));
 }
 
 // ---------- music beds ----------
