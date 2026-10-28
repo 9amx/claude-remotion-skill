@@ -51,6 +51,21 @@ const Picture: React.FC<{ scene: Scene; si: number; style: Style }> = ({ scene, 
   );
 };
 
+// One sound effect, started early by its alignment offset so it lands exactly on
+// `at` (the cut, the word, the reveal) whatever library it came from: whooshes
+// and risers peak there, impacts and UI sounds start there.
+const Sfx: React.FC<{ timeline: Timeline; name: string; i?: number; at: number; volume: number }> = ({ timeline, name, i = 0, at, volume }) => {
+  const { fps } = useVideoConfig();
+  const list = timeline.sfxFiles?.[name] ?? [`audio/${name}.wav`];
+  const src = list[i % list.length];
+  const lead = Math.round(((timeline.sfxPeaks?.[src] ?? 0) / 1000) * fps);
+  return (
+    <Sequence from={at - lead} durationInFrames={Math.round(fps * 4)} name={`sfx ${name}`}>
+      <Audio src={staticFile(src)} volume={volume * (timeline.sfxLevel ?? 1)} />
+    </Sequence>
+  );
+};
+
 // Ticks on highlighted caption words (dense edit styles only), at most ~1/sec.
 const useHighlightTicks = (timeline: Timeline, fps: number) =>
   useMemo(() => {
@@ -70,14 +85,12 @@ export const FacelessVideo: React.FC<Props> = ({ timeline }) => {
   const style = getStyle(timeline.style);
   const sfx = timeline.sfxLevel ?? (timeline.sfx ? 1 : 0);
   // Your own SFX (public/sfx/) when present, rotating through variants; else the synthesized kit.
-  const sfxSrc = (name: string, i = 0) => {
-    const list = timeline.sfxFiles?.[name] ?? [`audio/${name}.wav`];
-    return staticFile(list[i % list.length]);
-  };
+  const riserSrc = (timeline.sfxFiles?.riser ?? ["audio/riser.wav"])[0];
   const lastWordEnd = Math.round(((timeline.words[timeline.words.length - 1]?.endMs ?? 0) / 1000) * fps);
   const XF = Math.round(fps * 1.5); // music crossfade between chapter moods
   const cardLen = Math.round(fps * 3.2);
-  const riserLen = Math.round(fps * 1.2);
+  // Music drops out from the riser's start (its peak sits on the reveal).
+  const riserLen = Math.max(8, Math.round((((timeline.sfxPeaks?.[riserSrc] ?? 1200)) / 1000) * fps));
   // Music drops out under a riser and comes back on the reveal's hit.
   const revealDuck = (f: number) =>
     (timeline.reveals ?? []).reduce((m, r) => m * interpolate(f, [r - riserLen, r - riserLen + 8, r, r + 10], [1, 0.12, 0.12, 1], clamp), 1);
@@ -110,44 +123,42 @@ export const FacelessVideo: React.FC<Props> = ({ timeline }) => {
             </Sequence>
           )}
           {scene.audio && <Audio src={staticFile(scene.audio)} />}
-          {sfx > 0 && scene.emphasis && si > 0 && <Audio src={sfxSrc("pop", si)} volume={0.35 * sfx} />}
-          {sfx > 0 && scene.fx.includes("freeze") && <Audio src={sfxSrc("scratch", si)} volume={0.5 * sfx} />}
         </Sequence>
       ))}
 
-      {/* Transition sounds land a few frames before the cut; dips get a black overlay across the cut. */}
-      {timeline.scenes.map((scene, si) => {
-        const t = scene.transition;
-        if (t === "cut" || t === "fade") return null;
-        if (t === "dip") {
-          return (
-            <Sequence key={`t-${scene.id}`} from={scene.startFrame - 8} durationInFrames={28}>
-              <Dip half={8} />
+      {/* Dips get a black overlay across the cut. */}
+      {timeline.scenes.map((scene) =>
+        scene.transition === "dip" ? (
+          <Sequence key={`d-${scene.id}`} from={scene.startFrame - 8} durationInFrames={28}>
+            <Dip half={8} />
+          </Sequence>
+        ) : null,
+      )}
+
+      {/* SFX, each peak-aligned to its moment. */}
+      {sfx > 0 && (
+        <>
+          <Sfx timeline={timeline} name="hit" at={0} volume={0.55} />
+          {timeline.scenes.map((scene, si) => {
+            const t = scene.transition;
+            return (
+              <Sequence key={`s-${scene.id}`} layout="none">
+                {si > 0 && t !== "cut" && t !== "fade" && t !== "dip" && <Sfx timeline={timeline} name={t === "glitch" ? "glitch" : "whoosh"} i={si} at={scene.startFrame} volume={0.32} />}
+                {si > 0 && scene.emphasis && <Sfx timeline={timeline} name="pop" i={si} at={scene.startFrame + 3} volume={0.35} />}
+                {scene.fx.includes("freeze") && <Sfx timeline={timeline} name="scratch" i={si} at={scene.startFrame} volume={0.5} />}
+              </Sequence>
+            );
+          })}
+          {/* Reveals: riser peaking into the cut, music dropped out under it, then the hit. */}
+          {(timeline.reveals ?? []).map((r, ri) => (
+            <Sequence key={`r-${r}`} layout="none">
+              <Sfx timeline={timeline} name="riser" i={ri} at={r} volume={0.45} />
+              <Sfx timeline={timeline} name="hit" i={ri + 1} at={r} volume={0.5} />
             </Sequence>
-          );
-        }
-        return sfx > 0 ? (
-          <Sequence key={`t-${scene.id}`} from={scene.startFrame - 4} durationInFrames={Math.round(fps * 0.6)}>
-            <Audio src={sfxSrc(t === "glitch" ? "glitch" : "whoosh", si)} volume={0.32 * sfx} />
-          </Sequence>
-        ) : null;
-      })}
-
-      {/* Reveals: riser into silence, then the hit. */}
-      {sfx > 0 && (timeline.reveals ?? []).map((r, ri) => (
-        <Sequence key={`r-${r}`} from={Math.max(0, r - riserLen)} durationInFrames={riserLen + Math.round(fps)}>
-          <Audio src={sfxSrc("riser", ri)} volume={0.45 * sfx} />
-          <Sequence from={r - Math.max(0, r - riserLen)}>
-            <Audio src={sfxSrc("hit", ri + 1)} volume={0.5 * sfx} />
-          </Sequence>
-        </Sequence>
-      ))}
-      {ticks.map((f, ti) => (
-        <Sequence key={`k-${f}`} from={f} durationInFrames={Math.round(fps * 0.2)}>
-          <Audio src={sfxSrc("tick", ti)} volume={0.18 * sfx} />
-        </Sequence>
-      ))}
-      {sfx > 0 && <Audio src={sfxSrc("hit")} volume={0.55 * sfx} />}
+          ))}
+          {ticks.map((f, ti) => <Sfx key={`k-${f}`} timeline={timeline} name="tick" i={ti} at={f} volume={0.18} />)}
+        </>
+      )}
 
       {timeline.music.segments.map((seg, i) => {
         const from = Math.max(0, seg.from - (i > 0 ? XF : 0));

@@ -53,6 +53,7 @@ export type Timeline = {
   sfx: boolean;
   sfxLevel: number;
   sfxFiles?: Record<string, string[]>; // slot -> files (own SFX variants or the synthesized one)
+  sfxPeaks?: Record<string, number>; // file -> ms from its start to its alignment point (peak for whoosh/riser, onset otherwise)
   editStyle: string;
   reveals: number[]; // absolute frames where a reveal lands
   transitions: "scene" | "chapter" | "none";

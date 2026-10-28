@@ -150,6 +150,42 @@ for (const seg of timeline.music.segments.filter((m) => m.file)) {
   log("audio", `own music: ${seg.file} (normalized to -14 LUFS)`);
 }
 
+// ---------- SFX alignment ----------
+// Library SFX put their energy anywhere: a whoosh peaks ~0.4s in, a riser just
+// before it stops, a glitch is a flat 0.7s burst. Movement sounds (whoosh,
+// riser) should PEAK on the cut / reveal; impacts and UI sounds (hit, glitch,
+// scratch, pop, tick) should START on it. Write each file's offset to its
+// alignment point into the timeline; the composition starts it that much early.
+const PEAK_ALIGNED = new Set(["whoosh", "riser"]);
+function alignMs(file, mode) {
+  const b = fs.readFileSync(file);
+  let off = 12, ch = 1, sr = 44100, data = null;
+  while (off + 8 <= b.length) {
+    const id = b.toString("ascii", off, off + 4), size = b.readUInt32LE(off + 4);
+    if (id === "fmt ") [ch, sr] = [b.readUInt16LE(off + 10), b.readUInt32LE(off + 12)];
+    if (id === "data") { data = b.subarray(off + 8, Math.min(b.length, off + 8 + size)); break; }
+    off += 8 + size + (size % 2);
+  }
+  if (!data) return 0;
+  const frames = Math.floor(data.length / (2 * ch)), win = Math.round(sr / 100); // 10ms windows, all channels
+  const env = [];
+  for (let w = 0; w * win < frames; w++) {
+    let e = 0;
+    for (let i = w * win; i < Math.min(frames, (w + 1) * win); i++) for (let c = 0; c < ch; c++) e += Math.abs(data.readInt16LE((i * ch + c) * 2));
+    env.push(e);
+  }
+  const max = Math.max(...env);
+  const at = mode === "peak" ? env.indexOf(max) : env.findIndex((e) => e >= max * 0.3); // onset: first window at 30% of max
+  return Math.max(0, at) * 10;
+}
+timeline.sfxPeaks = {};
+for (const [slot, list] of Object.entries(timeline.sfxFiles ?? {})) {
+  for (const src of list) {
+    if (fs.existsSync(path.join(PUBLIC, src))) timeline.sfxPeaks[src] = alignMs(path.join(PUBLIC, src), PEAK_ALIGNED.has(slot) ? "peak" : "onset");
+  }
+}
+fs.writeFileSync(path.join(PUBLIC, "timeline.json"), JSON.stringify(timeline, null, 2));
+
 // ---------- music beds ----------
 // One seamless loop per mood used in the timeline (bed-<mood>.wav), a whole
 // number of chord cycles up to ~2 minutes. The composition loops it and does

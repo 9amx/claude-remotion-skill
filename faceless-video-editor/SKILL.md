@@ -129,11 +129,14 @@ is available in this session, or the user supplies files, use real sound:
    | `scratch` | freeze frames | "record scratch" |
    | `glitch` | glitch transitions | "glitch digital short" |
    | `tick` | highlighted words | "click soft ui" |
-   Keep SFX short (under ~1.5s; a riser ~1-1.5s). Any slot without a file uses
-   the synthesized one.
+   Prefer short, punchy files (whoosh/pop/tick under ~1.5s, riser ~1-2s). The
+   pipeline measures each file's loudest moment and lines THAT up with the
+   cut / word / reveal, so where the peak sits inside the file doesn't matter.
+   Any slot without a file uses the synthesized one.
 3. The `audio` step normalizes everything (SFX peaks to -1 dB, music to -14 LUFS)
-   so `sfxLevel` and `music.volume` behave the same with any source. Nothing in
-   `public/sfx/` or `public/music/` is ever overwritten.
+   so `sfxLevel` and `music.volume` behave the same with any source, and
+   measures where each SFX peaks. Nothing in `public/sfx/` or `public/music/` is
+   ever overwritten.
 4. Licensing: downloads are covered by the user's active subscription (a
    Business plan also covers client work). Remind the user to connect their
    YouTube channel in their Epidemic account so uploads aren't claimed. Never

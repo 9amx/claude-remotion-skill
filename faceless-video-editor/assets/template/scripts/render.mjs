@@ -54,7 +54,7 @@ const srcHash = sha1(
 // Total length only matters to the progress bar; otherwise a line edited near
 // the end would invalidate every part before it.
 const global = { ...t, scenes: undefined, words: undefined, music: undefined, chapters: undefined,
-  sfx: undefined, sfxLevel: undefined, sfxFiles: undefined, reveals: undefined, // audio only; parts are muted
+  sfx: undefined, sfxLevel: undefined, sfxFiles: undefined, sfxPeaks: undefined, reveals: undefined, // audio only; parts are muted
   durationInFrames: t.progressBar ? t.durationInFrames : undefined };
 const flagsKey = (process.env.REMOTION_FLAGS || "").replace(/--concurrency=\S+/, "");
 
