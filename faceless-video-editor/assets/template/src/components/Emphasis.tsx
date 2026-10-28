@@ -3,6 +3,19 @@
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import { clamp, ease, springs, type Style } from "../theme";
 
+// Numbers count up from 0 ("$4,000", "24", "3.5%"), landing in ~0.9s.
+const countUp = (word: string, frame: number, fps: number) => {
+  const m = /\d[\d,]*(\.\d+)?/.exec(word);
+  if (!m) return word;
+  const target = parseFloat(m[0].replace(/,/g, ""));
+  if (!Number.isFinite(target) || (target >= 1900 && target <= 2100 && !m[0].includes(","))) return word; // years stay put
+  const p = spring({ frame, fps, config: { damping: 30, stiffness: 70 } });
+  const decimals = m[1] ? m[1].length - 1 : 0;
+  const v = (target * p).toFixed(decimals);
+  const shown = m[0].includes(",") ? Number(v).toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals }) : v;
+  return word.slice(0, m.index) + shown + word.slice(m.index + m[0].length);
+};
+
 export const Emphasis: React.FC<{ text: string; style: Style; hook: boolean; duration: number }> = ({ text, style, hook, duration }) => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
@@ -23,7 +36,8 @@ export const Emphasis: React.FC<{ text: string; style: Style; hook: boolean; dur
         transform: `translateY(${exitY}px) scale(${breathe})`, opacity: exitO,
       }}>
         {words.map((w, i) => {
-          const p = spring({ frame: frame - i * 4, fps, config: springs.snappy });
+          // The hook is already on screen at frame 0 (autoplay + first-frame thumbnail) and slams in.
+          const p = spring({ frame: frame - i * (hook ? 2 : 4) + (hook ? 7 : 0), fps, config: springs.snappy });
           return (
             <span key={i} style={{
               display: "inline-block",
@@ -32,7 +46,7 @@ export const Emphasis: React.FC<{ text: string; style: Style; hook: boolean; dur
               textShadow: `0 ${fontSize * 0.04}px 0 ${style.colors.outline}, 0 ${fontSize * 0.1}px ${fontSize * 0.3}px rgba(0,0,0,0.55)`,
               opacity: p,
               transform: `translateY(${interpolate(p, [0, 1], [fontSize * 0.5, 0])}px) scale(${interpolate(p, [0, 1], [hook ? 1.4 : 0.85, 1])})`,
-            }}>{w}</span>
+            }}>{countUp(w, frame, fps)}</span>
           );
         })}
       </div>

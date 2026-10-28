@@ -1,47 +1,99 @@
 // The whole edit, rendered from public/timeline.json.
-// Layer stack (bottom -> top): background mesh -> B-roll shots -> scrim ->
-// emphasis / lower third / chapter card -> captions -> grade -> grain ->
-// vignette -> progress bar.
-import { AbsoluteFill, Audio, Sequence, interpolate, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+// Layer stack (bottom -> top): background mesh -> PICTURE (B-roll through
+// camera / look / transition) -> scrim -> emphasis / lower third / chapter card /
+// badge -> captions -> grade -> grain -> vignette -> progress bar.
+import { useMemo } from "react";
+import { AbsoluteFill, Audio, Freeze, Sequence, interpolate, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { Background } from "./components/Background";
 import { Captions } from "./components/Captions";
 import { ChapterCard } from "./components/ChapterCard";
+import { Badge, Camera, Dip, LookFilter, Split, TransitionIn, TransitionOut } from "./components/Edit";
 import { Emphasis } from "./components/Emphasis";
 import { Grade, Grain, Vignette } from "./components/Finish";
 import { LowerThird } from "./components/LowerThird";
 import { ProgressBar } from "./components/ProgressBar";
 import { Shot } from "./components/Shot";
 import type { Props } from "./Root";
-import { clamp, getStyle } from "./theme";
+import { clamp, getStyle, type Style } from "./theme";
+import type { Scene, Timeline } from "./types";
 
-const Flash: React.FC = () => {
+// Freeze frame: the picture stops on a white flash with a slight push-in.
+const FreezeFlash: React.FC = () => {
   const frame = useCurrentFrame();
-  return <AbsoluteFill style={{ background: "#fff", mixBlendMode: "overlay", opacity: interpolate(frame, [0, 7], [0.55, 0], clamp) }} />;
+  return <AbsoluteFill style={{ background: "#fff", opacity: interpolate(frame, [0, 6], [0.7, 0], clamp) }} />;
 };
+
+const Picture: React.FC<{ scene: Scene; si: number; style: Style }> = ({ scene, si, style }) => {
+  const frozen = scene.fx.includes("freeze");
+  const shot = (k: number) => {
+    const s = <Shot shot={scene.shots[k]} style={style} seed={si * 7 + k} />;
+    return frozen ? <Freeze frame={0}>{s}</Freeze> : s;
+  };
+  return (
+    <TransitionOut type={scene.exit} start={scene.durationInFrames}>
+      <TransitionIn type={scene.transition}>
+        <LookFilter look={frozen && scene.look === "normal" ? "dramatic" : scene.look}>
+          <Camera punches={scene.punches} shake={scene.shake || frozen}>
+            {scene.layout === "split" ? (
+              <Split a={shot(0)} b={shot(1)} style={style} />
+            ) : (
+              scene.shots.map((sh, k) => (
+                <Sequence key={k} from={sh.from} durationInFrames={sh.durationInFrames + (k === scene.shots.length - 1 ? scene.visualExtend : 0)} name={`${scene.id}-${k + 1} ${sh.type}`}>
+                  {shot(k)}
+                </Sequence>
+              ))
+            )}
+          </Camera>
+        </LookFilter>
+      </TransitionIn>
+      {frozen && <FreezeFlash />}
+    </TransitionOut>
+  );
+};
+
+// Ticks on highlighted caption words (dense edit styles only), at most ~1/sec.
+const useHighlightTicks = (timeline: Timeline, fps: number) =>
+  useMemo(() => {
+    if (timeline.sfxLevel < 0.8) return [];
+    const out: number[] = [];
+    for (const w of timeline.words) {
+      const f = Math.round((w.startMs / 1000) * fps);
+      if (w.hl && (!out.length || f - out[out.length - 1] > fps)) out.push(f);
+    }
+    return out;
+  }, [timeline, fps]);
 
 export const FacelessVideo: React.FC<Props> = ({ timeline }) => {
   const { fps, durationInFrames } = useVideoConfig();
+  const ticks = useHighlightTicks(timeline ?? ({ sfxLevel: 0, words: [] } as unknown as Timeline), fps);
   if (!timeline) return <AbsoluteFill style={{ background: "#111", color: "#fff", fontSize: 48, padding: 80 }}>Run `npm run auto` first: public/timeline.json is missing.</AbsoluteFill>;
   const style = getStyle(timeline.style);
+  const sfx = timeline.sfxLevel ?? (timeline.sfx ? 1 : 0);
   const lastWordEnd = Math.round(((timeline.words[timeline.words.length - 1]?.endMs ?? 0) / 1000) * fps);
   const XF = Math.round(fps * 1.5); // music crossfade between chapter moods
   const cardLen = Math.round(fps * 3.2);
-  const cuts = timeline.scenes.filter((s, i) => i > 0 && (timeline.transitions === "scene" || (timeline.transitions === "chapter" && s.chapterStart)));
+  const riserLen = Math.round(fps * 1.2);
+  // Music drops out under a riser and comes back on the reveal's hit.
+  const revealDuck = (f: number) =>
+    (timeline.reveals ?? []).reduce((m, r) => m * interpolate(f, [r - riserLen, r - riserLen + 8, r, r + 10], [1, 0.12, 0.12, 1], clamp), 1);
 
   return (
     <AbsoluteFill style={{ backgroundColor: style.colors.bg }}>
       <Background style={style} />
 
+      {/* Pictures first, in order, so an incoming scene sits on top of the outgoing one during overlaps. */}
+      {timeline.scenes.map((scene, si) => (
+        <Sequence key={`p-${scene.id}`} from={scene.startFrame} durationInFrames={scene.durationInFrames + scene.visualExtend} name={`${scene.id} picture`}>
+          <Picture scene={scene} si={si} style={style} />
+        </Sequence>
+      ))}
+
       {timeline.scenes.map((scene, si) => (
         <Sequence key={scene.id} from={scene.startFrame} durationInFrames={scene.durationInFrames} name={scene.id}>
-          {scene.shots.map((shot, k) => (
-            <Sequence key={k} from={shot.from} durationInFrames={shot.durationInFrames} name={`${scene.id}-${k + 1} ${shot.type}`}>
-              <Shot shot={shot} style={style} seed={si * 7 + k} />
-            </Sequence>
-          ))}
-          {/* Scrim keeps captions readable over any footage. */}
+          {/* Scrim keeps text readable over any footage. */}
           <AbsoluteFill style={{ background: `linear-gradient(180deg, ${style.colors.scrim} 0%, transparent 34%, transparent 48%, ${style.colors.scrim} 100%)`, opacity: 0.85 }} />
           {scene.emphasis && <Emphasis text={scene.emphasis} style={style} hook={si === 0} duration={scene.durationInFrames} />}
+          {scene.badge && <Badge text={scene.badge} style={style} />}
           {scene.lowerThird && (
             <Sequence from={Math.round(fps * 0.3)} durationInFrames={Math.min(Math.round(fps * 4.5), scene.durationInFrames - Math.round(fps * 0.3))}>
               <LowerThird {...scene.lowerThird} style={style} duration={Math.min(Math.round(fps * 4.5), scene.durationInFrames - Math.round(fps * 0.3))} />
@@ -53,20 +105,44 @@ export const FacelessVideo: React.FC<Props> = ({ timeline }) => {
             </Sequence>
           )}
           {scene.audio && <Audio src={staticFile(scene.audio)} />}
-          {timeline.sfx && scene.emphasis && si > 0 && <Audio src={staticFile("audio/pop.wav")} volume={0.35} />}
+          {sfx > 0 && scene.emphasis && si > 0 && <Audio src={staticFile("audio/pop.wav")} volume={0.35 * sfx} />}
+          {sfx > 0 && scene.fx.includes("freeze") && <Audio src={staticFile("audio/scratch.wav")} volume={0.5 * sfx} />}
         </Sequence>
       ))}
 
-      {/* Transition flash + whoosh on scene changes (Shorts) or chapter changes (long form). */}
-      {cuts.map((scene) => (
-        <Sequence key={`t-${scene.id}`} from={scene.startFrame - 4} durationInFrames={12}>
-          {timeline.sfx && <Audio src={staticFile("audio/whoosh.wav")} volume={0.3} />}
-          <Sequence from={4}>
-            <Flash />
+      {/* Transition sounds land a few frames before the cut; dips get a black overlay across the cut. */}
+      {timeline.scenes.map((scene) => {
+        const t = scene.transition;
+        if (t === "cut" || t === "fade") return null;
+        if (t === "dip") {
+          return (
+            <Sequence key={`t-${scene.id}`} from={scene.startFrame - 8} durationInFrames={28}>
+              <Dip half={8} />
+            </Sequence>
+          );
+        }
+        return sfx > 0 ? (
+          <Sequence key={`t-${scene.id}`} from={scene.startFrame - 4} durationInFrames={Math.round(fps * 0.6)}>
+            <Audio src={staticFile(t === "glitch" ? "audio/glitch.wav" : "audio/whoosh.wav")} volume={0.32 * sfx} />
+          </Sequence>
+        ) : null;
+      })}
+
+      {/* Reveals: riser into silence, then the hit. */}
+      {sfx > 0 && (timeline.reveals ?? []).map((r) => (
+        <Sequence key={`r-${r}`} from={Math.max(0, r - riserLen)} durationInFrames={riserLen + Math.round(fps)}>
+          <Audio src={staticFile("audio/riser.wav")} volume={0.45 * sfx} />
+          <Sequence from={r - Math.max(0, r - riserLen)}>
+            <Audio src={staticFile("audio/hit.wav")} volume={0.5 * sfx} />
           </Sequence>
         </Sequence>
       ))}
-      {timeline.sfx && <Audio src={staticFile("audio/hit.wav")} volume={0.55} />}
+      {ticks.map((f) => (
+        <Sequence key={`k-${f}`} from={f} durationInFrames={Math.round(fps * 0.2)}>
+          <Audio src={staticFile("audio/tick.wav")} volume={0.18 * sfx} />
+        </Sequence>
+      ))}
+      {sfx > 0 && <Audio src={staticFile("audio/hit.wav")} volume={0.55 * sfx} />}
 
       {timeline.music.segments.map((seg, i) => {
         const from = Math.max(0, seg.from - (i > 0 ? XF : 0));
@@ -76,11 +152,12 @@ export const FacelessVideo: React.FC<Props> = ({ timeline }) => {
             <Audio
               src={staticFile(seg.src)}
               loop
-              // Crossfade between segments, duck under the voice, swell in the outro.
+              // Crossfade between segments, duck under the voice, drop out before reveals, swell in the outro.
               volume={(f) =>
                 timeline.music.volume *
                 interpolate(f, [0, i > 0 ? XF : 12], [0, 1], clamp) *
                 (i < timeline.music.segments.length - 1 ? interpolate(f, [len - XF, len], [1, 0], clamp) : 1) *
+                revealDuck(from + f) *
                 interpolate(from + f, [lastWordEnd, lastWordEnd + 10], [1, 2.2], clamp) *
                 interpolate(from + f, [durationInFrames - 20, durationInFrames - 1], [1, 0], clamp)
               }

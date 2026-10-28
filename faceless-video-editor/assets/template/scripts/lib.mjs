@@ -29,7 +29,7 @@ export function readProject() {
   if (Array.isArray(p.chapters)) {
     if (p.scenes) fail('Use either "scenes" or "chapters" in project.json, not both.');
     p.scenes = p.chapters.flatMap((ch, c) =>
-      (ch.scenes || []).map((s, k) => ({ ...s, broll: s.broll?.length ? s.broll : ch.broll, chapter: c, chapterStart: k === 0 })),
+      (ch.scenes || []).map((s, k) => ({ ...s, broll: s.broll?.length ? s.broll : ch.broll, look: s.look ?? ch.look, chapter: c, chapterStart: k === 0 })),
     );
   } else {
     p.chapters = [{ title: p.title ?? "" }];
@@ -39,14 +39,42 @@ export function readProject() {
   if (p.scenes.length === 0) fail("project.json needs a non-empty scenes (or chapters[].scenes) array.");
   const long = p.format !== "shorts";
   p.fps = p.fps || 30;
-  p.style = p.style || (long ? "documentary" : "bold");
+  // Edit style bundles pacing, transitions, zooms and SFX density. Anything set
+  // explicitly in project.json wins over the preset.
+  p.editStyle = p.editStyle || (long ? "story" : "viral");
+  const es = EDIT_STYLES[p.editStyle];
+  if (!es) fail(`Unknown editStyle "${p.editStyle}". Use: ${Object.keys(EDIT_STYLES).join(", ")}`);
+  p.style = p.style || es.style || (long ? "documentary" : "bold");
   p.voice = { provider: "edge", ...(p.voice || {}) };
-  p.captions = long ? { style: "subtitle", maxWords: 8, ...(p.captions || {}) } : { style: "pop", maxWords: 3, ...(p.captions || {}) };
-  p.maxShotSeconds = p.maxShotSeconds || (long ? 5 : 2.8);
-  // Whoosh + flash on every scene change suits a Short; in long form it gets tiring.
+  const capStyle = long ? "subtitle" : es.captions;
+  p.captions = { style: capStyle, maxWords: capStyle === "subtitle" ? 8 : 3, ...(p.captions || {}) };
+  p.maxShotSeconds = p.maxShotSeconds || es.shot[long ? 1 : 0];
+  // Where transitions happen: every scene (Shorts) or only at chapters (long form).
   p.transitions = p.transitions || (p.chapters.length > 1 ? "chapter" : "scene");
+  p.transitionStyle = p.transitionStyle || es.transition;
+  p.punchIns = p.punchIns ?? es.punchIns;
+  p.hookShake = p.hookShake ?? es.hookShake;
+  p.sfxLevel = p.sfx === false ? 0 : (p.sfxLevel ?? es.sfx);
   return p;
 }
+
+// Edit styles: how the video is cut, independent of its colors (style).
+//   shot: [Shorts, long form] seconds per B-roll shot
+//   transition: auto cycles whip/zoom/glitch/flash; or one of whip|zoom|glitch|flash|dip|fade|cut
+export const EDIT_STYLES = {
+  viral: { shot: [2.2, 3.5], transition: "auto", punchIns: true, hookShake: true, sfx: 1, captions: "pop" },
+  story: { shot: [3.5, 5], transition: "dip", punchIns: false, hookShake: false, sfx: 0.7, captions: "karaoke", style: "documentary" },
+  explainer: { shot: [3, 4.5], transition: "zoom", punchIns: true, hookShake: false, sfx: 0.8, captions: "boxed", style: "minimal" },
+  calm: { shot: [3.8, 6], transition: "fade", punchIns: false, hookShake: false, sfx: 0.4, captions: "karaoke", style: "documentary" },
+};
+
+export const TRANSITIONS = ["whip", "zoom", "glitch", "flash", "dip", "fade", "cut"];
+export const LOOKS = ["normal", "flashback", "dramatic", "night", "vhs", "dream"];
+export const FX = ["shake", "freeze", "reveal", "punch"];
+
+// Script markup: *word* marks a word to highlight (accent color, punch-in zoom).
+// The asterisks never reach the voice.
+export const stripMarkup = (text) => text.replace(/\*/g, "");
 
 export const sceneId = (i) => `s${String(i + 1).padStart(3, "0")}`;
 
@@ -149,6 +177,35 @@ export function splitIntoScenes(words, sceneTokens) {
   }
   bounds.push(words.length);
   return { bounds, matched: match.filter((m) => m !== null).length };
+}
+
+// Jump-cut dead air out of a recording. Given words (absolute ms) inside
+// [start, end], keep audio around speech and drop pauses longer than maxPause,
+// leaving `pad` ms of breath on each side of a cut. Returns the segments to keep
+// and the words re-timed relative to the tightened clip.
+export function tightenSegments(words, start, end, maxPause = 400, pad = 140) {
+  const first = words[0], last = words[words.length - 1];
+  const segs = [[Math.max(start, first.startMs - pad), 0]];
+  for (let i = 1; i < words.length; i++) {
+    if (words[i].startMs - words[i - 1].endMs > maxPause) {
+      segs[segs.length - 1][1] = words[i - 1].endMs + pad;
+      segs.push([words[i].startMs - pad, 0]);
+    }
+  }
+  segs[segs.length - 1][1] = Math.min(end, last.endMs + pad * 2);
+  const shift = (t) => {
+    let out = 0;
+    for (const [a, b] of segs) {
+      if (t <= a) break;
+      out += Math.min(t, b) - a;
+    }
+    return Math.round(out);
+  };
+  return {
+    segments: segs,
+    durationMs: Math.round(segs.reduce((n, [a, b]) => n + b - a, 0)),
+    words: words.map((w) => ({ ...w, startMs: shift(w.startMs), endMs: shift(w.endMs) })),
+  };
 }
 
 export function log(step, msg) {

@@ -128,8 +128,10 @@ for (const [i, scene] of project.scenes.entries()) {
   if (!vo) throw new Error(`Missing build/vo/${id}.json - run the voiceover step first.`);
   const sec = vo.durationMs / 1000;
   const keywords = scene.broll?.length ? scene.broll : [];
-  const nShots = Math.max(1, Math.ceil(sec / project.maxShotSeconds));
-  const shotSec = sec / nShots;
+  // Split layout shows two clips side by side for the whole scene.
+  const split = scene.layout === "split";
+  const nShots = split ? 2 : Math.max(1, Math.ceil(sec / project.maxShotSeconds));
+  const shotSec = split ? sec : sec / nShots;
   plan[id] = [];
   for (let k = 0; k < nShots; k++) {
     const kw = keywords.length ? keywords[k % keywords.length] : null;

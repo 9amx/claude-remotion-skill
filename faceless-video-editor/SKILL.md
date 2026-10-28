@@ -14,8 +14,9 @@ brief -> script (you write it) -> project.json
 ```
 
 Everything mechanical is scripted in `assets/template/`. Your job is the parts that
-decide whether anyone watches: **the hook, the script, the B-roll keywords, and
-the visual check.** Generic faceless videos fail on those, never on rendering.
+decide whether anyone watches: **the hook, the script, the edit decisions, the
+B-roll keywords, and the visual check.** Generic faceless videos fail on those,
+never on rendering.
 
 ## Step 1 - Brief (ask only what you can't default)
 
@@ -27,6 +28,7 @@ the visual check.** Generic faceless videos fail on those, never on rendering.
 | Language + voice | match the user's language; see voice table in `references/voice-and-audio.md` |
 | Style | `bold` (energetic), `documentary` (story/history/crime), `minimal` (tech/finance) |
 | Music mood | `tense` for mysteries/facts, `calm` for stories/motivation, `upbeat` for lists/tips |
+| Edit style | `viral` for Shorts, `story` for long form; `explainer`, `calm` by niche (see Step 2b) |
 
 If the user gave a topic and nothing else, don't interrogate them. Pick defaults,
 state them in one line, build.
@@ -35,9 +37,10 @@ state them in one line, build.
 
 Read `references/script-formula.md` before writing. Non-negotiables:
 
-1. **Hook in the first sentence, under 2 seconds** - a claim, a stakes, or a
-   pattern break. Never "In this video..." or "Did you know...". Scene 1 always has
-   an `emphasis` (2-4 word on-screen hook).
+1. **Hook in the first sentence, under ~14 words** - pick an archetype from
+   `references/editing-playbook.md` (curiosity gap, bold claim, stakes, question,
+   in medias res...). Never a warm-up ("In this video", "Did you know", greetings).
+   Scene 1 always has an `emphasis` (2-4 words) - it is on screen on frame 0.
 2. **Word budget = length x 2.5 words/sec** (at `rate: "+8%"`). 30s ~ 75 words,
    45s ~ 110, 60s ~ 150. Over budget means cut, not speed up.
 3. **One scene = one idea = 1-2 sentences** (2-8s of speech). Shorts: 5-9 scenes.
@@ -45,23 +48,43 @@ Read `references/script-formula.md` before writing. Non-negotiables:
    everything is emphasized nothing is.
 5. **2-3 `broll` keywords per scene, concrete and filmable**: "hands typing laptop
    night", not "productivity". Read `references/broll-keywords.md`.
-6. Last scene: a loop-back line or a CTA. Shorts that loop get replayed.
+6. Mark 1-2 power words per scene with `*asterisks*` (the number, the twist):
+   accent captions + punch-in zooms. The voice never hears the asterisks.
+7. Last scene: a loop-back line or a CTA. Never "thanks for watching".
 
 ```json
 {
-  "title": "...", "format": "shorts", "fps": 30, "style": "bold",
+  "title": "...", "format": "shorts", "editStyle": "viral", "style": "bold", "targetSeconds": 35,
   "voice": { "provider": "edge", "voice": "en-US-AndrewNeural", "rate": "+8%" },
   "music": { "mood": "tense", "volume": 0.12 },
-  "captions": { "style": "pop", "maxWords": 3 },
-  "maxShotSeconds": 2.8,
   "scenes": [
-    { "text": "spoken line", "emphasis": "ON SCREEN", "broll": ["kw a", "kw b"] },
-    { "text": "...", "broll": ["file:my-clip.mp4", "photo:old map"] },
-    { "text": "...", "visual": "kinetic" }
+    { "text": "Your phone was *designed* so you can't put it down.", "emphasis": "IT'S ON PURPOSE", "broll": ["kw a", "kw b"] },
+    { "text": "Every refresh works like a *slot machine*.", "layout": "split", "broll": ["finger swipe phone", "slot machine lever"] },
+    { "text": "In 1956...", "look": "flashback", "badge": "1956", "broll": ["photo:vintage laboratory"] },
+    { "text": "The fix takes ten seconds.", "fx": "reveal", "emphasis": "10 SECONDS", "broll": ["file:my-clip.mp4"] },
+    { "text": "...Follow for part two.", "visual": "kinetic" }
   ]
 }
 ```
+Working example: `assets/template/project.example.json`.
 Full field reference: `references/project-schema.md`.
+
+## Step 2b - Edit pass (this is where "high quality" comes from)
+
+Read `references/editing-playbook.md`, then walk the scenes and decide the edit
+on purpose:
+- `editStyle`: viral | story | explainer | calm (pacing, transitions, zooms, SFX).
+- Per scene where it earns it: `badge` (list items, dates), `lowerThird` (people,
+  places), `layout: "split"` (comparisons), `look` (flashback, dramatic, night,
+  vhs, dream), `transition` overrides, `fx`: `reveal` (the payoff / rehook),
+  `freeze` (the moment it went wrong), `shake` (rarely).
+- Pattern interrupt every 8-12s (Shorts) / 60-90s (long). Restraint everywhere else.
+
+Then run the gate: `node scripts/lint-script.mjs`. It checks the hook (warm-ups,
+length, tension), word budget vs `targetSeconds`, scene and sentence length,
+emphasis/highlight overuse, filmable keywords, interrupt spacing, long-form
+rehook and the ending. **Fix every error** (`npm run auto` refuses to start
+with errors) and act on the warnings unless you have a reason not to.
 
 ## Long form (5-40+ minutes)
 
@@ -87,13 +110,14 @@ export PEXELS_API_KEY=...       # free at pexels.com/api - strongly recommended
 npm run auto
 ```
 `npm run auto` runs every step and prints what it did. Re-run from a step with
-`node scripts/auto.mjs --from=broll` (steps: voice, broll, timeline, audio,
+`node scripts/auto.mjs --from=broll` (steps: lint, voice, broll, timeline, audio,
 render, master, check). Voiceover and downloads are cached, so editing one
 scene's text only re-voices that scene.
 
 User has their own recording? Put it in `public/`, set
 `"voice": {"provider": "file", "file": "my-voice.mp3"}` - the pipeline transcribes
-it locally with whisper.cpp and splits it into the scenes.
+it locally with whisper.cpp, splits it into the scenes and jump-cuts pauses
+over 0.4s (`voice.tightenPauses: false` to keep them).
 
 If the render can't download Chrome, set `REMOTION_BROWSER=/path/to/chrome`
 (Playwright's `chrome-headless-shell` works). No B-roll key? Shots fall back to an
@@ -114,7 +138,13 @@ Check, in this order:
 3. **Repeats**: same clip or same-looking clip twice in a row.
 4. **Captions**: readable over every shot, no word touching the frame edge, no
    page over two lines.
-5. Lint warnings (short shots, overlong holds, loudness off -14 LUFS, kinetic ratio).
+5. **Effects landed where intended**: split screens show two different clips,
+   looks read (flashback is clearly "the past"), freeze/reveal hit the right line.
+6. The **retention report** `check` prints: first word under 0.5s, hook text on
+   frame 0, longest hold without a visual change (<= 3.5s Shorts / 8s long),
+   longest stretch without a pattern interrupt (<= 12s / 90s), speech rate,
+   dead-air pauses. Fix every "(!)".
+7. Lint warnings (short shots, overlong holds, loudness off -14 LUFS, kinetic ratio).
 
 Long form: the check writes one or more sheets per chapter (`chNN-K.jpg`) and
 prints each sheet's time range. Look at every chapter, not just the first.
@@ -129,8 +159,9 @@ long form, and `build/credits.txt` if stock footage was used. Mention anything y
 
 ## Editing rules baked into the template (don't fight them)
 
-- Cut every `maxShotSeconds` (2.8s Shorts, 5s landscape), snapped to word starts.
-- Zoom-punch on every cut, Ken Burns drift on every shot, flash + whoosh between scenes.
+- Cut every `maxShotSeconds` (from `editStyle`), snapped to word starts.
+- Zoom-punch on every cut, Ken Burns drift on every shot, punch-ins on highlights,
+  transitions + matching SFX between scenes (chapters in long form).
 - Five-layer stack: mesh background -> footage -> scrim -> text -> grade/grain/vignette.
 - Music ducks under the voice and swells in the outro; hit SFX on frame 0.
 - All colors, fonts, easings live in `src/theme.ts` (`STYLES`). Change the look there,
@@ -149,6 +180,7 @@ Check every contact sheet - batch is where unwatched mistakes ship.
 
 ## Reference files
 - `references/script-formula.md` - hooks, retention structure, niche templates, word budgets.
+- `references/editing-playbook.md` - every edit tool, when to use it, niche recipes, hook archetypes, sound design.
 - `references/broll-keywords.md` - turning lines into searchable, filmable keywords.
 - `references/voice-and-audio.md` - providers, voices per language, music, loudness.
 - `references/long-form.md` - chapters, retention for 10-40 min, B-roll at scale, chunked rendering.

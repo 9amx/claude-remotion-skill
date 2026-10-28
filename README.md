@@ -79,6 +79,8 @@ topic -> script (hook, retention beats) -> AI voiceover with word timestamps
 - **Editing:** cuts every ~2.8s snapped to speech, zoom-punch on cuts, Ken Burns, scene whooshes, music ducking, progress bar
 - **Styles:** `bold`, `documentary`, `minimal`. Shorts, landscape or square
 - **Any language:** Bengali and Hindi glyphs are bundled; English, Spanish, Urdu and more via edge-tts voices
+- **Real editing toolkit:** edit styles (`viral`, `story`, `explainer`, `calm`), punch-in zooms on highlighted words, whip / zoom / glitch / flash / dip / crossfade transitions, looks (flashback, dramatic, night, VHS, dream), split screen, freeze frames, count-up numbers, list badges, and riser-into-silence reveals
+- **Hook and retention gate:** a script lint that blocks warm-up hooks and checks word budget, pacing and pattern interrupts before any rendering, plus a retention report on the finished video
 - **Long form up to 40+ minutes:** chapters with title cards, subtitles, lower thirds, per-chapter music, YouTube chapter timestamps, rate-limit-aware B-roll, and a chunked render that resumes after a crash and re-renders only what changed
 - **One command:** `npm run auto`, with caching so editing one line re-voices only that line
 

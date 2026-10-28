@@ -64,7 +64,11 @@ export const Captions: React.FC<{ timeline: Timeline; style: Style }> = ({ timel
           padding: `${fontSize * 0.18}px ${fontSize * 0.45}px`, borderRadius: fontSize * 0.25, background: "rgba(0,0,0,0.55)",
           fontFamily: style.fonts.caption, fontWeight: 600, fontSize, lineHeight: 1.25, color: style.colors.text, textAlign: "center",
         }}>
-          {page.words.map((w) => w.text).join(" ")}
+          {page.words.map((w, i) => (
+            <span key={i} style={{ color: w.hl ? style.colors.primary : undefined, fontWeight: w.hl ? 800 : undefined }}>
+              {i ? " " : ""}{w.text}
+            </span>
+          ))}
         </div>
       </AbsoluteFill>
     );
@@ -94,11 +98,12 @@ export const Captions: React.FC<{ timeline: Timeline; style: Style }> = ({ timel
           const active = i === activeIdx;
           const spoken = i <= activeIdx;
           const pop = spring({ frame: frame - toF(w.startMs), fps, config: springs.snappy });
-          const scale = active ? interpolate(pop, [0, 1], [0.94, 1.07]) : 1;
+          // Highlighted (*marked* or numeric) words stay in the accent color and a touch larger.
+          const scale = active ? interpolate(pop, [0, 1], [0.94, w.hl ? 1.14 : 1.07]) : w.hl ? 1.05 : 1;
           const text = w.text.replace(/[.,;:।]+$/, "");
           const color =
-            kind === "boxed" ? (active ? style.colors.outline : style.colors.text) :
-            active ? style.colors.primary : style.colors.text;
+            kind === "boxed" ? (active ? style.colors.outline : w.hl ? style.colors.accent : style.colors.text) :
+            w.hl ? style.colors.accent : active ? style.colors.primary : style.colors.text;
           return (
             <span key={i} style={{
               display: "inline-block",
@@ -106,6 +111,8 @@ export const Captions: React.FC<{ timeline: Timeline; style: Style }> = ({ timel
               color,
               opacity: kind === "karaoke" && !spoken ? 0.45 : 1,
               transform: `scale(${scale})`,
+              // A scaled word grows into its neighbours' space: give it that space back.
+              marginInline: Math.max(0, ((scale - 1) / 2) * text.length * fontSize * 0.62),
               textShadow: kind === "boxed" && active ? "none" : outline(style.colors.outline, fontSize * 0.055),
               padding: kind === "boxed" ? `0 ${fontSize * 0.14}px` : 0,
             }}>

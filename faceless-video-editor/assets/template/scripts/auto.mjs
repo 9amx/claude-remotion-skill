@@ -1,5 +1,5 @@
 // One command, script to finished video:
-//   voiceover -> b-roll -> timeline -> audio -> render -> loudness master -> check
+//   lint -> voiceover -> b-roll -> timeline -> audio -> render -> loudness master -> check
 // Usage: node scripts/auto.mjs [--from=broll] [--no-render]
 // Env:   REMOTION_BROWSER=/path/to/chrome   (only if Remotion can't download its own)
 //        REMOTION_FLAGS="--concurrency=4"     (extra flags for the render step)
@@ -19,6 +19,8 @@ const run = (cmd, cmdArgs) => {
 };
 
 const steps = [
+  // Hook/script gate first: errors stop here, before any voice or render time is spent.
+  ["lint", () => run("node", ["scripts/lint-script.mjs", "--strict"])],
   ["voice", () => (project.voice.provider === "file" ? run("node", ["scripts/transcribe.mjs"]) : run("python3", ["scripts/voiceover.py"]))],
   ["broll", () => run("node", ["scripts/fetch-broll.mjs"])],
   ["timeline", () => run("node", ["scripts/build-timeline.mjs"])],

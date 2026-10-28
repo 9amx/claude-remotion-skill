@@ -39,6 +39,40 @@ if (long.length && t.captions.style !== "subtitle") warnings.push(`long caption 
 if (sec(t.durationInFrames) > 60 && t.width < t.height) warnings.push("vertical video is over 60s - too long for most Shorts feeds");
 if (sec(t.durationInFrames) > 180 && t.captions.style === "pop") warnings.push('3-word pop captions for a long video get tiring: consider captions.style "subtitle"');
 
+// 1b. Retention report: how often the picture changes and how often something
+// bigger than a cut happens. Thresholds are practitioner defaults, not laws.
+const shorts = t.height > t.width;
+const visual = new Set([0]), interrupts = [0];
+t.scenes.forEach((s, i) => {
+  visual.add(s.startFrame);
+  s.shots.forEach((sh) => visual.add(s.startFrame + sh.from));
+  (s.punches ?? []).forEach((f) => visual.add(s.startFrame + f));
+  const prevLook = t.scenes[i - 1]?.look ?? "normal";
+  if (s.emphasis || s.badge || s.lowerThird || (s.chapterStart && t.showChapterCards) || s.fx?.length || s.layout === "split" ||
+    (s.transition && s.transition !== "cut") || (i > 0 && (s.look ?? "normal") !== prevLook)) interrupts.push(s.startFrame);
+});
+const maxGap = (frames) => {
+  const f = [...frames, t.durationInFrames].sort((a, b) => a - b);
+  let best = [0, 0];
+  for (let i = 1; i < f.length; i++) if (f[i] - f[i - 1] > best[1] - best[0]) best = [f[i - 1], f[i]];
+  return best;
+};
+const [va, vb] = maxGap([...visual]);
+const [ia, ib] = maxGap(interrupts);
+const visTarget = shorts ? 3.5 : 8, intTarget = shorts ? 12 : 90;
+const spoken = t.words.length / ((t.words[t.words.length - 1].endMs - t.words[0].startMs) / 60000);
+let pauses = 0;
+for (let i = 1; i < t.words.length; i++) if (t.words[i].scene === t.words[i - 1].scene && t.words[i].startMs - t.words[i - 1].endMs > 700) pauses++;
+const report = [
+  `first word at ${(t.words[0].startMs / 1000).toFixed(2)}s${t.words[0].startMs > 500 ? " (!) - start talking within 0.5s" : ""}`,
+  `hook text on frame 0: ${t.scenes[0].emphasis ? "yes" : "no" + (shorts ? " (!)" : "")}`,
+  `longest hold without a visual change: ${sec(vb - va).toFixed(1)}s at ${timecode(sec(va))}${sec(vb - va) > visTarget ? ` (!) target <= ${visTarget}s` : ""}`,
+  `longest stretch without a pattern interrupt: ${sec(ib - ia).toFixed(0)}s at ${timecode(sec(ia))}${sec(ib - ia) > intTarget ? ` (!) target <= ${intTarget}s` : ""}`,
+  `speech rate ${Math.round(spoken)} wpm${spoken < (shorts ? 140 : 120) ? " (!) slow - raise voice.rate or tighten" : spoken > 200 ? " (!) fast - captions will be hard to read" : ""}`,
+  `pauses over 0.7s inside scenes: ${pauses}${pauses > (shorts ? 1 : 10) ? " (!) - dead air; tighten (voice.tightenPauses for recordings)" : ""}`,
+];
+for (const line of report) if (line.includes("(!)")) warnings.push(`retention: ${line.replace(" (!)", "")}`);
+
 // 2. Key frames: hook (0.1s, 0.5s), then the middle of every shot
 const dir = path.join(ROOT, "out", "check");
 fs.rmSync(dir, { recursive: true, force: true });
@@ -78,6 +112,8 @@ if (lufs !== null && (lufs < -17 || lufs > -11)) warnings.push(`integrated loudn
 
 log("check", `${path.relative(ROOT, video)}: ${timecode(sec(t.durationInFrames))}, ${t.chapters.length} chapter(s), ${t.scenes.length} scenes, ${allShots.length} shots, ${lufs ?? "?"} LUFS`);
 log("check", `contact sheets in out/check/: ${sheets.join(", ")}`);
+log("check", "retention report:");
+for (const line of report) console.log(`    ${line.includes("(!)") ? "\x1b[33m" : ""}${line}\x1b[0m`);
 for (const w of warnings.slice(0, 40)) console.log(`  \x1b[33m! ${w}\x1b[0m`);
 if (warnings.length > 40) console.log(`  \x1b[33m! ...and ${warnings.length - 40} more\x1b[0m`);
 if (!warnings.length) log("check", "no lint warnings - now inspect the sheets visually");
