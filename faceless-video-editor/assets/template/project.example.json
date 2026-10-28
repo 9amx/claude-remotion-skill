@@ -1,0 +1,35 @@
+{
+  "title": "Why you can't stop scrolling",
+  "format": "shorts",
+  "fps": 30,
+  "style": "bold",
+  "voice": { "provider": "edge", "voice": "en-US-AndrewNeural", "rate": "+8%" },
+  "music": { "mood": "tense", "volume": 0.12 },
+  "captions": { "style": "pop", "maxWords": 3 },
+  "maxShotSeconds": 2.8,
+  "scenes": [
+    {
+      "text": "Your phone is designed to be impossible to put down.",
+      "emphasis": "IT'S ON PURPOSE",
+      "broll": ["person scrolling phone night", "phone screen close up"]
+    },
+    {
+      "text": "Every pull to refresh works exactly like a slot machine. You never know what you'll get, so your brain keeps pulling.",
+      "broll": ["slot machine casino", "finger swipe phone", "dopamine brain"]
+    },
+    {
+      "text": "Engineers call it a variable reward schedule, and it's the most addictive pattern ever studied.",
+      "emphasis": "VARIABLE REWARDS",
+      "broll": ["programmer coding dark", "laboratory research"]
+    },
+    {
+      "text": "The fix is simple. Turn off every notification that isn't from a real person.",
+      "broll": ["turning off phone", "calm morning coffee"]
+    },
+    {
+      "text": "Follow for one more trick tomorrow.",
+      "emphasis": "FOLLOW",
+      "visual": "kinetic"
+    }
+  ]
+}

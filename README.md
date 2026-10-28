@@ -63,6 +63,28 @@ remotion-motion-graphics/
     └── theme.ts                # Theme template (colors, easings, spring presets)
 ```
 
+## 🎙️ Faceless Video Editor skill (new)
+
+A second skill in this repo, [`faceless-video-editor/`](faceless-video-editor/), automates the whole faceless-channel workflow. Give Claude a topic and it delivers a finished, upload-ready MP4:
+
+```
+topic -> script (hook, retention beats) -> AI voiceover with word timestamps
+      -> stock B-roll for every shot -> word-synced captions -> music bed + SFX
+      -> Remotion render -> -14 LUFS master -> contact sheet Claude inspects
+```
+
+- **Voice:** free edge-tts (real word timestamps), ElevenLabs, OpenAI, or your own recording transcribed locally with whisper.cpp
+- **B-roll:** Pexels / Pixabay search per shot (free API keys), your own files, or an animated fallback
+- **Captions:** `pop`, `karaoke` or `boxed`, 1-4 words per page, active-word highlight
+- **Editing:** cuts every ~2.8s snapped to speech, zoom-punch on cuts, Ken Burns, scene whooshes, music ducking, progress bar
+- **Styles:** `bold`, `documentary`, `minimal`. Shorts, landscape or square
+- **Any language:** Bengali and Hindi glyphs are bundled; English, Spanish, Urdu and more via edge-tts voices
+- **One command:** `npm run auto`, with caching so editing one line re-voices only that line
+
+Try it: *"Make a 40 second Short about why octopuses are so smart"* or *"আমার এই রেকর্ডিং দিয়ে B-roll আর ক্যাপশনসহ একটা faceless ভিডিও বানাও"*.
+
+Install it the same way as the main skill (folder name `faceless-video-editor`, or upload `faceless-video-editor.skill` on Desktop). It works on its own, and it follows the motion rules of `remotion-motion-graphics` when you customise visuals.
+
 ## 🚀 Install
 
 **Claude Code (per-user — available in every project):**
@@ -70,6 +92,7 @@ remotion-motion-graphics/
 git clone https://github.com/haidrrrry/claude-remotion-skill.git
 mkdir -p ~/.claude/skills
 cp -r claude-remotion-skill/remotion-motion-graphics ~/.claude/skills/
+cp -r claude-remotion-skill/faceless-video-editor ~/.claude/skills/   # optional
 ```
 
 **Claude Code (per-project — share with your team):**
@@ -77,6 +100,7 @@ cp -r claude-remotion-skill/remotion-motion-graphics ~/.claude/skills/
 git clone https://github.com/haidrrrry/claude-remotion-skill.git
 mkdir -p .claude/skills
 cp -r claude-remotion-skill/remotion-motion-graphics .claude/skills/
+cp -r claude-remotion-skill/faceless-video-editor .claude/skills/     # optional
 ```
 
 **Claude Desktop / Claude.ai:** upload `remotion-motion-graphics.skill` in **Settings → Capabilities → Skills**.
