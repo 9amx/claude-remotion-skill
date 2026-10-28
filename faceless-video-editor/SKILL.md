@@ -109,6 +109,12 @@ is available in this session, or the user supplies files, use real sound:
    instrumental / no vocals under narration, and ask for a version close to the
    video length (the connector can make length-adjusted or looping versions).
    Download into `public/music/` and set `"music": {"file": "music/<name>.mp3"}`.
+   Flow with the connector: search recordings (filter `vocals: false`) ->
+   create an edit with `targetDurationMs` = the video length (max 5 minutes;
+   poll the job, usually done in seconds) -> download the edit. For anything
+   longer use one track per chapter, or `loopable: true`. Download links are
+   signed and expire: fetch the file (e.g. `curl -L -o public/music/x.mp3 "<url>"`)
+   right after getting the link.
    Long form: one track per chapter mood, `chapters[].music: "music/<name>.mp3"`;
    they crossfade at chapter changes.
 2. **SFX**: download 1-3 variants per slot into `public/sfx/` named
