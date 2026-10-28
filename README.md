@@ -88,6 +88,29 @@ Try it: *"Make a 40 second Short about why octopuses are so smart"*, *"Make a 20
 
 Install it the same way as the main skill (folder name `faceless-video-editor`, or upload `faceless-video-editor.skill` on Desktop). It works on its own, and it follows the motion rules of `remotion-motion-graphics` when you customise visuals.
 
+### Faceless videos on your own computer (Windows, macOS, Linux)
+
+1. Install [Node.js 20+](https://nodejs.org), [Python 3.10+](https://www.python.org/downloads/) (Windows: tick "Add python.exe to PATH"), [Git](https://git-scm.com) and [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
+2. Install the skill and the free voice engine:
+   ```bash
+   git clone https://github.com/9amx/claude-remotion-skill.git
+   mkdir -p ~/.claude/skills && cp -r claude-remotion-skill/faceless-video-editor ~/.claude/skills/
+   pip install edge-tts
+   ```
+   Windows (PowerShell): `Copy-Item -Recurse claude-remotion-skill\faceless-video-editor $HOME\.claude\skills\` (create the folder first with `mkdir $HOME\.claude\skills`).
+3. Get free stock-footage keys at [pexels.com/api](https://www.pexels.com/api/) and [pixabay.com/api/docs](https://pixabay.com/api/docs/), then set them once:
+   - macOS/Linux: add `export PEXELS_API_KEY=...` and `export PIXABAY_API_KEY=...` to `~/.zshrc` or `~/.bashrc`
+   - Windows: `setx PEXELS_API_KEY "..."` and `setx PIXABAY_API_KEY "..."`, then open a new terminal
+4. Make a folder for your videos, open Claude Code in it and ask:
+   ```bash
+   mkdir my-videos && cd my-videos && claude
+   ```
+   > *Make a 40 second Short about why octopuses are so smart*
+
+Claude copies the template, runs `npm install`, writes the script, and runs the pipeline. When it's done, the video is at `<project>/out/final.mp4`. The first render downloads a headless Chrome (~100 MB).
+
+Your own voice: put the recording in the project's `public/` folder and say *"use my-voice.mp3 as the voiceover"*. whisper.cpp is set up on first use: on macOS run `xcode-select --install` once first, on Linux install `build-essential`.
+
 ## 🚀 Install
 
 **Claude Code (per-user — available in every project):**

@@ -9,6 +9,13 @@ export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 export const PUBLIC = path.join(ROOT, "public");
 export const BUILD = path.join(ROOT, "build");
 
+// Remotion's CLI run through node directly: `npx` is a .cmd file on Windows,
+// which newer Node versions refuse to spawn without a shell.
+export const REMOTION = [process.execPath, path.join(ROOT, "node_modules", "@remotion", "cli", "remotion-cli.js")];
+export const remotionCmd = (args) => [REMOTION[0], [REMOTION[1], ...args]];
+// "python3" on macOS/Linux, usually "python" (or the "py" launcher) on Windows.
+export const PYTHON = ["python3", "python", "py"].find((c) => spawnSync(c, ["--version"], { encoding: "utf8" }).status === 0) ?? "python3";
+
 export const FORMATS = {
   shorts: { width: 1080, height: 1920, orientation: "portrait" },
   landscape: { width: 1920, height: 1080, orientation: "landscape" },
@@ -92,7 +99,7 @@ export function probeDuration(file) {
   const args = ["-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", file];
   let r = spawnSync("ffprobe", args, { encoding: "utf8" });
   if (r.status !== 0 || !r.stdout.trim()) {
-    r = spawnSync("npx", ["remotion", "ffprobe", ...args], { encoding: "utf8", cwd: ROOT });
+    r = spawnSync(...remotionCmd(["ffprobe", ...args]), { encoding: "utf8", cwd: ROOT });
   }
   const d = parseFloat((r.stdout || "").trim().split("\n").pop());
   return Number.isFinite(d) ? d : null;
@@ -104,8 +111,9 @@ export function hasCommand(cmd) {
 
 // System ffmpeg if installed, else the one bundled with Remotion.
 export function ffmpeg(args, { capture = false } = {}) {
-  const cmd = hasCommand("ffmpeg") ? ["ffmpeg"] : ["npx", "remotion", "ffmpeg"];
-  return spawnSync(cmd[0], [...cmd.slice(1), "-y", "-v", capture ? "info" : "error", ...args], {
+  const ffArgs = ["-y", "-v", capture ? "info" : "error", ...args];
+  const [cmd, cmdArgs] = hasCommand("ffmpeg") ? ["ffmpeg", ffArgs] : remotionCmd(["ffmpeg", ...ffArgs]);
+  return spawnSync(cmd, cmdArgs, {
     cwd: ROOT, encoding: "utf8", stdio: capture ? "pipe" : "inherit", maxBuffer: 64 * 1024 * 1024,
   });
 }

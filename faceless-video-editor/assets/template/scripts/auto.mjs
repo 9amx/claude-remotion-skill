@@ -1,15 +1,16 @@
 // One command, script to finished video:
 //   lint -> voiceover -> b-roll -> timeline -> audio -> render -> loudness master -> check
-// Usage: node scripts/auto.mjs [--from=broll] [--no-render]
+// Usage: node scripts/auto.mjs [--from=broll] [--only=voice] [--no-render]
 // Env:   REMOTION_BROWSER=/path/to/chrome   (only if Remotion can't download its own)
 //        REMOTION_FLAGS="--concurrency=4"     (extra flags for the render step)
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { ROOT, ffmpeg, fail, log, readProject } from "./lib.mjs";
+import { PYTHON, ROOT, ffmpeg, fail, log, readProject } from "./lib.mjs";
 
 const args = process.argv.slice(2);
 const from = args.find((a) => a.startsWith("--from="))?.slice(7);
+const only = args.find((a) => a.startsWith("--only="))?.slice(7);
 const noRender = args.includes("--no-render");
 const project = readProject();
 
@@ -21,7 +22,7 @@ const run = (cmd, cmdArgs) => {
 const steps = [
   // Hook/script gate first: errors stop here, before any voice or render time is spent.
   ["lint", () => run("node", ["scripts/lint-script.mjs", "--strict"])],
-  ["voice", () => (project.voice.provider === "file" ? run("node", ["scripts/transcribe.mjs"]) : run("python3", ["scripts/voiceover.py"]))],
+  ["voice", () => (project.voice.provider === "file" ? run("node", ["scripts/transcribe.mjs"]) : run(PYTHON, ["scripts/voiceover.py"]))],
   ["broll", () => run("node", ["scripts/fetch-broll.mjs"])],
   ["timeline", () => run("node", ["scripts/build-timeline.mjs"])],
   ["audio", () => run("node", ["scripts/gen-audio.mjs"])],
@@ -50,9 +51,9 @@ const steps = [
 let started = !from;
 for (const [name, fn] of steps) {
   if (name === from) started = true;
-  if (!started) continue;
+  if (!started || (only && name !== only)) continue;
   if (noRender && ["render", "master", "check"].includes(name)) continue;
   log("auto", `--- ${name} ---`);
   fn();
 }
-if (!noRender) log("auto", "done -> out/final.mp4  (inspect the out/check/ contact sheets before delivering)");
+if (!noRender && !only) log("auto", "done -> out/final.mp4  (inspect the out/check/ contact sheets before delivering)");

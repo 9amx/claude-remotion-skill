@@ -8,7 +8,7 @@
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { PUBLIC, ROOT, ffmpeg, fail, log, readJson, readProject, sha1, timecode, writeJson } from "./lib.mjs";
+import { PUBLIC, ROOT, ffmpeg, fail, log, readJson, readProject, remotionCmd, sha1, timecode, writeJson } from "./lib.mjs";
 
 const project = readProject();
 const t = readJson(path.join(PUBLIC, "timeline.json"), null);
@@ -22,7 +22,7 @@ const OUT = path.join(ROOT, "out");
 fs.mkdirSync(OUT, { recursive: true });
 
 const remotion = (args) => {
-  const r = spawnSync("npx", ["remotion", "render", "src/index.ts", "Faceless", ...args, "--overwrite", ...flags], { stdio: "inherit", cwd: ROOT });
+  const r = spawnSync(...remotionCmd(["render", "src/index.ts", "Faceless", ...args, "--overwrite", ...flags]), { stdio: "inherit", cwd: ROOT });
   if (r.status !== 0) fail(`render failed: ${args.join(" ")}`);
 };
 

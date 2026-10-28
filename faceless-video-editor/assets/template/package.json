@@ -6,7 +6,8 @@
   "description": "Automated faceless video pipeline: script -> voiceover -> B-roll -> captions -> music -> render",
   "scripts": {
     "auto": "node scripts/auto.mjs",
-    "voice": "python3 scripts/voiceover.py",
+    "lint": "node scripts/lint-script.mjs",
+    "voice": "node scripts/auto.mjs --only=voice",
     "transcribe": "node scripts/transcribe.mjs",
     "broll": "node scripts/fetch-broll.mjs",
     "timeline": "node scripts/build-timeline.mjs",
