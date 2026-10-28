@@ -1,0 +1,9 @@
+node_modules/
+out/
+build/
+public/vo/
+public/broll/
+public/audio/
+public/timeline.json
+.whisper/
+__pycache__/

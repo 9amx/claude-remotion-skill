@@ -23,7 +23,7 @@ This is an active, open-source project — contributions welcome. 🙌
 - Keep it framework-true: real Remotion + TypeScript, no pseudo-code.
 - One concern per PR.
 - If you add a pattern, show it actually renders.
-- If you touch anything under `remotion-motion-graphics/`, run
-  `scripts/build-skill.sh` so the `.skill` Desktop artifact stays in sync.
+- If you touch anything under `remotion-motion-graphics/` or `faceless-video-editor/`, run
+  `scripts/build-skill.sh` so the `.skill` Desktop artifacts stay in sync.
 
 Questions or ideas? Open an issue. New contributors and first PRs are encouraged.

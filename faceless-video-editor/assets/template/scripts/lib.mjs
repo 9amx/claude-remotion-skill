@@ -1,0 +1,161 @@
+// Shared helpers for the pipeline scripts. No dependencies beyond Node 18+.
+import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+export const PUBLIC = path.join(ROOT, "public");
+export const BUILD = path.join(ROOT, "build");
+
+export const FORMATS = {
+  shorts: { width: 1080, height: 1920, orientation: "portrait" },
+  landscape: { width: 1920, height: 1080, orientation: "landscape" },
+  square: { width: 1080, height: 1080, orientation: "square" },
+};
+
+export function readProject() {
+  const file = process.env.PROJECT || path.join(ROOT, "project.json");
+  if (!fs.existsSync(file)) {
+    fail(`No project.json found at ${file}. Copy project.example.json and write your script into it.`);
+  }
+  const p = JSON.parse(fs.readFileSync(file, "utf8"));
+  p.format = p.format || "shorts";
+  if (!FORMATS[p.format]) fail(`Unknown format "${p.format}". Use: ${Object.keys(FORMATS).join(", ")}`);
+  p.music = { volume: 0.12, mood: "calm", ...(p.music || {}) };
+  // Long form: "chapters": [{ "title", "mood", "broll", "scenes": [...] }]. Flattened
+  // into p.scenes (each scene knows its chapter) so every step treats both shapes alike.
+  if (Array.isArray(p.chapters)) {
+    if (p.scenes) fail('Use either "scenes" or "chapters" in project.json, not both.');
+    p.scenes = p.chapters.flatMap((ch, c) =>
+      (ch.scenes || []).map((s, k) => ({ ...s, broll: s.broll?.length ? s.broll : ch.broll, chapter: c, chapterStart: k === 0 })),
+    );
+  } else {
+    p.chapters = [{ title: p.title ?? "" }];
+    p.scenes = (p.scenes || []).map((s, k) => ({ ...s, chapter: 0, chapterStart: k === 0 }));
+  }
+  p.chapters = p.chapters.map((ch) => ({ title: ch.title ?? "", mood: ch.mood ?? p.music.mood }));
+  if (p.scenes.length === 0) fail("project.json needs a non-empty scenes (or chapters[].scenes) array.");
+  const long = p.format !== "shorts";
+  p.fps = p.fps || 30;
+  p.style = p.style || (long ? "documentary" : "bold");
+  p.voice = { provider: "edge", ...(p.voice || {}) };
+  p.captions = long ? { style: "subtitle", maxWords: 8, ...(p.captions || {}) } : { style: "pop", maxWords: 3, ...(p.captions || {}) };
+  p.maxShotSeconds = p.maxShotSeconds || (long ? 5 : 2.8);
+  // Whoosh + flash on every scene change suits a Short; in long form it gets tiring.
+  p.transitions = p.transitions || (p.chapters.length > 1 ? "chapter" : "scene");
+  return p;
+}
+
+export const sceneId = (i) => `s${String(i + 1).padStart(3, "0")}`;
+
+export function readJson(file, fallback) {
+  return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : fallback;
+}
+
+export function writeJson(file, data) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+}
+
+// Media duration in seconds. Uses system ffprobe, falls back to Remotion's bundled one.
+export function probeDuration(file) {
+  const args = ["-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", file];
+  let r = spawnSync("ffprobe", args, { encoding: "utf8" });
+  if (r.status !== 0 || !r.stdout.trim()) {
+    r = spawnSync("npx", ["remotion", "ffprobe", ...args], { encoding: "utf8", cwd: ROOT });
+  }
+  const d = parseFloat((r.stdout || "").trim().split("\n").pop());
+  return Number.isFinite(d) ? d : null;
+}
+
+export function hasCommand(cmd) {
+  return spawnSync(cmd, ["-version"], { encoding: "utf8" }).status === 0;
+}
+
+// System ffmpeg if installed, else the one bundled with Remotion.
+export function ffmpeg(args, { capture = false } = {}) {
+  const cmd = hasCommand("ffmpeg") ? ["ffmpeg"] : ["npx", "remotion", "ffmpeg"];
+  return spawnSync(cmd[0], [...cmd.slice(1), "-y", "-v", capture ? "info" : "error", ...args], {
+    cwd: ROOT, encoding: "utf8", stdio: capture ? "pipe" : "inherit", maxBuffer: 64 * 1024 * 1024,
+  });
+}
+
+export const sha1 = (s) => createHash("sha1").update(s).digest("hex").slice(0, 12);
+export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+export const timecode = (sec) => {
+  const s = Math.floor(sec), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  const mmss = `${String(m).padStart(h ? 2 : 1, "0")}:${String(s % 60).padStart(2, "0")}`;
+  return h ? `${h}:${mmss}` : mmss;
+};
+
+// Split a transcript (words with startMs/endMs) into scenes given each scene's
+// script tokens. Script words are aligned to transcribed words greedily with a
+// small look-ahead, re-anchoring after long misses (skipped audio, ad-libs), so
+// boundaries stay exact over a 40 minute recording. Unmatched boundaries fall
+// back to proportional position; estimated (not exactly matched) boundaries
+// snap to the longest pause within +-2 words. Returns word indices where each scene starts (+ end).
+export function splitIntoScenes(words, sceneTokens) {
+  const norm = (w) => w.toLowerCase().replace(/[^\p{L}\p{M}\p{N}]/gu, "");
+  const script = sceneTokens.flat().map(norm);
+  const match = new Array(script.length).fill(null);
+  for (let i = 0, j = 0, miss = 0; i < script.length; i++) {
+    if (miss > 20) j = Math.max(j, Math.round((i / script.length) * words.length) - 10);
+    let hit = false;
+    for (let k = j; k < Math.min(j + 8, words.length); k++) {
+      if (norm(words[k].text) === script[i]) {
+        [match[i], j, hit] = [k, k + 1, true];
+        break;
+      }
+    }
+    miss = hit ? 0 : miss + 1;
+  }
+  const bounds = [0];
+  let tok = 0;
+  for (let s = 0; s < sceneTokens.length - 1; s++) {
+    tok += sceneTokens[s].length;
+    let guess = null, exact = false;
+    for (let i = tok; i < Math.min(tok + 12, script.length); i++) {
+      if (match[i] !== null) {
+        [guess, exact] = [match[i] - (i - tok), i === tok];
+        break;
+      }
+    }
+    // Never before the previous scene's last matched word (handles skipped audio).
+    // With no match inside this scene, count forward from that word instead.
+    let floor = bounds[s] + 1;
+    for (let i = tok - 1; i >= Math.max(0, tok - 12); i--) {
+      if (match[i] !== null) {
+        floor = Math.max(floor, match[i] + 1);
+        guess ??= match[i] + (tok - i);
+        break;
+      }
+    }
+    guess ??= Math.round((tok / script.length) * words.length);
+    guess = Math.max(guess, floor);
+    if (exact) {
+      bounds.push(guess); // the scene's first word was found: trust it
+      continue;
+    }
+    const lo = Math.max(floor, guess - 2), hi = Math.min(words.length - 1, guess + 2);
+    let best = Math.min(Math.max(guess, lo), words.length - 1), bestGap = -1;
+    for (let k = lo; k <= hi; k++) {
+      const gap = words[k].startMs - words[k - 1].endMs;
+      if (gap > bestGap) [best, bestGap] = [k, gap];
+    }
+    bounds.push(best);
+  }
+  bounds.push(words.length);
+  return { bounds, matched: match.filter((m) => m !== null).length };
+}
+
+export function log(step, msg) {
+  console.log(`\x1b[36m[${step}]\x1b[0m ${msg}`);
+}
+
+export function fail(msg) {
+  console.error(`\x1b[31m[error]\x1b[0m ${msg}`);
+  process.exit(1);
+}

@@ -1,0 +1,92 @@
+{
+  "title": "Voyager: The Machines That Refused to Die",
+  "format": "landscape",
+  "style": "documentary",
+  "voice": {
+    "provider": "edge",
+    "voice": "en-US-AndrewNeural",
+    "rate": "+0%",
+    "concurrency": 4
+  },
+  "music": {
+    "volume": 0.1
+  },
+  "brollSources": [
+    "pixabay",
+    "pexels"
+  ],
+  "renderChunkMinutes": 5,
+  "chapters": [
+    {
+      "title": "Cold Open",
+      "mood": "tense",
+      "broll": [
+        "deep space stars",
+        "radio telescope night"
+      ],
+      "scenes": [
+        {
+          "text": "In November 2023, the most distant machine humans ever built started speaking nonsense. Twenty-four billion kilometres away, Voyager 1 was dying, and nobody on Earth knew why."
+        },
+        {
+          "text": "Every message took twenty-two hours to reach it. Every answer took twenty-two more. The engineers who designed it had mostly retired. Some had died.",
+          "emphasis": "22 HOURS EACH WAY"
+        },
+        {
+          "text": "What a handful of people did next is one of the greatest repair jobs in history. But to understand it, we have to go back to 1977."
+        }
+      ]
+    },
+    {
+      "title": "The Launch",
+      "mood": "calm",
+      "broll": [
+        "rocket launch",
+        "nasa control room"
+      ],
+      "scenes": [
+        {
+          "text": "In the summer of 1977, the outer planets lined up in a way that happens once every hundred and seventy-five years.",
+          "broll": [
+            "planets alignment animation",
+            "night sky timelapse"
+          ]
+        },
+        {
+          "text": "One spacecraft could swing from Jupiter to Saturn to Uranus to Neptune, stealing speed from each.",
+          "lowerThird": {
+            "title": "The Grand Tour",
+            "subtitle": "A planetary alignment every 175 years"
+          }
+        },
+        {
+          "text": "NASA built two of them, and bolted a golden record to each, just in case someone out there was listening.",
+          "broll": [
+            "photo:golden record",
+            "vinyl record spinning"
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Still Talking",
+      "mood": "calm",
+      "scenes": [
+        {
+          "text": "Today both Voyagers are still running, on less power than a toaster, with computers weaker than a car key.",
+          "broll": [
+            "old computer circuit",
+            "toaster kitchen"
+          ]
+        },
+        {
+          "text": "And every day, a radio dish somewhere on Earth still listens for them. Follow for the full story of how they were saved.",
+          "broll": [
+            "radio telescope dish",
+            "sunrise over earth"
+          ]
+        }
+      ]
+    }
+  ]
+}

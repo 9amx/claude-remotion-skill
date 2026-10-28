@@ -1,10 +1,12 @@
 #!/bin/sh
-# Rebuild remotion-motion-graphics.skill (the Claude Desktop install artifact)
-# from the remotion-motion-graphics/ folder. Run after ANY edit to the skill.
+# Rebuild the .skill files (the Claude Desktop install artifacts) from the
+# skill folders. Run after ANY edit to a skill.
 set -e
 cd "$(dirname "$0")/.."
-rm -f remotion-motion-graphics.skill
-zip -r remotion-motion-graphics.skill remotion-motion-graphics \
-  -x "*.DS_Store"
-echo "rebuilt remotion-motion-graphics.skill:"
-unzip -l remotion-motion-graphics.skill
+for skill in remotion-motion-graphics faceless-video-editor; do
+  rm -f "$skill.skill"
+  zip -qr "$skill.skill" "$skill" \
+    -x "*.DS_Store" "*/node_modules/*" "*/out/*" "*/build/*" "*/.whisper/*" "*/__pycache__/*"
+  echo "rebuilt $skill.skill:"
+  unzip -l "$skill.skill"
+done
