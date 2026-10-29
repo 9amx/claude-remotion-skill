@@ -16,20 +16,26 @@
     "render": "node scripts/render.mjs",
     "check": "node scripts/check.mjs",
     "thumbnail": "node scripts/thumbnail.mjs",
-    "youtube": "node scripts/youtube.mjs"
+    "youtube": "node scripts/youtube.mjs",
+    "adobe": "node scripts/adobe-stock.mjs"
   },
   "dependencies": {
     "@remotion/cli": "^4.0.0",
     "@remotion/google-fonts": "^4.0.0",
+    "d3-geo": "^3.1.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "remotion": "^4.0.0"
+    "remotion": "^4.0.0",
+    "topojson-client": "^3.1.0",
+    "world-atlas": "^2.0.2"
   },
   "optionalDependencies": {
     "@remotion/install-whisper-cpp": "^4.0.0"
   },
   "devDependencies": {
+    "@types/d3-geo": "^3.1.0",
     "@types/react": "^19.0.0",
+    "@types/topojson-client": "^3.1.5",
     "typescript": "^5.6.0"
   }
 }

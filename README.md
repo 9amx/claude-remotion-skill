@@ -76,6 +76,8 @@ topic -> script (hook, retention beats) -> AI voiceover with word timestamps
 
 - **Voice:** free edge-tts (real word timestamps), ElevenLabs, OpenAI, or your own recording transcribed locally with whisper.cpp
 - **B-roll locked to the voiceover:** each shot starts on the exact words it illustrates (`{"on": "slot machine", "kw": [...]}` beats, cut 2 frames before the word), long beats get a second angle of the same subject, and nothing random: results that don't match the keyword are skipped. Stock clips that contain their own cuts play only a clean stretch. Pexels / Pixabay (free API keys), Wikimedia / NASA archives, your own files, or an animated fallback
+- **Motion graphics for facts:** counters, bar charts, maps (real borders, geocoded places, great-circle routes), timelines and quotes, drawn from your data with a source line, so numbers and places on screen are exactly right
+- **Adobe Stock through the Adobe connector:** Claude searches, shows a labelled review sheet, licenses free clips (paid ones only after you approve) and converts them for the edit
 - **Sync report:** numbered contact sheet + `sync.txt` listing every shot with the words spoken over it, so Claude checks the picture against the voice before delivering
 - **Captions:** `pop`, `karaoke` or `boxed`, 1-4 words per page, active-word highlight
 - **Editing:** cuts every ~2.8s snapped to speech, zoom-punch on cuts, Ken Burns, scene whooshes, music ducking, progress bar
@@ -104,9 +106,9 @@ Install it the same way as the main skill (folder name `faceless-video-editor`, 
    pip install edge-tts
    ```
    Windows (PowerShell): `Copy-Item -Recurse claude-remotion-skill\faceless-video-editor $HOME\.claude\skills\` (create the folder first with `mkdir $HOME\.claude\skills`).
-3. Get free stock-footage keys at [pexels.com/api](https://www.pexels.com/api/) and [pixabay.com/api/docs](https://pixabay.com/api/docs/), then set them once:
-   - macOS/Linux: add `export PEXELS_API_KEY=...` and `export PIXABAY_API_KEY=...` to `~/.zshrc` or `~/.bashrc`
-   - Windows: `setx PEXELS_API_KEY "..."` and `setx PIXABAY_API_KEY "..."`, then open a new terminal
+3. Get a free stock-footage key at [pixabay.com/api/docs](https://pixabay.com/api/docs/) (Pexels has paused new API keys; an existing Pexels key still works), then set it once:
+   - macOS/Linux: add `export PIXABAY_API_KEY=...` (and `export PEXELS_API_KEY=...` if you have one) to `~/.zshrc` or `~/.bashrc`
+   - Windows: `setx PIXABAY_API_KEY "..."` (and `setx PEXELS_API_KEY "..."` if you have one), then open a new terminal
 4. Make a folder for your videos, open Claude Code in it and ask:
    ```bash
    mkdir my-videos && cd my-videos && claude

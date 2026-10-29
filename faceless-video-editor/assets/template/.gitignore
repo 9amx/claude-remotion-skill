@@ -9,3 +9,4 @@ public/timeline.json
 __pycache__/
 public/thumb/
 client_secret*.json
+public/geo/

@@ -54,6 +54,12 @@ Read `references/script-formula.md` before writing. Non-negotiables:
    concrete and filmable ("hands typing laptop night", not "productivity").
    Plain keyword strings still work, but they are only matched to the line
    automatically. Read `references/broll-keywords.md`.
+   **Pick the source by what the line says** (`references/footage-sources.md`):
+   stock for generic things, `archive:` for real people / places / events, and a
+   **motion graphic** for facts: `{"on": "173 million", "graphic": {"type": "bars", ...}}`
+   (counter, bars, map, timeline, quote; give every number or map a `source`).
+   A graphic is drawn from your data, so it is exactly right; no stock clip can
+   show "more people than Russia". 1-3 graphics in a Short, a few per minute in long form.
 6. Mark 1-2 power words per scene with `*asterisks*` (the number, the twist):
    accent captions + punch-in zooms. The voice never hears the asterisks.
 7. Last scene: a loop-back line or a CTA. Never "thanks for watching".
@@ -178,7 +184,8 @@ cp -r <this-skill>/assets/template ./my-video && cd my-video
 npm install
 pip install edge-tts            # free TTS; skip if using elevenlabs/openai/file
 # write project.json (Step 2); keys come from the user's environment:
-# PIXABAY_API_KEY / PEXELS_API_KEY (stock), OPENAI_API_KEY (ai: images, optional)
+# PIXABAY_API_KEY (stock; Pexels has paused new keys, an existing PEXELS_API_KEY still works),
+# OPENAI_API_KEY (ai: images, optional). Adobe Stock goes through the Adobe connector (below).
 node scripts/auto.mjs --review
 ```
 `--review` runs lint and the voiceover, then builds **candidate sheets** in
@@ -200,7 +207,11 @@ footage accurate:
    Commons + NASA), `photo:` for stills, `ai:<prompt>` for something that
    can't be filmed (needs OPENAI_API_KEY; never for real events), or `file:` for
    the user's own asset. Re-run `node scripts/fetch-broll.mjs --review` and
-   check the new sheet.
+   check the new sheet. With the **Adobe connector** in this session, search
+   Adobe Stock for that shot too, build its sheet and add the licensed clip
+   (`scripts/adobe-stock.mjs`, flow in `references/footage-sources.md`); free
+   assets license directly, anything with a price only after the user says yes.
+   A fact, number, place or quote with no honest footage: make the beat a `graphic`.
 4. Continue: `node scripts/auto.mjs --from=broll` (downloads, frame-checks,
    renders, masters, checks).
 
@@ -318,7 +329,8 @@ at once (`references/youtube-upload.md`, Batch + schedule; about 6 uploads a day
 ## Reference files
 - `references/script-formula.md` - hooks, retention structure, niche templates, word budgets.
 - `references/editing-playbook.md` - every edit tool, when to use it, niche recipes, hook archetypes, sound design.
-- `references/broll-keywords.md` - turning lines into searchable, filmable keywords.
+- `references/broll-keywords.md` - turning lines into searchable, filmable keywords; beats; motion graphics.
+- `references/footage-sources.md` - which source for which line, Adobe Stock through the connector, archives, paid libraries.
 - `references/voice-and-audio.md` - providers, voices per language, music, loudness.
 - `references/long-form.md` - chapters, retention for 10-40 min, B-roll at scale, chunked rendering.
 - `references/project-schema.md` - every project.json field and what it does.

@@ -3,6 +3,7 @@
 import { AbsoluteFill, Img, OffthreadVideo, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { clamp, ease, springs, type Style } from "../theme";
 import type { Shot as ShotT } from "../types";
+import { Graphic } from "./Graphic";
 
 const Kinetic: React.FC<{ style: Style; seed: number }> = ({ style, seed }) => {
   const frame = useCurrentFrame();
@@ -55,6 +56,8 @@ const Kinetic: React.FC<{ style: Style; seed: number }> = ({ style, seed }) => {
 export const Shot: React.FC<{ shot: ShotT; style: Style; seed: number }> = ({ shot, style, seed }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  // Graphics have their own motion; no Ken Burns or cut punch on top of a chart.
+  if (shot.type === "graphic" && shot.graphic) return <Graphic graphic={shot.graphic} style={style} />;
   const punch = interpolate(spring({ frame, fps, config: springs.punch }), [0, 1], [1.12, 1]);
   const kb = interpolate(frame, [0, shot.durationInFrames], shot.zoomIn ? [1, 1.08] : [1.08, 1], { ...clamp, easing: ease.inOut });
   const pan = interpolate(frame, [0, shot.durationInFrames], [0, seed % 2 ? -18 : 18], clamp);

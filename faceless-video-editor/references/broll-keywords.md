@@ -54,6 +54,7 @@ evenly. That's a guess, so use beats when it matters, always for non-English lin
 | `"archive:Apollo 11 launch"` | Wikimedia Commons + NASA only: real people, places, events, dates. CC/PD licences that allow commercial use; CC BY needs the credits in the description |
 | `"ai:a 1950s lab with pigeons in boxes"` | generated still (OPENAI_API_KEY). For things that can't be filmed; never to "show" a real event. Disclose if it looks real |
 | `"file:intro.mp4"` / `"file:chart.png"` | user's own asset in `public/` |
+| `"adobe:430358060"` | an Adobe Stock clip licensed through the Adobe connector and added with `scripts/adobe-stock.mjs` (see footage-sources.md) |
 
 Scene-level `"visual": "kinetic"` skips B-roll entirely (animated background) -
 use for the CTA or for a big-number `emphasis` scene.
@@ -77,6 +78,35 @@ use for the CTA or for a big-number `emphasis` scene.
 
 Still look at the contact sheet: relevance scoring can't see that a "phone
 settings" clip shows lipstick.
+
+## Motion graphics: when the line is a fact
+
+A beat can be a graphic instead of footage. It is drawn from the data you give,
+so it is exactly right, and it counts as a pattern interrupt:
+
+```json
+{ "on": "more people than Russia", "graphic": { "type": "bars", "title": "Population, millions",
+  "data": [["Bangladesh", 173.6], ["Russia", 144.8]], "highlight": 0, "source": "UN World Population Prospects 2024" } }
+{ "on": "3 million", "graphic": { "type": "counter", "value": 3000000, "label": "people", "source": "..." } }
+{ "on": "Dhaka", "graphic": { "type": "map", "countries": ["Bangladesh"], "places": ["Dhaka"], "source": "Natural Earth" } }
+{ "on": "from Dhaka", "graphic": { "type": "map", "places": ["Dhaka", "Tokyo"], "route": true } }
+{ "on": "In 1977", "graphic": { "type": "timeline", "events": [["1977", "Launch"], ["1979", "Jupiter"]], "highlight": 1 } }
+{ "on": "Sagan wrote", "graphic": { "type": "quote", "text": "Look again at that dot.", "by": "Carl Sagan, Pale Blue Dot (1994)" } }
+```
+
+- **counter**: `value` is a number (3000000, not "3 million"); `prefix`, `suffix`,
+  `decimals`, `label`. It counts up.
+- **bars**: 2-6 rows of `[label, number]`, `unit`, `highlight` (row index). Bars grow in order.
+- **map**: `countries` by English name as Natural Earth spells them ("United
+  States of America"; lint lists close names), `places` as names (geocoded with
+  OpenStreetMap and cached; the log says what each resolved to, check it) or
+  `{ "name", "lat", "lon", "label" }`, `route: true` draws a great-circle line
+  through the places in order. The map frames what you name.
+- **timeline**: 2-6 `[date, what]` rows, `highlight`.
+- **quote**: `text`, `by` (who, where, when).
+- Every type takes `title`; counter, bars and map should carry a `source`.
+- Use the real figure and say it the same way in the line. Don't round in one place and not the other.
+- Don't put `emphasis` on a scene with a graphic: both use the top of the frame.
 
 ## No random footage
 

@@ -69,8 +69,9 @@
       "broll": [                     // beats: each shot starts on its words (broll-keywords.md)
         { "on": "words from the line", "kw": ["keyword", "second angle"], "sfx": "sfx/spot/door.mp3" },
         { "on": "later words", "kw": ["photo:keyword"] },
+        { "on": "173 million", "graphic": { "type": "bars", "data": [["A", 1], ["B", 2]], "source": "..." } },  // counter | bars | map | timeline | quote (broll-keywords.md)
         "plain keyword"              // also fine: matched to the line automatically
-      ],                             // kw prefixes: photo: archive: ai: file:; sfx: a file in public/ or a kit sound (hit, whoosh, pop, ...),
+      ],                             // kw prefixes: photo: archive: ai: file: adobe:; sfx: a file in public/ or a kit sound (hit, whoosh, pop, ...),
                                      //   or { "file": "...", "volume": 0.45 }
       "ambience": "sfx/amb/rain.mp3", // optional bed under the scene ({ "file", "volume": 0.1 }); "none" stops a chapter's
       "visual": "kinetic"            // optional: skip B-roll for this scene
