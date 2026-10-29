@@ -75,12 +75,14 @@ topic -> script (hook, retention beats) -> AI voiceover with word timestamps
 ```
 
 - **Voice:** free edge-tts (real word timestamps), ElevenLabs, OpenAI, or your own recording transcribed locally with whisper.cpp
-- **B-roll:** Pexels / Pixabay search per shot (free API keys), your own files, or an animated fallback
+- **B-roll locked to the voiceover:** each shot starts on the exact words it illustrates (`{"on": "slot machine", "kw": [...]}` beats, cut 2 frames before the word), long beats get a second angle of the same subject, and nothing random: results that don't match the keyword are skipped. Stock clips that contain their own cuts play only a clean stretch. Pexels / Pixabay (free API keys), Wikimedia / NASA archives, your own files, or an animated fallback
+- **Sync report:** numbered contact sheet + `sync.txt` listing every shot with the words spoken over it, so Claude checks the picture against the voice before delivering
 - **Captions:** `pop`, `karaoke` or `boxed`, 1-4 words per page, active-word highlight
 - **Editing:** cuts every ~2.8s snapped to speech, zoom-punch on cuts, Ken Burns, scene whooshes, music ducking, progress bar
 - **Styles:** `bold`, `documentary`, `minimal`. Shorts, landscape or square
 - **Any language:** Bengali and Hindi glyphs are bundled; English, Spanish, Urdu and more via edge-tts voices
 - **Real editing toolkit:** edit styles (`viral`, `story`, `explainer`, `calm`), punch-in zooms on highlighted words, whip / zoom / glitch / flash / dip / crossfade transitions, looks (flashback, dramatic, night, VHS, dream), split screen, freeze frames, count-up numbers, list badges, and riser-into-silence reveals
+- **Sound design:** sounds on the beats where the picture makes a sound (shutter, door, cash register), ambience beds per scene (rain, city, office), music that ducks under the voice and lifts in the pauses, and transitions picked by meaning (flash into a reveal, dip into a flashback, whip to the next list item)
 - **Pro music and SFX:** with the [Epidemic Sound connector](https://www.epidemicsound.com/tools/mcp/) in Claude (paid subscription), Claude picks music per mood or chapter and real SFX for every slot. Any files in `public/music/` and `public/sfx/` work too. Everything is loudness-normalized; without them a synthesized kit is used
 - **Hook and retention gate:** a script lint that blocks warm-up hooks and checks word budget, pacing and pattern interrupts before any rendering, plus a retention report on the finished video
 - **Long form up to 40+ minutes:** chapters with title cards, subtitles, lower thirds, per-chapter music, YouTube chapter timestamps, rate-limit-aware B-roll, and a chunked render that resumes after a crash and re-renders only what changed

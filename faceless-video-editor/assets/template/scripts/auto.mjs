@@ -2,8 +2,8 @@
 //   lint -> voiceover -> b-roll -> timeline -> audio -> render -> loudness master -> check
 //   -> thumbnail [-> YouTube upload, only with --upload]
 // Usage: node scripts/auto.mjs [--review] [--from=broll] [--only=voice] [--no-render] [--upload]
-//   --review  lint + voice, then B-roll candidate sheets for picking (build/review/),
-//             and stop. Pick, then continue with --from=broll.
+//   --review  lint + voice, then B-roll candidate sheets for every shot, with the
+//             words spoken over it (build/review/), and stop. Pick, then continue with --from=broll.
 //   --upload  after a clean run, upload to YouTube (scripts/youtube.mjs; sign in once with --auth)
 // Env:   REMOTION_BROWSER=/path/to/chrome   (only if Remotion can't download its own)
 //        REMOTION_FLAGS="--concurrency=4"     (extra flags for the render step)

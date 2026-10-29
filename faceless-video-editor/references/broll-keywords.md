@@ -1,8 +1,34 @@
 # B-roll Keywords - getting clips that match the line
 
-`fetch-broll.mjs` splits every scene into shots of at most `maxShotSeconds` and
-searches one keyword per shot, cycling through the scene's `broll` list. A 7s
-scene at 2.8s/shot = 3 shots = keywords 1, 2, 1 (give 3 keywords to avoid a repeat).
+## Beats: the picture follows the words
+
+Write every scene's `broll` as beats. A beat names the words it illustrates
+(`on`, copied from the line) and what to show (`kw`):
+
+```json
+{ "text": "Every pull to refresh works exactly like a *slot machine*. You never know what you'll get.",
+  "broll": [
+    { "on": "Every pull to refresh", "kw": ["finger swipe phone screen"] },
+    { "on": "slot machine", "kw": ["slot machine lever casino", "slot reels spinning close up"], "sfx": "sfx/spot/slot-lever.mp3" },
+    { "on": "You never know", "kw": ["gift box opening surprise"] }
+  ] }
+```
+
+- The shot starts on the first word of `on` (2 frames early) and runs until the
+  next beat. The first beat always opens the scene.
+- `on` must be in the line word for word, beats in the order of the line (lint
+  checks both). Bengali/Hindi lines: `on` is in the line's language, `kw` in English.
+- One beat per thing the voice names: the noun, the action, the number, the
+  place. A beat under ~0.6s can't be seen and is merged into the previous one.
+- `kw` is a list: the first is the main shot; the others are second angles of
+  the same subject, used when the beat is long (over ~`maxShotSeconds`) and as
+  fallbacks when the first finds nothing relevant. Long beat, one keyword: a
+  second clip of the same keyword.
+- `sfx` (optional): a sound for what the picture shows, starting on the cut.
+
+Plain strings (`"broll": ["kw a", "kw b"]`) still work: each is matched to the
+first word of the line it names ("phone screen glow" -> "phone"), else spread
+evenly. That's a guess, so use beats when it matters, always for non-English lines.
 
 ## Rules
 
@@ -51,6 +77,15 @@ use for the CTA or for a big-number `emphasis` scene.
 
 Still look at the contact sheet: relevance scoring can't see that a "phone
 settings" clip shows lipstick.
+
+## No random footage
+
+A search result is used automatically only if its tags / title share words with
+the keyword (`brollMinRelevance`, default 0.25: at least one of four words). If
+the main keyword has none, the beat's other keywords are tried; if none has a
+relevant result the shot becomes the kinetic background, and the run prints the
+words it couldn't illustrate. A review pick always wins. `out/check/sync.txt`
+lists every shot with its words, keyword and match score ("weak?" under 0.5).
 
 ## Fixing a bad clip
 

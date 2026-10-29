@@ -2,6 +2,8 @@
 // Output: out/check/frames/NNNN.jpg (hook frames + middle of every shot) and
 //   out/check/contact.jpg                    one chapter (Shorts)
 //   out/check/ch01-1.jpg, ch01-2.jpg, ...    long form: per chapter, max 30 tiles each
+//   out/check/sync.txt                       tile -> the words spoken over that shot,
+//                                            its keyword and how well the clip matched
 // LOOK at the sheets (and single frames where something looks off) before delivering.
 import fs from "node:fs";
 import path from "node:path";
@@ -15,7 +17,7 @@ const sec = (f) => f / t.fps;
 
 // 1. Timeline lint
 const warnings = [];
-const allShots = t.scenes.flatMap((s) => s.shots.map((sh) => ({ ...sh, scene: s.id, chapter: s.chapter, at: s.startFrame + sh.from })));
+const allShots = t.scenes.flatMap((s) => s.shots.map((sh, k) => ({ ...sh, scene: s.id, n: k + 1, chapter: s.chapter, at: s.startFrame + sh.from })));
 for (const sh of allShots) {
   const where = `${sh.scene} @ ${timecode(sec(sh.at))}`;
   if (sh.durationInFrames < t.fps * 0.6) warnings.push(`${where}: shot only ${sh.durationInFrames} frames`);
@@ -23,6 +25,9 @@ for (const sh of allShots) {
 }
 for (let i = 1; i < allShots.length; i++) {
   if (allShots[i].src && allShots[i].src === allShots[i - 1].src) warnings.push(`${allShots[i].scene}: same clip twice in a row (${allShots[i].src})`);
+}
+for (const sh of allShots) {
+  if (sh.crossesCut) warnings.push(`${sh.scene} @ ${timecode(sec(sh.at))}: the stock clip's own cut shows inside this shot - pick a longer clip`);
 }
 t.chapters.forEach((ch, c) => {
   const shots = allShots.filter((s) => s.chapter === c);
@@ -82,10 +87,29 @@ const samples = [
   { at: 0.5, chapter: 0 },
   ...allShots.map((s) => ({ at: sec(s.at + s.durationInFrames / 2), chapter: s.chapter })),
 ];
+// Tiles carry their number (when this ffmpeg has drawtext) so sync.txt maps back to them.
+let labels = true;
 samples.forEach((s, i) => {
   s.file = path.join(dir, "frames", `${String(i + 1).padStart(4, "0")}.jpg`);
-  ffmpeg(["-ss", s.at.toFixed(3), "-i", video, "-frames:v", "1", "-q:v", "4", "-vf", `scale=${t.width > t.height ? 480 : 270}:-2`, s.file]);
+  const scale = `scale=${t.width > t.height ? 480 : 270}:-2`;
+  const grab = (vf) => ffmpeg(["-ss", s.at.toFixed(3), "-i", video, "-frames:v", "1", "-q:v", "4", "-vf", vf, s.file], { capture: true }).status === 0 && fs.existsSync(s.file);
+  if (!(labels && grab(`${scale},drawtext=text='${i + 1}':x=8:y=8:fontsize=26:fontcolor=white:box=1:boxcolor=black@0.65:boxborderw=6`))) {
+    labels = false;
+    grab(scale);
+  }
 });
+
+// Sync report: does each picture show what the voice says over it?
+const sync = ["tile  time         shot       says -> shows (keyword)  [match]"];
+samples.slice(2).forEach((s, k) => {
+  const sh = allShots[k];
+  const a = sec(sh.at), b = sec(sh.at + sh.durationInFrames);
+  const shows = sh.type === "kinetic" ? "KINETIC FALLBACK (no matching footage)" : sh.keyword ?? sh.src;
+  const match = sh.type === "kinetic" ? "!" : sh.picked ? "picked" : sh.rel == null ? "own" : sh.rel < 0.5 ? `${sh.rel} weak?` : String(sh.rel);
+  sync.push(`${String(k + 3).padStart(4)}  ${a.toFixed(1).padStart(5)}-${b.toFixed(1).padEnd(5)}  ${sh.scene}-${String(sh.n).padEnd(3)}  "${sh.words ?? ""}" -> ${shows}  [${match}]`);
+});
+fs.writeFileSync(path.join(dir, "sync.txt"), sync.join("\n") + "\n");
+const weak = allShots.filter((sh) => sh.type !== "kinetic" && !sh.picked && sh.rel != null && sh.rel < 0.5).length;
 
 // 3. Contact sheets; the log prints each sheet's time range so a bad tile maps back to the video
 const portrait = t.width < t.height;
@@ -111,7 +135,9 @@ const lufs = m ? parseFloat(m[1]) : null;
 if (lufs !== null && (lufs < -17 || lufs > -11)) warnings.push(`integrated loudness ${lufs} LUFS (target -14)`);
 
 log("check", `${path.relative(ROOT, video)}: ${timecode(sec(t.durationInFrames))}, ${t.chapters.length} chapter(s), ${t.scenes.length} scenes, ${allShots.length} shots, ${lufs ?? "?"} LUFS`);
-log("check", `contact sheets in out/check/: ${sheets.join(", ")}`);
+log("check", `contact sheets in out/check/: ${sheets.join(", ")}${labels ? " (tiles numbered)" : ""}`);
+log("check", `sync report: out/check/sync.txt - tile 1-2 = hook, then one tile per shot with the words spoken over it` +
+  `${weak ? `; ${weak} weak match(es) marked "weak?" - look at those tiles first` : ""}`);
 log("check", "retention report:");
 for (const line of report) console.log(`    ${line.includes("(!)") ? "\x1b[33m" : ""}${line}\x1b[0m`);
 for (const w of warnings.slice(0, 40)) console.log(`  \x1b[33m! ${w}\x1b[0m`);

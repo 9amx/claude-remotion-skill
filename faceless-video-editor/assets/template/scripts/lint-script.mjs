@@ -3,7 +3,9 @@
 // Usage: node scripts/lint-script.mjs [--strict]   (--strict exits 1 on errors)
 // The rules are practitioner defaults (see references/editing-playbook.md), not
 // laws: fix errors, read warnings, and override with judgement when the story needs it.
-import { log, readProject, stripMarkup } from "./lib.mjs";
+import fs from "node:fs";
+import path from "node:path";
+import { PUBLIC, SFX_NAMES, brollEntries, findPhrase, log, planShots, readProject, stripMarkup } from "./lib.mjs";
 
 const strict = process.argv.includes("--strict");
 const p = readProject();
@@ -73,10 +75,40 @@ if (!hlTotal && p.punchIns) notes.push("no *highlighted* words: mark 1-2 power w
 // ---------- B-roll keywords ----------
 const ABSTRACT = /^(success|motivation|happiness|love|life|time|money|business|freedom|power|growth|mindset|future|idea|ideas|thinking|concept|problem|solution|change|truth|fear|hope|dream|dreams|goal|goals|wealth|knowledge|history|science|technology)$/i;
 const kwCount = new Map();
+let plainScenes = 0;
 p.scenes.forEach((s, i) => {
   if (s.visual === "kinetic") return;
   if (!s.broll?.length) warnings.push(`${at(i)}: no broll keywords - this scene will be the kinetic fallback.`);
-  for (const k of s.broll ?? []) {
+  const entries = brollEntries(s);
+  const toks = words(s.text);
+  // Beats: each "on" phrase must be in the line, in order, so the shot can start on it.
+  let from = 0;
+  for (const [k, e] of entries.entries()) {
+    if (!e.kw.length) errors.push(`${at(i)}: beat ${k + 1} has no "kw".`);
+    if (e.on == null) continue;
+    const idx = findPhrase(toks, e.on, from, true);
+    if (idx < 0) {
+      errors.push(findPhrase(toks, e.on, 0, true) >= 0
+        ? `${at(i)}: beat "${e.on}" is out of order - beats follow the line.`
+        : `${at(i)}: beat "${e.on}" is not in the line word for word - copy the words exactly.`);
+    } else from = idx + 1;
+    if (e.sfx) {
+      const f = typeof e.sfx === "string" ? e.sfx : e.sfx.file;
+      if (!SFX_NAMES.includes(f) && !fs.existsSync(path.join(PUBLIC, f ?? ""))) warnings.push(`${at(i)}: beat "${e.on}" sfx ${f} is not in public/ yet - download it before the timeline step.`);
+    }
+  }
+  if (entries.length > 1 && s.layout !== "split" && entries.some((e) => e.on == null)) {
+    plainScenes++;
+    if (indic) warnings.push(`${at(i)}: English keywords can't be matched to the words of this line - give every beat an "on" phrase from the line.`);
+  }
+  // Rough timing from reading speed: beats that would flash by.
+  if (s.layout !== "split" && entries.length > 1) {
+    const est = toks.map((w, j) => ({ text: w, startMs: (j / wps) * 1000, endMs: ((j + 0.8) / wps) * 1000 }));
+    for (const n of planShots(s, { durationMs: (toks.length / wps) * 1000, words: est }, p.maxShotSeconds).notes) warnings.push(`${at(i)}: ${n} (estimated)`);
+  }
+  const amb = typeof s.ambience === "string" ? s.ambience : s.ambience?.file;
+  if (amb && amb !== "none" && !fs.existsSync(path.join(PUBLIC, amb))) warnings.push(`${at(i)}: ambience ${amb} is not in public/ yet.`);
+  for (const k of entries.flatMap((e) => e.kw)) {
     if (k.startsWith("file:")) continue;
     const q = k.replace(/^photo:/, "").trim();
     kwCount.set(q, (kwCount.get(q) ?? 0) + 1);
@@ -85,9 +117,12 @@ p.scenes.forEach((s, i) => {
   }
   if (s.layout === "split" && (s.broll?.length ?? 0) < 2) warnings.push(`${at(i)}: split layout needs two broll entries (left/top and right/bottom).`);
 });
-const aiShots = p.scenes.flatMap((sc) => sc.broll ?? []).filter((k) => k.startsWith("ai:")).length;
+if (plainScenes) notes.push(`${plainScenes} scene(s) use plain keyword strings: they are matched to the line automatically, but beats ({"on": "words from the line", "kw": [...]}) put each shot exactly on its words.`);
+if (p.voice.provider === "openai") warnings.push('voice.provider "openai" has no word timestamps (they are estimated), so shots and captions can drift off the words. Use edge or elevenlabs for exact sync.');
+const allKw = p.scenes.flatMap((sc) => brollEntries(sc).flatMap((e) => e.kw));
+const aiShots = allKw.filter((k) => k.startsWith("ai:")).length;
 if (aiShots) notes.push(`${aiShots} ai: images: fine for illustration; never to depict a real event or person. Tick YouTube's altered/synthetic disclosure if they look real.`);
-const realNoArchive = p.scenes.flatMap((sc) => sc.broll ?? []).filter((k) => !/^(archive|photo|file|ai):/.test(k) && (/\b(1[5-9]\d\d|20\d\d)\b/.test(k) || /\s[A-Z][a-z]/.test(k)));
+const realNoArchive = allKw.filter((k) => !/^(archive|photo|file|ai):/.test(k) && (/\b(1[5-9]\d\d|20\d\d)\b/.test(k) || /\s[A-Z][a-z]/.test(k)));
 if (realNoArchive.length) notes.push(`keywords naming real things (${realNoArchive.slice(0, 3).map((k) => `"${k}"`).join(", ")}): consider archive: for accurate imagery (Wikimedia/NASA).`);
 for (const [k, n] of kwCount) if (n > (shorts ? 3 : 8)) warnings.push(`keyword "${k}" used ${n} times - viewers notice repeated footage. Vary it.`);
 

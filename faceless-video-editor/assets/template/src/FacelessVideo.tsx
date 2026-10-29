@@ -54,10 +54,10 @@ const Picture: React.FC<{ scene: Scene; si: number; style: Style }> = ({ scene, 
 // One sound effect, started early by its alignment offset so it lands exactly on
 // `at` (the cut, the word, the reveal) whatever library it came from: whooshes
 // and risers peak there, impacts and UI sounds start there.
-const Sfx: React.FC<{ timeline: Timeline; name: string; i?: number; at: number; volume: number }> = ({ timeline, name, i = 0, at, volume }) => {
+const Sfx: React.FC<{ timeline: Timeline; name: string; i?: number; at: number; volume: number; src?: string }> = ({ timeline, name, i = 0, at, volume, src: own }) => {
   const { fps } = useVideoConfig();
   const list = timeline.sfxFiles?.[name] ?? [`audio/${name}.wav`];
-  const src = list[i % list.length];
+  const src = own ?? list[i % list.length];
   const lead = Math.round(((timeline.sfxPeaks?.[src] ?? 0) / 1000) * fps);
   return (
     <Sequence from={at - lead} durationInFrames={Math.round(fps * 4)} name={`sfx ${name}`}>
@@ -78,9 +78,37 @@ const useHighlightTicks = (timeline: Timeline, fps: number) =>
     return out;
   }, [timeline, fps]);
 
+// Music and ambience sit under the voice and come up in the gaps between lines
+// (pauses over ~0.3s): gain 1 while someone speaks, musicGapBoost in the gaps.
+// It ducks a few frames before each line, so the first word is never masked.
+const useSpeechDuck = (timeline: Timeline | null, fps: number, total: number) =>
+  useMemo(() => {
+    const gain = new Float32Array(total).fill(1);
+    const boost = timeline?.musicGapBoost ?? 1.7;
+    if (!timeline || boost <= 1) return gain;
+    const speaking = new Uint8Array(total);
+    const words = timeline.words;
+    for (let i = 0; i < words.length; ) {
+      let end = words[i].endMs, j = i + 1;
+      while (j < words.length && words[j].startMs - end < 300) end = Math.max(end, words[j++].endMs);
+      speaking.fill(1, Math.max(0, Math.floor((words[i].startMs / 1000) * fps) - 4), Math.min(total, Math.ceil((end / 1000) * fps) + 5));
+      i = j;
+    }
+    const up = (boost - 1) / 10, down = (boost - 1) / 4; // rise over ~10 frames, duck in 4
+    let g = speaking[0] ? 1 : boost;
+    for (let f = 0; f < total; f++) {
+      const target = speaking[f] ? 1 : boost;
+      g = target > g ? Math.min(target, g + up) : Math.max(target, g - down);
+      gain[f] = g;
+    }
+    return gain;
+  }, [timeline, fps, total]);
+
 export const FacelessVideo: React.FC<Props> = ({ timeline }) => {
   const { fps, durationInFrames } = useVideoConfig();
   const ticks = useHighlightTicks(timeline ?? ({ sfxLevel: 0, words: [] } as unknown as Timeline), fps);
+  const duck = useSpeechDuck(timeline, fps, durationInFrames);
+  const duckAt = (f: number) => duck[Math.min(duck.length - 1, Math.max(0, f))];
   if (!timeline) return <AbsoluteFill style={{ background: "#111", color: "#fff", fontSize: 48, padding: 80 }}>Run `npm run auto` first: public/timeline.json is missing.</AbsoluteFill>;
   const style = getStyle(timeline.style);
   const sfx = timeline.sfxLevel ?? (timeline.sfx ? 1 : 0);
@@ -110,7 +138,11 @@ export const FacelessVideo: React.FC<Props> = ({ timeline }) => {
         <Sequence key={scene.id} from={scene.startFrame} durationInFrames={scene.durationInFrames} name={scene.id}>
           {/* Scrim keeps text readable over any footage. */}
           <AbsoluteFill style={{ background: `linear-gradient(180deg, ${style.colors.scrim} 0%, transparent 34%, transparent 48%, ${style.colors.scrim} 100%)`, opacity: 0.85 }} />
-          {scene.emphasis && <Emphasis text={scene.emphasis} style={style} hook={si === 0} duration={scene.durationInFrames} />}
+          {scene.emphasis && (
+            <Sequence from={scene.emphasisFrom ?? 0} layout="none">
+              <Emphasis text={scene.emphasis} style={style} hook={si === 0} duration={scene.durationInFrames - (scene.emphasisFrom ?? 0)} />
+            </Sequence>
+          )}
           {scene.badge && <Badge text={scene.badge} style={style} />}
           {scene.lowerThird && (
             <Sequence from={Math.round(fps * 0.3)} durationInFrames={Math.min(Math.round(fps * 4.5), scene.durationInFrames - Math.round(fps * 0.3))}>
@@ -144,7 +176,7 @@ export const FacelessVideo: React.FC<Props> = ({ timeline }) => {
             return (
               <Sequence key={`s-${scene.id}`} layout="none">
                 {si > 0 && t !== "cut" && t !== "fade" && t !== "dip" && <Sfx timeline={timeline} name={t === "glitch" ? "glitch" : "whoosh"} i={si} at={scene.startFrame} volume={0.32} />}
-                {si > 0 && scene.emphasis && <Sfx timeline={timeline} name="pop" i={si} at={scene.startFrame + 3} volume={0.35} />}
+                {si > 0 && scene.emphasis && <Sfx timeline={timeline} name="pop" i={si} at={scene.startFrame + (scene.emphasisFrom ?? 0) + 3} volume={0.35} />}
                 {scene.fx.includes("freeze") && <Sfx timeline={timeline} name="scratch" i={si} at={scene.startFrame} volume={0.5} />}
               </Sequence>
             );
@@ -157,8 +189,25 @@ export const FacelessVideo: React.FC<Props> = ({ timeline }) => {
             </Sequence>
           ))}
           {ticks.map((f, ti) => <Sfx key={`k-${f}`} timeline={timeline} name="tick" i={ti} at={f} volume={0.18} />)}
+          {/* Beat sounds: what the picture shows, heard as it appears. */}
+          {(timeline.spots ?? []).map((sp, k) => <Sfx key={`sp-${k}`} timeline={timeline} name="spot" src={sp.src} at={sp.at} volume={sp.volume} />)}
         </>
       )}
+
+      {/* Ambience beds: the place the footage shows, quietly under the voice. */}
+      {(timeline.ambience ?? []).map((seg, k) => ({ ...seg, fade: Math.max(1, Math.min(12, Math.floor(seg.durationInFrames / 3))) })).map((a, k) => (
+        <Sequence key={`a-${k}`} from={a.from} durationInFrames={a.durationInFrames} name={`ambience ${a.file}`}>
+          <Audio
+            src={staticFile(a.src)}
+            loop
+            volume={(f) =>
+              a.volume *
+              interpolate(f, [0, a.fade, a.durationInFrames - a.fade, a.durationInFrames], [0, 1, 1, 0], clamp) *
+              (1 + (duckAt(a.from + f) - 1) * 0.5)
+            }
+          />
+        </Sequence>
+      ))}
 
       {timeline.music.segments.map((seg, i) => {
         const from = Math.max(0, seg.from - (i > 0 ? XF : 0));
@@ -168,13 +217,15 @@ export const FacelessVideo: React.FC<Props> = ({ timeline }) => {
             <Audio
               src={staticFile(seg.src)}
               loop
-              // Crossfade between segments, duck under the voice, drop out before reveals, swell in the outro.
+              // Crossfade between segments, duck under the voice (up in the gaps), drop out before reveals, swell in the outro.
               volume={(f) =>
                 timeline.music.volume *
                 interpolate(f, [0, i > 0 ? XF : 12], [0, 1], clamp) *
                 (i < timeline.music.segments.length - 1 ? interpolate(f, [len - XF, len], [1, 0], clamp) : 1) *
                 revealDuck(from + f) *
-                interpolate(from + f, [lastWordEnd, lastWordEnd + 10], [1, 2.2], clamp) *
+                duckAt(from + f) *
+                // Outro swell on top of the gap lift (together ~2.2x).
+                interpolate(from + f, [lastWordEnd, lastWordEnd + 10], [1, 1.3], clamp) *
                 interpolate(from + f, [durationInFrames - 20, durationInFrames - 1], [1, 0], clamp)
               }
             />

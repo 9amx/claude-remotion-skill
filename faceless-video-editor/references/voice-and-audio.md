@@ -6,7 +6,7 @@
 |---|---|---|---|
 | `edge` | free | real, per word | `pip install edge-tts` |
 | `elevenlabs` | paid, best quality | real (character alignment) | `ELEVENLABS_API_KEY`, `voice` = voice ID |
-| `openai` | paid, cheap | estimated from length | `OPENAI_API_KEY`, `voice` = alloy/onyx/nova/..., optional `instructions` |
+| `openai` | paid, cheap | estimated from length (shots and captions can drift; prefer edge/elevenlabs when sync matters) | `OPENAI_API_KEY`, `voice` = alloy/onyx/nova/..., optional `instructions` |
 | `file` | free | whisper.cpp, real | user recording in `public/`, `voice.file` |
 | `none` | free | estimated (`wpm`) | text + music only videos |
 
@@ -48,7 +48,9 @@ Override with `voice.whisperModel` (`medium` for best accuracy).
 - `music.file`: `"music/track.mp3"` (in `public/`) to use a real track instead.
   Only use tracks the user has rights to (YouTube Audio Library, licensed libraries).
 - `music.volume`: 0.08-0.15 under voice. The composition ducks to this level
-  during speech and swells x2.2 in the outro.
+  while someone speaks (a few frames before each line, so no first word is
+  masked), lifts it `music.gapBoost` (default 1.7x) in pauses over ~0.3s, and
+  swells in the outro. Ambience beds duck the same way, half as much.
 
 ## Your own music and SFX (Epidemic Sound, Artlist, YouTube Audio Library...)
 

@@ -120,8 +120,33 @@ B-roll (rain window, city night). End on the verdict question.
   `riser` into reveals with the music dropped to ~12% under it; `tick` on
   highlighted words (viral/explainer only, max ~1/sec).
 - `sfxLevel` 0-1 scales all of it; `"sfx": false` turns it off.
-- Music: 8-15% under voice, crossfades between chapter moods, swells after the
-  last word.
+- Music: 8-15% under voice, ducked while someone speaks and lifted
+  `music.gapBoost` (1.7x) in the gaps between lines, crossfades between chapter
+  moods, swells after the last word.
+
+## Sound design you add (what big channels do)
+
+The kit above marks the EDIT (cuts, reveals). Big channels also make the
+FOOTAGE sound real:
+
+- **Beat sounds** (`broll[].sfx`): the thing on screen makes its sound as it
+  appears: camera shutter on a photo, cash register on money, door slam, crowd
+  gasp, keyboard typing, a heartbeat under tension. Kit names work too (`"hit"`
+  on a shocking number). 2-5 in a Short, a few per minute in long form; on the
+  beats that matter, not every cut.
+- **Ambience** (`scene.ambience`): the place, under the voice: rain, city night,
+  office hum, forest, crowd murmur, old film projector for archive footage.
+  Very quiet (`volume` 0.06-0.15). It sells "we are there" more than any effect.
+- Silence is a sound too: the reveal drops music and ambience for a beat.
+
+## Transitions: motivated, not random
+
+`transitionStyle: "auto"` (the viral default) chooses by meaning: **flash** into a
+reveal, **dip** into a flashback / dream / new chapter, **glitch** into VHS,
+**whip** out of a look and onto the next list item, **zoom** into a split
+comparison, otherwise whip and zoom alternate (never the same twice by chance).
+Inside a scene, shots are hard cuts on the words. That's how real edits work:
+the transition marks a change, the cut carries the story.
 
 ## Hooks: archetypes
 

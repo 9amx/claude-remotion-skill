@@ -26,14 +26,78 @@
       ],
       "scenes": [
         {
-          "text": "In November 2023, the most distant machine humans ever built started speaking nonsense. Twenty-four billion kilometres away, Voyager 1 was dying, and nobody on Earth knew why."
+          "text": "In November 2023, the most distant machine humans ever built started speaking nonsense. Twenty-four billion kilometres away, Voyager 1 was dying, and nobody on Earth knew why.",
+          "broll": [
+            {
+              "on": "In November 2023",
+              "kw": [
+                "archive:Voyager spacecraft",
+                "archive:Voyager 1 artist concept"
+              ]
+            },
+            {
+              "on": "speaking nonsense",
+              "kw": [
+                "radio static screen noise",
+                "old computer terminal green text"
+              ]
+            },
+            {
+              "on": "Voyager 1 was dying",
+              "kw": [
+                "archive:Voyager 1 deep space"
+              ]
+            },
+            {
+              "on": "nobody on Earth knew why",
+              "kw": [
+                "nasa control room engineers night"
+              ]
+            }
+          ]
         },
         {
           "text": "Every message took twenty-two hours to reach it. Every answer took twenty-two more. The engineers who designed it had mostly retired. Some had died.",
-          "emphasis": "22 HOURS EACH WAY"
+          "emphasis": "22 HOURS EACH WAY",
+          "broll": [
+            {
+              "on": "Every message",
+              "kw": [
+                "radio telescope dish night",
+                "archive:Deep Space Network antenna"
+              ]
+            },
+            {
+              "on": "The engineers",
+              "kw": [
+                "archive:Voyager engineers JPL 1977"
+              ]
+            },
+            {
+              "on": "Some had died",
+              "kw": [
+                "empty office chair dark"
+              ]
+            }
+          ]
         },
         {
-          "text": "What a handful of people did next is one of the greatest repair jobs in history. But to understand it, we have to go back to 1977."
+          "text": "What a handful of people did next is one of the greatest repair jobs in history. But to understand it, we have to go back to 1977.",
+          "broll": [
+            {
+              "on": "What a handful of people",
+              "kw": [
+                "engineers looking at screens"
+              ]
+            },
+            {
+              "on": "go back to 1977",
+              "kw": [
+                "archive:Voyager launch 1977"
+              ],
+              "sfx": "whoosh"
+            }
+          ]
         }
       ]
     },
@@ -48,8 +112,19 @@
         {
           "text": "In the summer of 1977, the outer planets lined up in a way that happens once every hundred and seventy-five years.",
           "broll": [
-            "planets alignment animation",
-            "night sky timelapse"
+            {
+              "on": "In the summer of 1977",
+              "kw": [
+                "night sky timelapse"
+              ]
+            },
+            {
+              "on": "the outer planets lined up",
+              "kw": [
+                "planets alignment animation",
+                "archive:solar system planets"
+              ]
+            }
           ]
         },
         {
@@ -57,13 +132,56 @@
           "lowerThird": {
             "title": "The Grand Tour",
             "subtitle": "A planetary alignment every 175 years"
-          }
+          },
+          "broll": [
+            {
+              "on": "One spacecraft",
+              "kw": [
+                "archive:Voyager spacecraft"
+              ]
+            },
+            {
+              "on": "Jupiter",
+              "kw": [
+                "archive:Jupiter Voyager"
+              ]
+            },
+            {
+              "on": "Saturn",
+              "kw": [
+                "archive:Saturn Voyager"
+              ]
+            },
+            {
+              "on": "Uranus to Neptune",
+              "kw": [
+                "archive:Neptune Voyager 2"
+              ]
+            }
+          ]
         },
         {
           "text": "NASA built two of them, and bolted a golden record to each, just in case someone out there was listening.",
           "broll": [
-            "archive:Voyager Golden Record",
-            "vinyl record spinning"
+            {
+              "on": "NASA built two of them",
+              "kw": [
+                "archive:Voyager assembly JPL"
+              ]
+            },
+            {
+              "on": "a golden record",
+              "kw": [
+                "archive:Voyager Golden Record",
+                "vinyl record spinning"
+              ]
+            },
+            {
+              "on": "someone out there was listening",
+              "kw": [
+                "radio telescope dish night"
+              ]
+            }
           ]
         }
       ]
@@ -75,15 +193,41 @@
         {
           "text": "Today both Voyagers are still running, on less power than a toaster, with computers weaker than a car key.",
           "broll": [
-            "old computer circuit",
-            "toaster kitchen"
+            {
+              "on": "Today both Voyagers",
+              "kw": [
+                "archive:Voyager spacecraft"
+              ]
+            },
+            {
+              "on": "less power than a toaster",
+              "kw": [
+                "toaster kitchen"
+              ]
+            },
+            {
+              "on": "computers weaker than a car key",
+              "kw": [
+                "car key fob close up"
+              ]
+            }
           ]
         },
         {
           "text": "And every day, a radio dish somewhere on Earth still listens for them. Follow for the full story of how they were saved.",
           "broll": [
-            "radio telescope dish",
-            "sunrise over earth"
+            {
+              "on": "And every day",
+              "kw": [
+                "radio telescope dish"
+              ]
+            },
+            {
+              "on": "Follow for the full story",
+              "kw": [
+                "sunrise over earth"
+              ]
+            }
           ]
         }
       ]
