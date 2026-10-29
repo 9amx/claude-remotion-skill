@@ -14,7 +14,9 @@
     "audio": "node scripts/gen-audio.mjs",
     "studio": "remotion studio src/index.ts",
     "render": "node scripts/render.mjs",
-    "check": "node scripts/check.mjs"
+    "check": "node scripts/check.mjs",
+    "thumbnail": "node scripts/thumbnail.mjs",
+    "youtube": "node scripts/youtube.mjs"
   },
   "dependencies": {
     "@remotion/cli": "^4.0.0",

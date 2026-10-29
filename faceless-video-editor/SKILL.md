@@ -1,6 +1,6 @@
 ---
 name: faceless-video-editor
-description: Fully automated faceless video production with Remotion - topic or script in, finished captioned video out. Use this skill EVERY time the user wants a faceless video, YouTube automation / "cash cow" channel content, Shorts/Reels/TikToks made from a topic, script, article, list, story or Reddit post, an AI voiceover video, a stock B-roll edit, auto-captioned narration, a top-10/facts/explainer/history/motivation/true-crime video, or says "make a video about X" without filming anything. Also trigger when they have their own voiceover recording and want B-roll + captions added automatically, want a batch of faceless videos, or want a long-form YouTube video (documentary, video essay, explainer, story) of 5 to 40+ minutes. Handles script writing, TTS voiceover with word timestamps (free edge-tts, ElevenLabs, OpenAI) or Whisper on their own recording, Pexels/Pixabay B-roll, word-synced captions, music bed, SFX, rendering, loudness mastering and frame verification. Works in any language (Bengali, Hindi, etc.).
+description: Fully automated faceless video production with Remotion - topic or script in, finished captioned video out. Use this skill EVERY time the user wants a faceless video, YouTube automation / "cash cow" channel content, Shorts/Reels/TikToks made from a topic, script, article, list, story or Reddit post, an AI voiceover video, a stock B-roll edit, auto-captioned narration, a top-10/facts/explainer/history/motivation/true-crime video, or says "make a video about X" without filming anything. Also trigger when they have their own voiceover recording and want B-roll + captions added automatically, want a batch of faceless videos, or want a long-form YouTube video (documentary, video essay, explainer, story) of 5 to 40+ minutes. Also use it to make a YouTube thumbnail or upload/schedule the finished video to YouTube. Handles script writing, TTS voiceover with word timestamps (free edge-tts, ElevenLabs, OpenAI) or Whisper on their own recording, Pexels/Pixabay B-roll, word-synced captions, music bed, SFX, rendering, loudness mastering, frame verification, thumbnail and YouTube upload. Works in any language (Bengali, Hindi, etc.).
 ---
 
 # Faceless Video Editor
@@ -11,6 +11,7 @@ Turns a topic into a finished, upload-ready faceless video with one pipeline:
 brief -> script (you write it) -> project.json
       -> voiceover + word timestamps -> B-roll per shot -> timeline.json
       -> music bed + SFX -> Remotion render -> -14 LUFS master -> contact-sheet check
+      -> thumbnail -> (YouTube upload, only when the user wants it)
 ```
 
 Everything mechanical is scripted in `assets/template/`. Your job is the parts that
@@ -224,9 +225,34 @@ Fix -> re-run the affected steps -> re-check. Deliver only after a clean pass.
 
 ## Step 5 - Deliver
 
-Give the user `out/final.mp4` plus, in the reply: a title (under 60 chars, curiosity
-gap), a 1-2 line description, 3-5 hashtags, `build/youtube-chapters.txt` for
-long form, and `build/credits.txt` if stock footage was used. Mention anything you defaulted (voice, style, length).
+`auto` also renders `out/thumbnail.jpg` (1280x720): scene 1's emphasis (or
+`thumbnail.text`) over a frame of the best B-roll. **Look at it** like a contact
+sheet: subject not hidden by the text, readable at phone size. Fix with
+`thumbnail.text` / `scene` / `image` / `side`, then `npm run thumbnail`.
+
+Write the upload metadata into `project.json` -> `"youtube"`: title (under 60
+chars, curiosity gap), description (first two lines are the hook), tags,
+3-5 hashtags. Chapters (`build/youtube-chapters.txt`) and credits
+(`build/credits.txt`) are appended to the description automatically.
+
+Give the user `out/final.mp4` + `out/thumbnail.jpg`, and the title, description and
+hashtags in the reply. Mention anything you defaulted (voice, style, length).
+
+## Step 6 - Upload to YouTube (when the user wants it)
+
+Read `references/youtube-upload.md`. The first time, the user creates a Google
+Cloud OAuth client (about 10 minutes, steps in the reference) and signs in once with
+`node scripts/youtube.mjs --auth`. Then:
+
+1. `node scripts/youtube.mjs --dry-run`: show the user the exact title, description,
+   privacy and schedule, and **get an explicit yes**. A public upload can't be taken back.
+2. `node scripts/youtube.mjs`: resumable upload + thumbnail, then the `youtu.be` link.
+   Re-running resumes an interrupted upload and refuses duplicates (`--force` to override).
+
+Defaults to `"privacy": "private"`. Scheduling: `"publishAt"` (ISO time, privacy
+private). Tell the user the two limits up front: videos stay **locked private
+until their Google Cloud project passes YouTube's API audit**, and the sign-in
+expires every 7 days while the consent screen is in Testing.
 
 ## Editing rules baked into the template (don't fight them)
 
@@ -248,6 +274,8 @@ property entrances, staggers, exits faster than entrances.
 For N videos: one folder per video (`cp -r template video-01`), share
 `node_modules` via a symlink, write each `project.json`, run `npm run auto` in each.
 Check every contact sheet - batch is where unwatched mistakes ship.
+For daily posting, give each project a `publishAt` a day apart and upload them all
+at once (`references/youtube-upload.md`, Batch + schedule; about 6 uploads a day fit the default quota).
 
 ## Reference files
 - `references/script-formula.md` - hooks, retention structure, niche templates, word budgets.
@@ -256,4 +284,5 @@ Check every contact sheet - batch is where unwatched mistakes ship.
 - `references/voice-and-audio.md` - providers, voices per language, music, loudness.
 - `references/long-form.md` - chapters, retention for 10-40 min, B-roll at scale, chunked rendering.
 - `references/project-schema.md` - every project.json field and what it does.
+- `references/youtube-upload.md` - thumbnail options, Google Cloud setup, upload, scheduling, limits.
 - `references/troubleshooting.md` - render, network, TTS and alignment failures.

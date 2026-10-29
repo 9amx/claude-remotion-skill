@@ -114,4 +114,6 @@ rendered in one pass for the whole video, so there are no clicks at the joins.
 
 - `build/youtube-chapters.txt` - paste at the top of the description.
 - `build/credits.txt` - stock creators.
-- Suggest 3 title options and a thumbnail concept (the thumbnail is not generated).
+- Suggest 3 title options; put the chosen one in `youtube.title`. `out/thumbnail.jpg` is
+  rendered automatically. For long form, choose `thumbnail.scene` (the most striking
+  B-roll) and the 2-4 words yourself (references/youtube-upload.md).

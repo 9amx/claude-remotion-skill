@@ -13,6 +13,24 @@
     "mood": "tense",
     "volume": 0.12
   },
+  "thumbnail": {
+    "text": "IT'S ON PURPOSE",
+    "side": "left"
+  },
+  "youtube": {
+    "title": "Why you can't stop scrolling",
+    "description": "Your phone is built like a slot machine. Here is how it works, and the 10 second fix.",
+    "tags": [
+      "phone addiction",
+      "dopamine",
+      "psychology"
+    ],
+    "hashtags": [
+      "shorts",
+      "psychology"
+    ],
+    "privacy": "private"
+  },
   "scenes": [
     {
       "text": "Your phone was *designed* so you can't put it down.",

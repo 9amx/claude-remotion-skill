@@ -7,3 +7,5 @@ public/audio/
 public/timeline.json
 .whisper/
 __pycache__/
+public/thumb/
+client_secret*.json

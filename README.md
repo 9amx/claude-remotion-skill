@@ -71,6 +71,7 @@ A second skill in this repo, [`faceless-video-editor/`](faceless-video-editor/),
 topic -> script (hook, retention beats) -> AI voiceover with word timestamps
       -> stock B-roll for every shot -> word-synced captions -> music bed + SFX
       -> Remotion render -> -14 LUFS master -> contact sheet Claude inspects
+      -> thumbnail -> YouTube upload (optional, scheduled or private)
 ```
 
 - **Voice:** free edge-tts (real word timestamps), ElevenLabs, OpenAI, or your own recording transcribed locally with whisper.cpp
@@ -83,7 +84,9 @@ topic -> script (hook, retention beats) -> AI voiceover with word timestamps
 - **Pro music and SFX:** with the [Epidemic Sound connector](https://www.epidemicsound.com/tools/mcp/) in Claude (paid subscription), Claude picks music per mood or chapter and real SFX for every slot. Any files in `public/music/` and `public/sfx/` work too. Everything is loudness-normalized; without them a synthesized kit is used
 - **Hook and retention gate:** a script lint that blocks warm-up hooks and checks word budget, pacing and pattern interrupts before any rendering, plus a retention report on the finished video
 - **Long form up to 40+ minutes:** chapters with title cards, subtitles, lower thirds, per-chapter music, YouTube chapter timestamps, rate-limit-aware B-roll, and a chunked render that resumes after a crash and re-renders only what changed
-- **One command:** `npm run auto`, with caching so editing one line re-voices only that line
+- **Thumbnail:** `out/thumbnail.jpg` (1280x720) from the best B-roll frame plus 2-4 big words, fitted to size in any language (Bengali included)
+- **YouTube upload:** title, description, tags, chapters, credits, thumbnail and scheduling (`publishAt`) through the YouTube Data API. The upload resumes if the connection drops, the same video is never uploaded twice, and it handles several channels. You need a free Google Cloud OAuth client (about 10 minutes, see [`references/youtube-upload.md`](faceless-video-editor/references/youtube-upload.md)). Videos stay private until your Google Cloud project passes YouTube's API audit
+- **One command:** `npm run auto` (`-- --upload` to upload as well), with caching so editing one line re-voices only that line
 
 Try it: *"Make a 40 second Short about why octopuses are so smart"*, *"Make a 20 minute documentary about the Voyager probes"* or *"আমার এই রেকর্ডিং দিয়ে B-roll আর ক্যাপশনসহ একটা faceless ভিডিও বানাও"*.
 
@@ -109,6 +112,8 @@ Install it the same way as the main skill (folder name `faceless-video-editor`, 
    > *Make a 40 second Short about why octopuses are so smart*
 
 Claude copies the template, runs `npm install`, writes the script, and runs the pipeline. When it's done, the video is at `<project>/out/final.mp4`. The first render downloads a headless Chrome (~100 MB).
+
+Upload to YouTube: follow the one-time setup in [`references/youtube-upload.md`](faceless-video-editor/references/youtube-upload.md) (create a Google Cloud "Desktop app" OAuth client, then `node scripts/youtube.mjs --auth` once). After that, ask *"upload it to YouTube, schedule for tomorrow 6pm"*. Claude shows you the title and description first and uploads only after you say yes.
 
 Your own voice: put the recording in the project's `public/` folder and say *"use my-voice.mp3 as the voiceover"*. whisper.cpp is set up on first use: on macOS run `xcode-select --install` once first, on Linux install `build-essential`.
 

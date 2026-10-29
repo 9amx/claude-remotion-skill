@@ -46,6 +46,14 @@
   "chapterGapMs": 900,               // breath before a new chapter
   "outroMs": 900,                    // hold after the last word
   "renderChunkMinutes": 5,           // videos longer than 1.5x this render in cached parts
+  "thumbnail": { "text": "2-4 WORDS", "scene": 1, "image": null, "side": "left" }, // false = none (youtube-upload.md)
+  "youtube": {                       // upload metadata (youtube-upload.md); used by scripts/youtube.mjs
+    "title": "...", "description": "...", "tags": [], "hashtags": [],
+    "privacy": "private",            // private | unlisted | public
+    "publishAt": null,               // ISO time to go public (needs privacy private)
+    "categoryId": 22, "language": "bn", "madeForKids": false, "syntheticMedia": false,
+    "account": "default"             // which signed-in channel
+  },
   "scenes": [
     {
       "text": "Spoken *line*.",      // required; *word* = highlight (accent caption + punch-in), never spoken
