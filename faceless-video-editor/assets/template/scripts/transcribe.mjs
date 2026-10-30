@@ -177,23 +177,31 @@ async function localTranscribe() {
   }
   const wav = path.join(BUILD, "voice-16k.wav");
   ffmpeg(["-i", source, "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", wav]);
+  // Token-level timestamps split Bengali / Hindi letters (several UTF-8 bytes per
+  // letter, one token can end mid-letter) into broken characters. For those
+  // languages whisper.cpp itself cuts the text into one segment per word
+  // (--max-len 1 --split-on-word), so every word arrives whole with its timing.
+  const wordSegments = !!lang && lang !== "en";
   const out = await whisper.transcribe({
     inputPath: wav,
     whisperPath: whisperDir,
     whisperCppVersion: WHISPER_VERSION,
     model,
     modelFolder: whisperDir,
-    tokenLevelTimestamps: true,
     language: lang,
     printOutput: false,
+    ...(wordSegments ? { tokenLevelTimestamps: false, tokensPerItem: 1, splitOnWord: true } : { tokenLevelTimestamps: true }),
   });
-  const { captions } = whisper.toCaptions({ whisperCppOutput: out });
-  // Merge sub-word tokens (no leading space) into whole words.
+  const pieces = wordSegments
+    // A word cut off at the very end of the audio can still end mid-letter (U+FFFD): drop that part.
+    ? out.transcription.map((s) => ({ text: s.text.replace(/\uFFFD/g, ""), startMs: s.offsets.from, endMs: s.offsets.to }))
+    : whisper.toCaptions({ whisperCppOutput: out }).captions;
+  // Merge sub-word pieces (no leading space) into whole words.
   const merged = [];
-  for (const c of captions) {
+  for (const c of pieces) {
     const text = c.text;
     if (!text.trim() || /^\[.*\]$/.test(text.trim())) continue;
-    if (merged.length && !text.startsWith(" ")) {
+    if (merged.length && !/^\s/.test(text)) {
       const last = merged[merged.length - 1];
       last.text += text;
       last.endMs = c.endMs;
