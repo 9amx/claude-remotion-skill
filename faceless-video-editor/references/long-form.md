@@ -98,10 +98,26 @@ number of API calls is the number of *distinct* keywords.
 - Use `photo:` for history (archival-looking stills with Ken Burns) and
   `file:` for anything you have rights to: screen recordings, maps, charts.
 
+## Reviewing hundreds of shots
+
+A 15-20 minute video has 200-300 shots. Review a chapter at a time:
+`node scripts/fetch-broll.mjs --review --chapter=1`, pick, then `--chapter=2`
+and so on (the other chapters' sheets and picks stay), then
+`node scripts/auto.mjs --from=broll` once. `--review=key` limits a pass to the
+hook, emphasis / reveal / split scenes and weak matches when time is short.
+
 ## Render time and resuming
 
-Rough cost on an 8-core laptop at 1080p: 1-3x realtime, so 40 minutes takes
-roughly 40 minutes to 2 hours. Faster: `REMOTION_FLAGS="--concurrency=<cores>"`.
+Measured on a 4-core cloud container at 1080p: about 2-2.5 frames per second
+(it was about 1 before the background lost its CSS blur). At 30 fps that is
+roughly 12-15x slower than realtime: 10 minutes of video takes 2-2.5 hours, 20
+minutes 4-5 hours. More cores scale it roughly linearly
+(`REMOTION_FLAGS="--concurrency=<cores>"`; Remotion refuses more than the machine
+has). `"fps": 25` (fine for documentaries) renders 17% fewer frames.
+
+In a cloud session run the render in the background and simply run it again if
+it stops (a command has a time limit): `node scripts/render.mjs` skips every
+finished part, and each part logs frames/s and the minutes left.
 
 `out/parts/manifest.json` records a hash per part (timeline content in that
 range + all of `src/`). Edit a scene: its part re-renders, plus every later part

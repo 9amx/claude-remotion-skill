@@ -15,8 +15,12 @@
     "model": "...",                  // elevenlabs / openai model override
     "instructions": "...",           // openai only: delivery style
     "file": "my-voice.mp3",          // file only: recording in public/
-    "language": "bn",                // file only: whisper language
-    "whisperModel": "small",         // file only
+    "language": "bn",                // file only: language of the recording
+    "transcript": "my-voice.json",   // file only: your ElevenLabs / OpenAI transcript with word timestamps (skips transcription)
+    "transcriber": "local",          // file only: local (whisper.cpp) | elevenlabs (ELEVENLABS_API_KEY) | openai (OPENAI_API_KEY)
+    "whisperModel": "large-v3-turbo", // file + local only (default: large-v3-turbo non-English, medium.en English)
+    "transcribeModel": "scribe_v1",  // file + elevenlabs/openai: model id override
+    "enhance": true,                 // file only: clean the recording (noise, de-ess, compress, -16 LUFS)
     "wpm": 165,                      // none only: reading speed
     "concurrency": 4,                // scenes voiced in parallel
     "tightenPauses": true,           // file only: jump-cut pauses longer than maxPauseMs

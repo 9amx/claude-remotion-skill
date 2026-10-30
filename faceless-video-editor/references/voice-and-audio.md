@@ -7,7 +7,7 @@
 | `edge` | free | real, per word | `pip install edge-tts` |
 | `elevenlabs` | paid, best quality | real (character alignment) | `ELEVENLABS_API_KEY`, `voice` = voice ID |
 | `openai` | paid, cheap | estimated from length (shots and captions can drift; prefer edge/elevenlabs when sync matters) | `OPENAI_API_KEY`, `voice` = alloy/onyx/nova/..., optional `instructions` |
-| `file` | free | whisper.cpp, real | user recording in `public/`, `voice.file` |
+| `file` | free (local) or per-minute (API) | real: whisper.cpp, ElevenLabs Scribe, OpenAI, or your transcript | user recording in `public/`, `voice.file` |
 | `none` | free | estimated (`wpm`) | text + music only videos |
 
 Default to `edge` unless the user has a key and wants premium sound.
@@ -31,13 +31,30 @@ Documentary / story: deeper male voice, rate `+0%`. Facts / lists: `+8%`.
 
 ## Own recording (`provider: "file"`)
 
-`npm run transcribe` (run by `auto`) compiles whisper.cpp once into `.whisper/`,
-transcribes, then splits the recording into the project's scenes by aligning
-the script's words to the transcript (robust to skipped lines, ad-libs and
-misheard words, so it holds over a 40 minute recording). It logs how much of
-the script matched; under 60% means project.json doesn't match the recording. Non-English: set
-`voice.language` (e.g. `"bn"`) - this switches to the multilingual `small` model.
-Override with `voice.whisperModel` (`medium` for best accuracy).
+The user records (or exports from ElevenLabs etc.) and puts the file in `public/`.
+`npm run transcribe` (run by `auto`) then:
+
+1. **Cleans the recording** (`voice.enhance`, default on): rumble cut, noise
+   reduction and a soft gate set from the measured noise floor, de-esser, gentle
+   compression, linear -16 LUFS -> `build/voice-clean.wav`. On a hissy test
+   recording the noise sat 22 dB under the speech before and 38 dB after. Needs a
+   system ffmpeg; Remotion's bundled one only levels the loudness. `"enhance": false`
+   keeps the file as it is (already mastered audio).
+2. **Word timestamps**, which drive every cut, caption and beat:
+   | Setting | What | Needs |
+   |---|---|---|
+   | `voice.transcript: "voice.json"` | a transcript you already have: ElevenLabs Speech-to-Text JSON or OpenAI verbose_json with word timestamps | nothing |
+   | `voice.transcriber: "local"` (default) | whisper.cpp here. `large-v3-turbo` for non-English, `medium.en` for English (`voice.whisperModel` overrides). The first run compiles it (git, make, C++) and downloads the model from huggingface.co | CPU time: a 20 min recording can take 30-60 min on 4 cores |
+   | `voice.transcriber: "elevenlabs"` | ElevenLabs Scribe; the strongest option for Bengali / Hindi | `ELEVENLABS_API_KEY`, host `api.elevenlabs.io` |
+   | `voice.transcriber: "openai"` | OpenAI whisper-1 with word timestamps; up to ~70 min per recording (25 MB limit) | `OPENAI_API_KEY`, host `api.openai.com` |
+   Set `voice.language` (`"bn"`, `"hi"`) for non-English. The result is cached in
+   `build/transcript.json` until the recording or these settings change.
+3. **Splits it into scenes** by aligning the script's words to the transcript
+   (robust to skipped lines, ad-libs and misheard words, so it holds over a 40
+   minute recording) and jump-cuts pauses over `maxPauseMs`. It logs the overall
+   match and names every scene under 50%: those were said differently from the
+   script, so their cuts are estimated. Check them in `out/check/sync.txt`, or
+   fix the scene's text to what was actually said.
 
 ## Music
 

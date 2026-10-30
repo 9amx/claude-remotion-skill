@@ -356,7 +356,14 @@ export function splitIntoScenes(words, sceneTokens) {
     bounds.push(best);
   }
   bounds.push(words.length);
-  return { bounds, matched: match.filter((m) => m !== null).length };
+  // Share of each scene's script words found in the recording: a low one means
+  // that scene was said differently (or not at all).
+  const perScene = [];
+  for (let s = 0, t = 0; s < sceneTokens.length; t += sceneTokens[s].length, s++) {
+    const own = match.slice(t, t + sceneTokens[s].length);
+    perScene.push(own.length ? own.filter((m) => m !== null).length / own.length : 1);
+  }
+  return { bounds, matched: match.filter((m) => m !== null).length, perScene };
 }
 
 // Jump-cut dead air out of a recording. Given words (absolute ms) inside

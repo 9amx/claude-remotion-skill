@@ -154,6 +154,17 @@ p.scenes.forEach((s, i) => {
   if (s.layout === "split" && (s.broll?.length ?? 0) < 2) warnings.push(`${at(i)}: split layout needs two broll entries (left/top and right/bottom).`);
 });
 if (plainScenes) notes.push(`${plainScenes} scene(s) use plain keyword strings: they are matched to the line automatically, but beats ({"on": "words from the line", "kw": [...]}) put each shot exactly on its words.`);
+// Your own recording: the files and keys the transcribe step will need.
+if (p.voice.provider === "file") {
+  if (!p.voice.file) errors.push('voice.provider "file" needs voice.file (the recording, in public/).');
+  else if (!fs.existsSync(path.join(PUBLIC, p.voice.file))) warnings.push(`voice.file ${p.voice.file} is not in public/ yet.`);
+  if (p.voice.transcript && !fs.existsSync(path.join(PUBLIC, p.voice.transcript))) warnings.push(`voice.transcript ${p.voice.transcript} is not in public/ yet.`);
+  const tr = p.voice.transcript ? null : (p.voice.transcriber ?? "local");
+  if (tr === "openai" && !process.env.OPENAI_API_KEY) warnings.push('voice.transcriber "openai" needs OPENAI_API_KEY in the environment.');
+  if (tr === "elevenlabs" && !process.env.ELEVENLABS_API_KEY) warnings.push('voice.transcriber "elevenlabs" needs ELEVENLABS_API_KEY in the environment.');
+  if (indic && !p.voice.language) warnings.push('set voice.language ("bn", "hi") so the transcription knows the language.');
+  if (tr === "local" && indic) notes.push('Bengali/Hindi on the local transcriber: large-v3-turbo is used (slow on a CPU, cached after). "elevenlabs" is faster and usually more accurate.');
+}
 if (p.voice.provider === "openai") warnings.push('voice.provider "openai" has no word timestamps (they are estimated), so shots and captions can drift off the words. Use edge or elevenlabs for exact sync.');
 const allKw = p.scenes.flatMap((sc) => brollEntries(sc).flatMap((e) => e.kw));
 const aiShots = allKw.filter((k) => k.startsWith("ai:")).length;

@@ -63,6 +63,10 @@ fs.mkdirSync(dir, { recursive: true });
 const manifestFile = path.join(dir, "manifest.json");
 const manifest = readJson(manifestFile, {});
 const parts = [];
+// Progress for long renders: frames per second so far -> time left.
+const t0 = Date.now();
+let doneFrames = 0;
+let todo = ranges.reduce((n, [a, b]) => n + b - a + 1, 0);
 for (const [i, [a, b]] of ranges.entries()) {
   const scenes = t.scenes.filter((s) => s.startFrame <= b && s.startFrame + s.durationInFrames > a);
   const words = t.words.filter((w) => (w.endMs / 1000) * t.fps >= a - t.fps && (w.startMs / 1000) * t.fps <= b + t.fps);
@@ -73,12 +77,17 @@ for (const [i, [a, b]] of ranges.entries()) {
   const label = `part ${i + 1}/${ranges.length} (${timecode(a / t.fps)}-${timecode((b + 1) / t.fps)})`;
   if (manifest[path.basename(file)] === key && fs.existsSync(file)) {
     log("render", `${label} unchanged, skipped`);
+    todo -= b - a + 1;
     continue;
   }
   log("render", label);
+  const ts = Date.now();
   remotion([path.relative(ROOT, file), `--frames=${a}-${b}`, "--muted", "--codec", "h264", "--crf", "18"]);
   manifest[path.basename(file)] = key;
   writeJson(manifestFile, manifest); // saved after every part: a crash keeps finished parts
+  doneFrames += b - a + 1;
+  const fps = doneFrames / ((Date.now() - t0) / 1000);
+  log("render", `${label} done in ${Math.round((Date.now() - ts) / 1000)}s - ${fps.toFixed(1)} frames/s, about ${Math.ceil((todo - doneFrames) / fps / 60)} min left`);
 }
 // Drop parts from an earlier, longer layout.
 for (const f of fs.readdirSync(dir)) {

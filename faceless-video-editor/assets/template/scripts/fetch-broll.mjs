@@ -32,7 +32,8 @@
 // each shot). Look at them, then write the winners to build/picks.json, e.g.
 // {"s001-1": 3, "s004-2": 1}. The normal run uses the picks. `--review` covers
 // every shot; `--review=key` only the ones that matter most or that search is
-// unsure about (hook, emphasis/reveal/split scenes, weak matches).
+// unsure about (hook, emphasis/reveal/split scenes, weak matches). Long form:
+// `--review --chapter=N` does one chapter and keeps the other chapters' sheets.
 //
 // No random footage: a result is used automatically only if it shares words with
 // the keyword (brollMinRelevance, default 0.25); otherwise the beat's other
@@ -49,6 +50,8 @@ import { BLOCK, BUILD, FORMATS, GRAPHIC_TYPES, PUBLIC, ROOT, adobeAsset, ffmpeg,
 const args = process.argv.slice(2);
 const reviewArg = args.find((a) => a.startsWith("--review"));
 const reviewAll = reviewArg !== "--review=key";
+// Long form: review one chapter at a time (--chapter=2); earlier sheets and picks stay.
+const chapterArg = Number(args.find((a) => a.startsWith("--chapter="))?.slice(10)) || null;
 const project = readProject();
 const fmt = FORMATS[project.format];
 const KEYS = { pexels: process.env.PEXELS_API_KEY, pixabay: process.env.PIXABAY_API_KEY, openai: process.env.OPENAI_API_KEY };
@@ -442,12 +445,13 @@ const shotsOf = (scene, i) => {
 
 // ---------- review mode: contact sheets of candidates ----------
 if (reviewArg) {
-  const out = {};
   const dir = path.join(BUILD, "review");
-  fs.rmSync(dir, { recursive: true, force: true });
+  const out = chapterArg ? readJson(path.join(BUILD, "review.json"), {}) : {};
+  if (!chapterArg) fs.rmSync(dir, { recursive: true, force: true });
   fs.mkdirSync(dir, { recursive: true });
   let sheets = 0;
   for (const [i, scene] of project.scenes.entries()) {
+    if (chapterArg && scene.chapter !== chapterArg - 1) continue;
     const { id, shots } = shotsOf(scene, i);
     const important = i === 0 || scene.emphasis || [].concat(scene.fx ?? []).includes("reveal") || scene.layout === "split";
     for (const [k, sh] of shots.entries()) {
@@ -478,7 +482,7 @@ if (reviewArg) {
     }
   }
   writeJson(path.join(BUILD, "review.json"), out);
-  log("broll", `review: ${sheets} sheets in build/review/ (candidates 1-6, left to right, top to bottom).`);
+  log("broll", `review: ${sheets} sheets in build/review/${chapterArg ? ` for chapter ${chapterArg}` : ""} (candidates 1-6, left to right, top to bottom).`);
   log("broll", 'Pick for the WORDS of each shot (build/review.json "words"). Write choices to build/picks.json, e.g. {"s001-1": 3}; change the keyword instead if none fits. Then run without --review.');
   process.exit(0);
 }

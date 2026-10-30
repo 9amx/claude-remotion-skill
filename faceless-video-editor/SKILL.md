@@ -230,9 +230,11 @@ CC BY / BY-SA archive images need attribution: the run says so - put
 `build/credits.txt` in the video description.
 
 User has their own recording? Put it in `public/`, set
-`"voice": {"provider": "file", "file": "my-voice.mp3"}` - the pipeline transcribes
-it locally with whisper.cpp, splits it into the scenes and jump-cuts pauses
-over 0.4s (`voice.tightenPauses: false` to keep them).
+`"voice": {"provider": "file", "file": "my-voice.mp3", "language": "bn"}` - the
+pipeline cleans it (noise, de-ess, compression, -16 LUFS), gets word timestamps
+(local whisper.cpp, or `"transcriber": "elevenlabs"` / `"openai"`, or the user's own
+`"transcript"` JSON), splits it into the scenes and jump-cuts pauses over 0.4s
+(`voice.tightenPauses: false` to keep them). `references/voice-and-audio.md` has the options.
 
 If the render can't download Chrome, set `REMOTION_BROWSER=/path/to/chrome`
 (Playwright's `chrome-headless-shell` works). No stock key? Archive photos and

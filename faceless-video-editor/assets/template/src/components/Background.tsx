@@ -10,10 +10,12 @@ export const Background: React.FC<{ style: Style }> = ({ style }) => {
   const d2 = Math.cos(frame / 70) * s * 0.035;
   return (
     <AbsoluteFill style={{ background: `linear-gradient(160deg, ${style.colors.bg}, ${style.colors.bgAlt})` }}>
-      <div style={{ position: "absolute", width: s, height: s, borderRadius: "50%", top: -s * 0.35, left: -s * 0.25 + d1, filter: "blur(60px)",
-        background: `radial-gradient(circle, ${style.colors.primary}30, transparent 62%)` }} />
-      <div style={{ position: "absolute", width: s * 0.8, height: s * 0.8, borderRadius: "50%", bottom: -s * 0.3, right: -s * 0.2 - d2, filter: "blur(80px)",
-        background: `radial-gradient(circle, ${style.colors.accent}26, transparent 65%)` }} />
+      {/* Soft glows from radial gradients alone: a CSS blur() on these full-frame
+          layers halved the render speed for no visible difference. */}
+      <div style={{ position: "absolute", width: s, height: s, top: -s * 0.35, left: -s * 0.25 + d1,
+        background: `radial-gradient(circle, ${style.colors.primary}30, ${style.colors.primary}12 35%, transparent 62%)` }} />
+      <div style={{ position: "absolute", width: s * 0.8, height: s * 0.8, bottom: -s * 0.3, right: -s * 0.2 - d2,
+        background: `radial-gradient(circle, ${style.colors.accent}26, ${style.colors.accent}0e 38%, transparent 65%)` }} />
     </AbsoluteFill>
   );
 };
