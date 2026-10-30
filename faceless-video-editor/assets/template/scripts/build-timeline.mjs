@@ -81,6 +81,28 @@ function clipWindow(asset, need) {
   return { playbackRate, trimBefore: Math.round(start * fps), ...(b - a < need * 0.6 - 0.05 ? { crossesCut: true } : {}) };
 }
 
+// Explainer items (list, steps, compare, ui highlight) appear on their own words:
+// `at` = frames from the shot's start. An item with "on" lands a few frames
+// before that phrase is spoken; the rest are spread over the shot's first 60%.
+function withItemTimes(g, voWords, shotStartMs, shotFrom, len) {
+  const items = g.type === "compare" ? [...g.left.items, ...g.right.items] : g.type === "ui" ? [{ on: g.on }] : g.items;
+  if (!items) return g;
+  const startIdx = Math.max(0, voWords.findIndex((w) => w.startMs >= shotStartMs - 50));
+  let from = startIdx;
+  const spread = (i) => Math.round(4 + (i * Math.max(8, len * 0.6)) / Math.max(1, items.length));
+  const at = items.map((it, i) => {
+    const on = typeof it === "object" ? it?.on : null;
+    const idx = on ? findPhrase(voWords, on, from) : -1;
+    if (on && idx < 0) log("timeline", `${g.type} item "${on}" not found in the spoken words - placed by position`);
+    if (idx < 0) return spread(i);
+    from = idx + 1;
+    return Math.max(0, toF(voWords[idx].startMs) - shotFrom - 3);
+  });
+  // Never before the previous item, never after the shot.
+  for (let i = 1; i < at.length; i++) at[i] = Math.max(at[i], at[i - 1] + 4);
+  return { ...g, at: at.map((a) => Math.min(a, Math.max(0, len - 10))) };
+}
+
 let cursorMs = 0;
 const scenes = [];
 const words = [];
@@ -113,6 +135,7 @@ for (const [i, scene] of project.scenes.entries()) {
     const len = Math.max(1, end - from);
     const shot = { ...asset, from, durationInFrames: len, zoomIn: (i + k) % 2 === 0, words: p.words };
     delete shot.cuts;
+    if (shot.type === "graphic" && shot.graphic) shot.graphic = withItemTimes(shot.graphic, vo.words, p.startMs, from, len);
     if (asset.type === "video" && asset.duration) Object.assign(shot, clipWindow(asset, len / fps));
     if (p.sfx) {
       const ref = soundRef(p.sfx, `${id} beat "${p.on ?? p.kw}" sfx`);

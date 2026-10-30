@@ -79,6 +79,27 @@ Read `references/script-formula.md` before writing. Non-negotiables:
    (counter, bars, map, timeline, quote; give every number or map a `source`).
    A graphic is drawn from your data, so it is exactly right; no stock clip can
    show "more people than Russia". 1-3 graphics in a Short, a few per minute in long form.
+   **Write a shot list, not a keyword list.** Go through the line phrase by
+   phrase and decide what the viewer must SEE while hearing it:
+
+   | The words say... | Beat |
+   |---|---|
+   | a concrete thing, person, place, action | footage: `kw` = what the camera sees (subject + action + setting), 2-3 angles |
+   | a real, named person / place / event / date | `archive:` (or DVIDS / the user's clip), plus `lowerThird` |
+   | how something works, a process, "first... then..." | `graphic` `steps`, each step `on` its words |
+   | several points, reasons, features, mistakes | `graphic` `list`, each item `on` its words |
+   | A vs B, before/after, pros/cons, old/new | `graphic` `compare` (tone good/bad) |
+   | the key claim, a definition, the thesis line | `graphic` `statement` (a few words, `highlight` the key one) |
+   | an app, website, dashboard, product, setting | `graphic` `ui` with the user's screenshot and a `highlight` box |
+   | a number / share / ranking / place / date / quote | `counter` / `bars` / `map` / `timeline` / `quote` |
+
+   A new beat for every new idea, roughly every 2-4 s of speech: lint warns
+   when one picture covers more than ~18 words (12 in a Short), because one clip
+   under a long stretch stops matching what is said. Abstract lines ("this
+   changes everything", "the real problem is trust") never get stock: use a
+   `statement`, `list` or `compare`, or the concrete example the line refers to.
+   Explainer items reveal on their own words:
+   `{"on": "three things", "graphic": {"type": "list", "title": "Why it fails", "items": [{"text": "No budget", "on": "no budget"}, {"text": "Wrong team", "on": "the wrong people"}]}}`.
 6. Mark 1-2 power words per scene with `*asterisks*` (the number, the twist):
    accent captions + punch-in zooms. The voice never hears the asterisks.
 7. Last scene: a loop-back line or a CTA. Never "thanks for watching".
@@ -216,10 +237,15 @@ it is on screen. (`node scripts/fetch-broll.mjs --review=key` limits it to the
 hook, emphasis / reveal / split scenes and weak matches, for very long videos.)
 
 **Do the picking yourself, without asking the user** - this is what makes the
-footage accurate:
+footage accurate. In long form, and whenever the user asks for accurate or
+"perfect" footage, review EVERY shot (`--review`, never `--review=key`), chapter
+by chapter (`--review --chapter=N`), and don't leave a single shot on the
+automatic pick:
 1. Look at every sheet (`build/review.json` has the keyword, the shot's `words`
    and each candidate's source/text). Pick the candidate that shows what those
-   WORDS say, not just the keyword. Reject green screens, watermarks, text-heavy
+   WORDS say, not just the keyword. The test: someone who only sees the tile
+   could guess the words. A tile that only shares the keyword's mood ("city at
+   night" bokeh for "Dhaka's traffic") fails it. Reject green screens, watermarks, text-heavy
    frames, dark or blurry tiles, and anything that contradicts the line.
 2. Write the picks to `build/picks.json`: `{"s001-1": 3, "s002-2": 1}`.
 3. No candidate fits? Change that keyword in project.json instead: more concrete
@@ -261,6 +287,13 @@ If the render can't download Chrome, set `REMOTION_BROWSER=/path/to/chrome`
 `file:` assets still work; other shots fall back to an animated kinetic
 background - fine for a test, not for a real upload; tell the user.
 
+**Show a preview before the full render.** For long form, after the picks:
+render the first 30-60 s (`npx remotion render src/index.ts Faceless out/preview.mp4 --frames=0-1799`),
+look at its frames, and tell the user in a few lines what the edit does (look,
+cut pace, captions, graphics, transitions, music). Give them the preview to
+approve; render the whole video only after that, so the first full render is
+the one they keep.
+
 ## Step 4 - VERIFY (mandatory, never skip)
 
 `npm run check` (last step of `auto`) writes `out/check/contact.jpg` (hook frames +
@@ -289,7 +322,9 @@ Check, in this order:
 Long form: the check writes one or more sheets per chapter (`chNN-K.jpg`) and
 prints each sheet's time range. Look at every chapter, not just the first.
 
-Fix -> re-run the affected steps -> re-check. Deliver only after a clean pass.
+Fix -> re-run the affected steps -> re-check. Deliver only after a clean pass:
+no `KINETIC` line and no `weak?` line left in sync.txt, and every tile showing
+its own words. Re-render only what changed (`--from=render` reuses unchanged parts).
 
 ## Step 5 - Deliver
 

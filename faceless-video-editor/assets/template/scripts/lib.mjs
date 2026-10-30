@@ -10,7 +10,8 @@ import { fileURLToPath } from "node:url";
 // hosts the network only reaches through the proxy fail with ENOTFOUND. Re-run
 // this script once with it set; child scripts inherit it.
 if ((process.env.HTTPS_PROXY || process.env.https_proxy) && !process.env.NODE_USE_ENV_PROXY) {
-  const r = spawnSync(process.execPath, [...process.execArgv, ...process.argv.slice(1)], { stdio: "inherit", env: { ...process.env, NODE_USE_ENV_PROXY: "1" } });
+  const NODE_OPTIONS = `${process.env.NODE_OPTIONS ?? ""} --disable-warning=UNDICI-EHPA`.trim(); // "proxy agent is experimental", in every child too
+  const r = spawnSync(process.execPath, [...process.execArgv, ...process.argv.slice(1)], { stdio: "inherit", env: { ...process.env, NODE_USE_ENV_PROXY: "1", NODE_OPTIONS } });
   process.exit(r.status ?? 1);
 }
 
@@ -22,6 +23,9 @@ export const BUILD = path.join(ROOT, "build");
 // which newer Node versions refuse to spawn without a shell.
 export const REMOTION = [process.execPath, path.join(ROOT, "node_modules", "@remotion", "cli", "remotion-cli.js")];
 export const remotionCmd = (args) => [REMOTION[0], [REMOTION[1], ...args]];
+// Remotion's CLI gets the environment WITHOUT NODE_USE_ENV_PROXY: through a proxy
+// that blocks remotion.media its background check throws and kills the render.
+export const remotionEnv = () => { const e = { ...process.env }; delete e.NODE_USE_ENV_PROXY; return e; };
 // "python3" on macOS/Linux, usually "python" (or the "py" launcher) on Windows.
 export const PYTHON = ["python3", "python", "py"].find((c) => spawnSync(c, ["--version"], { encoding: "utf8" }).status === 0) ?? "python3";
 
@@ -136,7 +140,7 @@ export const sceneId = (i) => `s${String(i + 1).padStart(3, "0")}`;
 // to the first word they share with the line (in order), else spread evenly.
 export const brollEntries = (scene) =>
   (scene.broll ?? []).map((e) => (typeof e === "string" ? { kw: [e] } : { ...e, kw: [].concat(e.kw ?? []).filter(Boolean) }));
-export const GRAPHIC_TYPES = ["counter", "bars", "timeline", "quote", "map"];
+export const GRAPHIC_TYPES = ["counter", "bars", "timeline", "quote", "map", "list", "steps", "compare", "statement", "ui"];
 export const entryKeywords = (scene) => brollEntries(scene).flatMap((e) => e.kw);
 
 export const normWord = (w) => String(w).toLowerCase().replace(/[^\p{L}\p{M}\p{N}]/gu, "");

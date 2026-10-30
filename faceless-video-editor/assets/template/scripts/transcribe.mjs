@@ -154,8 +154,28 @@ async function localTranscribe() {
   // Bengali / Hindi / other languages, medium.en for English.
   const model = v.whisperModel || (lang && lang !== "en" ? "large-v3-turbo" : "medium.en");
   log("transcribe", `whisper.cpp ${WHISPER_VERSION}, model ${model} (cached after the first run)`);
+  // The installer skips any folder that exists, so an interrupted first install
+  // (no whisper binary inside) would fail forever: clear it, keep downloaded models.
+  const hasBinary = (dir, depth = 0) => fs.existsSync(dir) && fs.readdirSync(dir, { withFileTypes: true }).some((e) =>
+    e.isFile() ? /^(whisper-cli|main)(\.exe)?$/.test(e.name) : depth < 4 && e.isDirectory() && hasBinary(path.join(dir, e.name), depth + 1));
+  if (fs.existsSync(whisperDir) && !hasBinary(whisperDir)) {
+    for (const e of fs.readdirSync(whisperDir)) if (!/^ggml-.*\.bin$/.test(e)) fs.rmSync(path.join(whisperDir, e), { recursive: true, force: true });
+    const models = fs.readdirSync(whisperDir);
+    if (models.length) {
+      const keep = path.join(BUILD, "whisper-models");
+      fs.mkdirSync(keep, { recursive: true });
+      for (const m of models) fs.renameSync(path.join(whisperDir, m), path.join(keep, m));
+    }
+    fs.rmSync(whisperDir, { recursive: true, force: true });
+    log("transcribe", "whisper.cpp install was incomplete - building it again");
+  }
   try {
     await whisper.installWhisperCpp({ to: whisperDir, version: WHISPER_VERSION, printOutput: false });
+    const kept = path.join(BUILD, "whisper-models");
+    if (fs.existsSync(kept)) {
+      for (const m of fs.readdirSync(kept)) fs.renameSync(path.join(kept, m), path.join(whisperDir, m));
+      fs.rmSync(kept, { recursive: true, force: true });
+    }
   } catch (e) {
     fail(`could not build whisper.cpp (${e.message}). It needs git, make and a C++ compiler - or set voice.transcriber to "elevenlabs" / "openai", or give voice.transcript.`);
   }

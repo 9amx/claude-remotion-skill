@@ -75,7 +75,7 @@
         { "on": "words from the line", "kw": ["keyword", "second angle"], "sfx": "sfx/spot/door.mp3" },
         { "on": "first image", "kw": ["file:clips/press.mp4#12.5-16"], "credit": "\"Title\" by ESO, CC BY 4.0 - <link>" },  // part of a file + attribution
         { "on": "later words", "kw": ["photo:keyword"] },
-        { "on": "173 million", "graphic": { "type": "bars", "data": [["A", 1], ["B", 2]], "source": "..." } },  // counter | bars | map | timeline | quote (broll-keywords.md)
+        { "on": "173 million", "graphic": { "type": "bars", "data": [["A", 1], ["B", 2]], "source": "..." } },  // counter | bars | map | timeline | quote | list | steps | compare | statement | ui (broll-keywords.md)
         "plain keyword"              // also fine: matched to the line automatically
       ],                             // kw prefixes: photo: archive: ai: file: adobe:; sfx: a file in public/ or a kit sound (hit, whoosh, pop, ...),
                                      //   or { "file": "...", "volume": 0.45 }

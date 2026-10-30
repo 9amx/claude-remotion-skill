@@ -28,6 +28,19 @@ function graphicProblems(g) {
     for (const c of g.countries ?? []) if (COUNTRIES && !COUNTRIES.includes(c.toLowerCase())) out.push(`map: no country called "${c}" (names are English, e.g. "United States of America")`);
     for (const p of g.places ?? []) if (typeof p === "object" && !(num(p.lat) && num(p.lon))) out.push(`map place ${JSON.stringify(p)} needs lat and lon (or give just the name to geocode it)`);
   }
+  const itemsOk = (list) => Array.isArray(list) && list.every((it) => typeof it === "string" || typeof it?.text === "string");
+  if (g.type === "list" || g.type === "steps") {
+    if (!itemsOk(g.items) || g.items.length < 2) out.push(`${g.type} needs "items": ["...", {"text": "...", "on": "spoken words"}] with 2+ entries`);
+    else if (g.items.length > (g.type === "steps" ? 5 : 6)) out.push(`${g.type}: ${g.items.length} items won't read - keep it to ${g.type === "steps" ? 5 : 6}`);
+  }
+  if (g.type === "compare" && !(g.left?.label && g.right?.label && itemsOk(g.left.items) && itemsOk(g.right.items))) out.push('compare needs "left" and "right": {"label": "...", "items": [...], "tone": "good|bad"}');
+  if (g.type === "statement" && !g.text) out.push('statement needs "text" (the key line, a few words)');
+  if (g.type === "statement" && g.text && g.text.split(/\s+/).length > 14) out.push("statement: more than 14 words is a paragraph - cut it to the key line");
+  if (g.type === "ui") {
+    if (!g.image) out.push('ui needs "image": a screenshot in public/ (e.g. "screens/dashboard.png")');
+    else if (!fs.existsSync(path.join(PUBLIC, g.image))) out.push(`ui image ${g.image} is not in public/ yet`);
+    if (g.highlight && !(Array.isArray(g.highlight) && g.highlight.length === 4 && g.highlight.every(num))) out.push('ui "highlight" is [x, y, width, height] in % of the screenshot');
+  }
   if (["counter", "bars", "map"].includes(g.type) && !g.source) out.push(`${g.type}: add "source" - a number or map on screen should say where it comes from`);
   return out;
 }
@@ -111,7 +124,7 @@ p.scenes.forEach((s, i) => {
   for (const [k, e] of entries.entries()) {
     if (!e.kw.length && !e.graphic) errors.push(`${at(i)}: beat ${k + 1} has no "kw" or "graphic".`);
     if (e.graphic) {
-      for (const pr of graphicProblems(e.graphic)) (/^(graphic type|counter needs|bars need|timeline needs|quote needs|map needs|map: no|map place)/.test(pr) ? errors : warnings).push(`${at(i)}: ${pr}`);
+      for (const pr of graphicProblems(e.graphic)) (/^(graphic type|counter needs|bars need|timeline needs|quote needs|map needs|map: no|map place|list needs|steps needs|compare needs|statement needs|ui needs|ui image)/.test(pr) ? errors : warnings).push(`${at(i)}: ${pr}`);
     }
     if (e.on == null) continue;
     const idx = findPhrase(toks, e.on, from, true);
@@ -124,6 +137,18 @@ p.scenes.forEach((s, i) => {
       const f = typeof e.sfx === "string" ? e.sfx : e.sfx.file;
       if (!SFX_NAMES.includes(f) && !fs.existsSync(path.join(PUBLIC, f ?? ""))) warnings.push(`${at(i)}: beat "${e.on}" sfx ${f} is not in public/ yet - download it before the timeline step.`);
     }
+  }
+  // One picture for a long stretch of words drifts away from what is being said:
+  // every new idea (a new noun, number, place, step) needs its own beat.
+  if (s.layout !== "split") {
+    // Explainers with items change with the words, so they may run long.
+    const evolving = (e) => ["list", "steps", "compare"].includes(e?.graphic?.type);
+    const marks = entries.map((e, k) => ({ e, at: k === 0 ? 0 : e.on == null ? -1 : findPhrase(toks, e.on, 0, true) })).filter((x) => x.at >= 0).sort((a, b) => a.at - b.at);
+    marks.forEach(({ e, at: m }, k) => {
+      if (evolving(e)) return;
+      const n = (marks[k + 1]?.at ?? toks.length) - m;
+      if (n > (shorts ? 12 : 18)) warnings.push(`${at(i)}: one beat covers ${n} words (~${Math.round(n / wps)}s) from "${toks.slice(m, m + 4).join(" ")}..." - one picture for all of it drifts from what is said; add a beat for each new idea.`);
+    });
   }
   if (s.emphasis && entries.some((e) => e.graphic)) warnings.push(`${at(i)}: emphasis and a graphic in one scene compete for the same space - drop one.`);
   if (entries.length > 1 && s.layout !== "split" && entries.some((e) => e.on == null)) {

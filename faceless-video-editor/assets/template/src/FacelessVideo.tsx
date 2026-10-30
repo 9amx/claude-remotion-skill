@@ -12,10 +12,15 @@ import { Emphasis } from "./components/Emphasis";
 import { Grade, Grain, Vignette } from "./components/Finish";
 import { LowerThird } from "./components/LowerThird";
 import { ProgressBar } from "./components/ProgressBar";
-import { Shot } from "./components/Shot";
+import { Shot, type Motion } from "./components/Shot";
 import type { Props } from "./Root";
 import { clamp, getStyle, type Style } from "./theme";
 import type { Scene, Timeline } from "./types";
+
+const HideDuring: React.FC<{ ranges: number[][]; children: React.ReactNode }> = ({ ranges, children }) => {
+  const frame = useCurrentFrame();
+  return ranges.some(([a, b]) => frame >= a && frame < b) ? null : <>{children}</>;
+};
 
 // Freeze frame: the picture stops on a white flash with a slight push-in.
 const FreezeFlash: React.FC = () => {
@@ -23,10 +28,10 @@ const FreezeFlash: React.FC = () => {
   return <AbsoluteFill style={{ background: "#fff", opacity: interpolate(frame, [0, 6], [0.7, 0], clamp) }} />;
 };
 
-const Picture: React.FC<{ scene: Scene; si: number; style: Style }> = ({ scene, si, style }) => {
+const Picture: React.FC<{ scene: Scene; si: number; style: Style; motion: Motion }> = ({ scene, si, style, motion }) => {
   const frozen = scene.fx.includes("freeze");
   const shot = (k: number) => {
-    const s = <Shot shot={scene.shots[k]} style={style} seed={si * 7 + k} />;
+    const s = <Shot shot={scene.shots[k]} style={style} seed={si * 7 + k} motion={motion} />;
     return frozen ? <Freeze frame={0}>{s}</Freeze> : s;
   };
   return (
@@ -111,6 +116,9 @@ export const FacelessVideo: React.FC<Props> = ({ timeline }) => {
   const duckAt = (f: number) => duck[Math.min(duck.length - 1, Math.max(0, f))];
   if (!timeline) return <AbsoluteFill style={{ background: "#111", color: "#fff", fontSize: 48, padding: 80 }}>Run `npm run auto` first: public/timeline.json is missing.</AbsoluteFill>;
   const style = getStyle(timeline.style);
+  const motion: Motion = timeline.editStyle === "viral" || timeline.editStyle === "explainer" ? "punchy" : "cinematic";
+  // A title-card fallback already shows its line: no captions on top of it.
+  const cardRanges = timeline.scenes.flatMap((sc) => sc.shots.filter((sh) => sh.type === "kinetic").map((sh) => [sc.startFrame + sh.from, sc.startFrame + sh.from + sh.durationInFrames]));
   const sfx = timeline.sfxLevel ?? (timeline.sfx ? 1 : 0);
   // Your own SFX (public/sfx/) when present, rotating through variants; else the synthesized kit.
   const riserSrc = (timeline.sfxFiles?.riser ?? ["audio/riser.wav"])[0];
@@ -130,7 +138,7 @@ export const FacelessVideo: React.FC<Props> = ({ timeline }) => {
       {/* Pictures first, in order, so an incoming scene sits on top of the outgoing one during overlaps. */}
       {timeline.scenes.map((scene, si) => (
         <Sequence key={`p-${scene.id}`} from={scene.startFrame} durationInFrames={scene.durationInFrames + scene.visualExtend} name={`${scene.id} picture`}>
-          <Picture scene={scene} si={si} style={style} />
+          <Picture scene={scene} si={si} style={style} motion={motion} />
         </Sequence>
       ))}
 
@@ -233,7 +241,7 @@ export const FacelessVideo: React.FC<Props> = ({ timeline }) => {
         );
       })}
 
-      <Captions timeline={timeline} style={style} />
+      <HideDuring ranges={cardRanges}><Captions timeline={timeline} style={style} /></HideDuring>
       <Grade style={style} />
       <Grain style={style} />
       <Vignette />
