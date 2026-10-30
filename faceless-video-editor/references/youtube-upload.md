@@ -46,7 +46,7 @@ The upload goes through the user's own Google Cloud project. Walk them through i
    -> Download JSON. Save it as:
    - macOS / Linux: `~/.config/faceless-video/client_secret.json`
    - Windows: `%APPDATA%\faceless-video\client_secret.json`
-   (or a `client_secret.json` in the project folder, or `YOUTUBE_CLIENT_SECRET=/path`)
+   (or a `client_secret.json` in the project folder, or `YOUTUBE_CLIENT_SECRET_FILE=/path`, or the two values as `YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET`)
 5. Sign in once: `node scripts/youtube.mjs --auth`. A browser opens: pick the
    account, then the channel (brand accounts are listed there), and allow access.
    It prints the channel name it connected to. If the browser runs on another
