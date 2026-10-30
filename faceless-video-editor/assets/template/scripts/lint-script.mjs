@@ -158,7 +158,7 @@ if (plainScenes) notes.push(`${plainScenes} scene(s) use plain keyword strings: 
 if (p.voice.provider === "file") {
   if (!p.voice.file) errors.push('voice.provider "file" needs voice.file (the recording, in public/).');
   else if (!fs.existsSync(path.join(PUBLIC, p.voice.file))) warnings.push(`voice.file ${p.voice.file} is not in public/ yet.`);
-  if (p.voice.transcript && !fs.existsSync(path.join(PUBLIC, p.voice.transcript))) warnings.push(`voice.transcript ${p.voice.transcript} is not in public/ yet.`);
+  if (p.voice.transcript && ![path.join(PUBLIC, p.voice.transcript), path.join(ROOT, p.voice.transcript)].some((f) => fs.existsSync(f))) warnings.push(`voice.transcript ${p.voice.transcript} is not in public/ yet.`);
   const tr = p.voice.transcript ? null : (p.voice.transcriber ?? "local");
   if (tr === "openai" && !process.env.OPENAI_API_KEY) warnings.push('voice.transcriber "openai" needs OPENAI_API_KEY in the environment.');
   if (tr === "elevenlabs" && !process.env.ELEVENLABS_API_KEY) warnings.push('voice.transcriber "elevenlabs" needs ELEVENLABS_API_KEY in the environment.');
