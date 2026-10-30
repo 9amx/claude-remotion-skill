@@ -5,13 +5,16 @@
 //   Pixabay  (PIXABAY_API_KEY) stock video + photos, 100 searches/minute
 //   Wikimedia Commons (no key) real people, places, events, documents; CC/PD licences only
 //   NASA Image Library (no key) space, science, aviation; public domain
+//   Coverr   (COVERR_API_KEY)  free cinematic stock video, no attribution needed
+//   DVIDS    (DVIDS_API_KEY)   US military / government video: wars, disasters, rescues,
+//                              aircraft, ships. Mostly public domain; credited anyway
 //   OpenAI images (OPENAI_API_KEY) generated stills for "ai:" keywords
 // Keyword prefixes in scene.broll:
 //   "city traffic night"   stock video first, photos as fallback; archive photos join in
 //                          automatically when the keyword names something real (a year,
 //                          a proper noun) or stock has nothing relevant
 //   "photo:old map"        photos only (stock + archive)
-//   "archive:Apollo 11"    Wikimedia + NASA only: accurate, real imagery
+//   "archive:Apollo 11"    Wikimedia + NASA (+ DVIDS video) only: accurate, real imagery
 //   "ai:prompt"            generate an image (needs OPENAI_API_KEY)
 //   "file:clip.mp4"        your own asset in public/; "file:talk.mp4#12.5-16" uses just
 //                          that part (cut once into broll/clip-*.mp4). A beat's "credit"
@@ -54,9 +57,13 @@ const reviewAll = reviewArg !== "--review=key";
 const chapterArg = Number(args.find((a) => a.startsWith("--chapter="))?.slice(10)) || null;
 const project = readProject();
 const fmt = FORMATS[project.format];
-const KEYS = { pexels: process.env.PEXELS_API_KEY, pixabay: process.env.PIXABAY_API_KEY, openai: process.env.OPENAI_API_KEY };
-const stockSources = (project.brollSources ?? ["pexels", "pixabay"]).filter((s) => KEYS[s]);
-const archiveOn = project.archive !== false; // Wikimedia + NASA need no key
+const KEYS = { pexels: process.env.PEXELS_API_KEY, pixabay: process.env.PIXABAY_API_KEY, coverr: process.env.COVERR_API_KEY,
+  dvids: process.env.DVIDS_API_KEY, openai: process.env.OPENAI_API_KEY };
+// Coverr joins the stock search whenever its key is set, after the listed sources.
+const listed = project.brollSources ?? ["pexels", "pixabay"];
+const stockSources = [...listed, ...(listed.includes("coverr") ? [] : ["coverr"])].filter((s) => KEYS[s]);
+const archiveOn = project.archive !== false; // Wikimedia + NASA need no key, DVIDS needs DVIDS_API_KEY
+const ARCHIVE = new Set(["wikimedia", "nasa", "dvids"]);
 const maxWaitMs = (project.brollMaxWaitMinutes ?? 0) * 60_000;
 const trim = project.trimBroll !== false;
 const MIN_REL = project.brollMinRelevance ?? 0.25;
@@ -66,7 +73,7 @@ const used = new Set();
 const VIDEO_EXT = /\.(mp4|mov|webm|mkv)$/i;
 let searches = 0, fellBack = 0;
 
-if (!stockSources.length) log("broll", "No PEXELS_API_KEY / PIXABAY_API_KEY: stock video off; archive photos and file: assets still work.");
+if (!stockSources.length) log("broll", "No PEXELS_API_KEY / PIXABAY_API_KEY / COVERR_API_KEY: stock video off; archive photos and file: assets still work.");
 
 class RateLimited extends Error {}
 
@@ -151,6 +158,28 @@ const SOURCES = {
     return data.hits.map((p) => ({ id: `pixabay-photo-${p.id}`, source: "pixabay", kind: "image", url: p.fullHDURL || p.largeImageURL, ext: "jpg",
       thumb: p.webformatURL, text: p.tags ?? "", w: p.imageWidth, h: p.imageHeight, credit: `${p.user} - ${p.pageURL}` }));
   },
+  async coverr(query) {
+    const q = new URLSearchParams({ query: query.slice(0, 100), page_size: "30", urls: "true" });
+    const data = await getJson("coverr", `https://api.coverr.co/videos?${q}`, { Authorization: `Bearer ${KEYS.coverr}` });
+    return (data.hits ?? []).map((v) => {
+      const url = v.urls?.mp4_download || v.urls?.mp4;
+      return url && { id: `coverr-${v.id}`, source: "coverr", kind: "video", url, ext: "mp4", thumb: v.thumbnail || v.poster,
+        text: `${v.title ?? ""} ${v.description ?? ""} ${(v.tags ?? []).join(" ")}`, w: v.max_width, h: v.max_height, duration: v.duration,
+        // Coverr's terms: every download is reported (fetchOnce does it).
+        ping: `https://api.coverr.co/videos/${v.id}/stats/downloads`, credit: `Coverr - "${v.title ?? v.id}" - https://coverr.co/videos/${v.id}` };
+    }).filter(Boolean);
+  },
+  async dvids(query) {
+    const aspect = fmt.orientation === "portrait" ? "portrait" : fmt.orientation === "landscape" ? "landscape" : "";
+    const q = new URLSearchParams({ api_key: KEYS.dvids, q: query.slice(0, 100), type: "video", hd: "1", max_results: "25", short_description_length: "300",
+      thumb_width: "320", thumb_height: "180", ...(aspect ? { aspect_ratio: aspect } : {}) });
+    const data = await getJson("dvids", `https://api.dvidshub.net/search?${q}`);
+    // Search has no file links: resolveUrl asks /asset for them once a clip is chosen.
+    return (data.results ?? []).filter((r) => r.type === "video" && r.id).map((r) => ({
+      id: `dvids-${String(r.id).replace(/^video:/, "")}`, source: "dvids", kind: "video", url: null, dvidsId: r.id, ext: "mp4", thumb: r.thumbnail,
+      text: `${r.title ?? ""} ${strip(r.short_description)} ${[].concat(r.keywords ?? []).join(" ")}`, w: 0, h: 0, duration: r.duration,
+      credit: `DVIDS - "${r.title}" - ${[r.credit, r.unit_name, r.branch].filter(Boolean).join(", ")} - ${r.url} (U.S. government work; no endorsement implied)` }));
+  },
   async wikimedia(query) {
     const q = new URLSearchParams({ action: "query", format: "json", generator: "search", gsrsearch: `${query} filetype:bitmap`, gsrnamespace: "6",
       gsrlimit: "20", prop: "imageinfo", iiprop: "url|size|extmetadata|mime", iiurlwidth: String(Math.max(fmt.width, fmt.height)) });
@@ -198,7 +227,7 @@ function rank(cands, query, minSec) {
     .filter((c) => !used.has(c.id) && !BLOCK.test(c.text))
     .map((c, i) => {
       const rel = relevance(query, c.text);
-      const archive = c.source === "wikimedia" || c.source === "nasa";
+      const archive = ARCHIVE.has(c.source);
       const score = rel * 3 + (c.w && orientationOk(c.w, c.h) ? 1 : 0) + (c.kind === "video" ? 0.6 : 0) +
         ((c.duration ?? minSec) >= minSec ? 0.4 : 0) + (archive && factual(query) ? 0.8 : 0) - i * 0.01;
       return { ...c, rel, score };
@@ -211,7 +240,7 @@ function rank(cands, query, minSec) {
 async function candidatesFor(keyword, minSec, want = 6) {
   const mode = keyword.match(/^(photo|archive):/)?.[1] ?? "auto";
   const query = keyword.replace(/^(photo|archive):/, "").trim();
-  const archive = archiveOn ? ["wikimedia", "nasa"] : [];
+  const archive = archiveOn ? [...(KEYS.dvids ? ["dvids"] : []), "wikimedia", "nasa"] : [];
   const photos = [...(KEYS.pexels ? ["pexelsPhoto"] : []), ...(KEYS.pixabay ? ["pixabayPhoto"] : [])];
   const order =
     mode === "archive" ? archive :
@@ -254,6 +283,17 @@ async function download(url, dest, fallbackUrl) {
   fs.renameSync(dest + ".part", dest);
 }
 
+// DVIDS search results carry no file links: the asset call lists the MP4 renditions.
+async function resolveUrl(hit) {
+  if (hit.url || hit.source !== "dvids") return hit.url;
+  if (!KEYS.dvids) throw new Error("DVIDS_API_KEY is not set");
+  const q = new URLSearchParams({ api_key: KEYS.dvids, id: hit.dvidsId });
+  const data = await getJson("dvids", `https://api.dvidshub.net/asset?${q}`);
+  const f = pickRendition((data.results?.files ?? []).filter((x) => x.type === "video/mp4" && x.src));
+  if (!f) throw new Error("DVIDS asset has no MP4 file");
+  return f.src;
+}
+
 async function fetchOnce({ shot, hit, shotSec }) {
   const abs = path.join(PUBLIC, shot.src);
   // A trimmed copy is named by the length it keeps; reuse it if it is long enough.
@@ -265,7 +305,13 @@ async function fetchOnce({ shot, hit, shotSec }) {
     shot.duration = probeDuration(trimmed);
     return;
   }
-  if (!fs.existsSync(abs)) await download(hit.url, abs, hit.fallbackUrl);
+  if (!fs.existsSync(abs)) {
+    await download(await resolveUrl(hit), abs, hit.fallbackUrl);
+    if (hit.ping && KEYS.coverr) {
+      await fetch(hit.ping, { method: "PATCH", headers: { ...UA, Authorization: `Bearer ${KEYS.coverr}` } })
+        .catch((e) => log("broll", `coverr download report failed (${e.message})`));
+    }
+  }
   if (shot.type !== "video") return;
   shot.duration = probeDuration(abs);
   // Stock clips are often 10-60s; a 40 minute video would keep gigabytes it never shows.
@@ -628,7 +674,7 @@ const keep = new Set(all.map((s) => s.src).filter(Boolean).map((s) => path.basen
 const brollDir = path.join(PUBLIC, "broll");
 if (fs.existsSync(brollDir)) {
   for (const f of fs.readdirSync(brollDir)) {
-    if ((/^(pexels|pixabay|wikimedia|nasa|clip)-/.test(f) || /^adobe-.*\.t\d+\.mp4$/.test(f)) && !keep.has(f) && !f.endsWith(".part")) fs.rmSync(path.join(brollDir, f));
+    if ((/^(pexels|pixabay|coverr|dvids|wikimedia|nasa|clip)-/.test(f) || /^adobe-.*\.t\d+\.mp4$/.test(f)) && !keep.has(f) && !f.endsWith(".part")) fs.rmSync(path.join(brollDir, f));
   }
 }
 fs.writeFileSync(path.join(BUILD, "credits.txt"), credits.join("\n") + "\n");

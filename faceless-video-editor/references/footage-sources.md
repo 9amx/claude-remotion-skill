@@ -25,9 +25,21 @@ says, then review every shot (SKILL.md Step 3). Accuracy comes from both.
   search, license and download. Titles are descriptive, so matches are easier to
   judge; a free collection costs nothing, the rest uses the user's Stock plan.
   Flow below.
-- **Coverr** (free key, 50 requests/hour, 2,000 on a paid plan): not built in.
-  Its license allows commercial use but the API page asks for a logo credit and
-  has a conflicting sentence on commercial use; confirm with team@coverr.co first.
+- **Coverr** (`COVERR_API_KEY`, free, 50 requests/hour): built in. Cinematic
+  stock video; joins the stock search automatically when the key is set. Keys are
+  given by email: write to team@coverr.co with the use case (a YouTube channel
+  edited with this pipeline). The API page asks for a credit and has a
+  conflicting sentence on commercial use: ask them to confirm monetized YouTube
+  use in the same email. Every download is reported to Coverr (their API terms
+  require it); the credit lands in `build/credits.txt` - keep it in the description.
+- **DVIDS** (`DVIDS_API_KEY`, free): built in. US Department of Defense video
+  archive: wars, disasters, rescues, aircraft, ships, space launches, exercises.
+  HD only. Searched as an archive source (`archive:` keywords and keywords that
+  name something real), before Wikimedia and NASA. Key: sign up at
+  https://www.dvidshub.net (the API page links the sign-up). Most items are US
+  government work (public domain); some carry a third-party copyright notice on
+  their page - check the page of anything central to the video. Credit is
+  written anyway, and nothing may suggest the military endorses the video.
 - **Paid, by sales**: Storyblocks API (Enterprise), Shutterstock API, Getty
   Images (the legitimate source for news, sports and celebrities).
 - **No API** (download by hand, use `file:`): Envato Elements, Artgrid, Mixkit,

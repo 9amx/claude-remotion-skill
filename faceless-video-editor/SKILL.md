@@ -185,6 +185,7 @@ npm install
 pip install edge-tts            # free TTS; skip if using elevenlabs/openai/file
 # write project.json (Step 2); keys come from the user's environment:
 # PIXABAY_API_KEY (stock; Pexels has paused new keys, an existing PEXELS_API_KEY still works),
+# COVERR_API_KEY (stock video, optional), DVIDS_API_KEY (US government archive video, optional),
 # OPENAI_API_KEY (ai: images, optional). Adobe Stock goes through the Adobe connector (below).
 node scripts/auto.mjs --review
 ```

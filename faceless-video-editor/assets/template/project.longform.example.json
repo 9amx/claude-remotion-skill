@@ -13,7 +13,8 @@
   },
   "brollSources": [
     "pixabay",
-    "pexels"
+    "pexels",
+    "coverr"
   ],
   "renderChunkMinutes": 5,
   "chapters": [
