@@ -13,13 +13,41 @@
     "mood": "tense",
     "volume": 0.12
   },
+  "thumbnail": {
+    "text": "IT'S ON PURPOSE",
+    "side": "left"
+  },
+  "youtube": {
+    "title": "Why you can't stop scrolling",
+    "description": "Your phone is built like a slot machine. Here is how it works, and the 10 second fix.",
+    "tags": [
+      "phone addiction",
+      "dopamine",
+      "psychology"
+    ],
+    "hashtags": [
+      "shorts",
+      "psychology"
+    ],
+    "privacy": "private"
+  },
   "scenes": [
     {
       "text": "Your phone was *designed* so you can't put it down.",
       "emphasis": "IT'S ON PURPOSE",
       "broll": [
-        "person scrolling phone night",
-        "phone screen glow close up"
+        {
+          "on": "Your phone",
+          "kw": [
+            "person scrolling phone night"
+          ]
+        },
+        {
+          "on": "can't put it down",
+          "kw": [
+            "phone screen glow face close up"
+          ]
+        }
       ]
     },
     {
@@ -33,8 +61,19 @@
     {
       "text": "You never know what you'll get, so your brain *keeps pulling*.",
       "broll": [
-        "brain scan animation",
-        "hand reaching phone bed"
+        {
+          "on": "You never know",
+          "kw": [
+            "hand reaching phone bed night"
+          ]
+        },
+        {
+          "on": "your brain",
+          "kw": [
+            "brain scan animation",
+            "neurons firing animation"
+          ]
+        }
       ]
     },
     {
@@ -42,8 +81,18 @@
       "look": "flashback",
       "badge": "1956",
       "broll": [
-        "archive:Skinner box pigeon",
-        "pigeon close up"
+        {
+          "on": "In 1956",
+          "kw": [
+            "archive:Skinner box pigeon"
+          ]
+        },
+        {
+          "on": "the same trick",
+          "kw": [
+            "pigeon close up"
+          ]
+        }
       ]
     },
     {
@@ -51,7 +100,20 @@
       "look": "flashback",
       "fx": "freeze",
       "broll": [
-        "pigeon pecking"
+        {
+          "on": "Random rewards",
+          "kw": [
+            "pigeon pecking",
+            "pigeons pecking ground"
+          ]
+        },
+        {
+          "on": "thousands",
+          "kw": [
+            "pigeon flock pecking"
+          ],
+          "sfx": "hit"
+        }
       ]
     },
     {
@@ -59,14 +121,31 @@
       "fx": "reveal",
       "emphasis": "10 SECONDS",
       "broll": [
-        "phone settings screen close up"
-      ]
+        {
+          "on": "The fix",
+          "kw": [
+            "phone settings screen close up"
+          ]
+        }
+      ],
+      "emphasisOn": "ten seconds"
     },
     {
       "text": "Turn off every notification that isn't from a *real person*. Follow for part two.",
       "broll": [
-        "turning off phone notifications",
-        "calm morning coffee window"
+        {
+          "on": "Turn off every notification",
+          "kw": [
+            "turning off phone notifications",
+            "phone notification settings switch"
+          ]
+        },
+        {
+          "on": "Follow for part two",
+          "kw": [
+            "calm morning coffee window"
+          ]
+        }
       ]
     }
   ]

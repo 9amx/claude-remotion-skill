@@ -1,6 +1,6 @@
 ---
 name: faceless-video-editor
-description: Fully automated faceless video production with Remotion - topic or script in, finished captioned video out. Use this skill EVERY time the user wants a faceless video, YouTube automation / "cash cow" channel content, Shorts/Reels/TikToks made from a topic, script, article, list, story or Reddit post, an AI voiceover video, a stock B-roll edit, auto-captioned narration, a top-10/facts/explainer/history/motivation/true-crime video, or says "make a video about X" without filming anything. Also trigger when they have their own voiceover recording and want B-roll + captions added automatically, want a batch of faceless videos, or want a long-form YouTube video (documentary, video essay, explainer, story) of 5 to 40+ minutes. Handles script writing, TTS voiceover with word timestamps (free edge-tts, ElevenLabs, OpenAI) or Whisper on their own recording, Pexels/Pixabay B-roll, word-synced captions, music bed, SFX, rendering, loudness mastering and frame verification. Works in any language (Bengali, Hindi, etc.).
+description: Fully automated faceless video production with Remotion - topic or script in, finished captioned video out. Use this skill EVERY time the user wants a faceless video, YouTube automation / "cash cow" channel content, Shorts/Reels/TikToks made from a topic, script, article, list, story or Reddit post, an AI voiceover video, a stock B-roll edit, auto-captioned narration, a top-10/facts/explainer/history/motivation/true-crime video, or says "make a video about X" without filming anything. Also trigger when they have their own voiceover recording and want B-roll + captions added automatically, want a batch of faceless videos, or want a long-form YouTube video (documentary, video essay, explainer, story) of 5 to 40+ minutes. Also use it to make a YouTube thumbnail or upload/schedule the finished video to YouTube. Handles script writing, TTS voiceover with word timestamps (free edge-tts, ElevenLabs, OpenAI) or Whisper on their own recording, Pexels/Pixabay B-roll, word-synced captions, music bed, SFX, rendering, loudness mastering, frame verification, thumbnail and YouTube upload. Works in any language (Bengali, Hindi, etc.).
 ---
 
 # Faceless Video Editor
@@ -11,6 +11,7 @@ Turns a topic into a finished, upload-ready faceless video with one pipeline:
 brief -> script (you write it) -> project.json
       -> voiceover + word timestamps -> B-roll per shot -> timeline.json
       -> music bed + SFX -> Remotion render -> -14 LUFS master -> contact-sheet check
+      -> thumbnail -> (YouTube upload, only when the user wants it)
 ```
 
 Everything mechanical is scripted in `assets/template/`. Your job is the parts that
@@ -46,8 +47,19 @@ Read `references/script-formula.md` before writing. Non-negotiables:
 3. **One scene = one idea = 1-2 sentences** (2-8s of speech). Shorts: 5-9 scenes.
 4. **`emphasis` on at most 1 in 3 scenes** - numbers, reveals, the CTA. If
    everything is emphasized nothing is.
-5. **2-3 `broll` keywords per scene, concrete and filmable**: "hands typing laptop
-   night", not "productivity". Read `references/broll-keywords.md`.
+5. **B-roll as beats locked to the words.** Every scene's `broll` is a list of
+   beats: `{"on": "words copied from the line", "kw": ["what to show", "a second angle"]}`.
+   The shot starts on its `on` words, so the viewer sees the thing as they hear it.
+   One beat per thing the line names (the noun, the action, the number), keywords
+   concrete and filmable ("hands typing laptop night", not "productivity").
+   Plain keyword strings still work, but they are only matched to the line
+   automatically. Read `references/broll-keywords.md`.
+   **Pick the source by what the line says** (`references/footage-sources.md`):
+   stock for generic things, `archive:` for real people / places / events, and a
+   **motion graphic** for facts: `{"on": "173 million", "graphic": {"type": "bars", ...}}`
+   (counter, bars, map, timeline, quote; give every number or map a `source`).
+   A graphic is drawn from your data, so it is exactly right; no stock clip can
+   show "more people than Russia". 1-3 graphics in a Short, a few per minute in long form.
 6. Mark 1-2 power words per scene with `*asterisks*` (the number, the twist):
    accent captions + punch-in zooms. The voice never hears the asterisks.
 7. Last scene: a loop-back line or a CTA. Never "thanks for watching".
@@ -58,10 +70,15 @@ Read `references/script-formula.md` before writing. Non-negotiables:
   "voice": { "provider": "edge", "voice": "en-US-AndrewNeural", "rate": "+8%" },
   "music": { "mood": "tense", "volume": 0.12 },
   "scenes": [
-    { "text": "Your phone was *designed* so you can't put it down.", "emphasis": "IT'S ON PURPOSE", "broll": ["kw a", "kw b"] },
+    { "text": "Your phone was *designed* so you can't put it down.", "emphasis": "IT'S ON PURPOSE",
+      "broll": [{ "on": "Your phone", "kw": ["person scrolling phone night"] },
+                { "on": "can't put it down", "kw": ["phone screen glow face close up"] }] },
     { "text": "Every refresh works like a *slot machine*.", "layout": "split", "broll": ["finger swipe phone", "slot machine lever"] },
-    { "text": "In 1956...", "look": "flashback", "badge": "1956", "broll": ["photo:vintage laboratory"] },
-    { "text": "The fix takes ten seconds.", "fx": "reveal", "emphasis": "10 SECONDS", "broll": ["file:my-clip.mp4"] },
+    { "text": "In 1956, a scientist found the same trick in pigeons.", "look": "flashback", "badge": "1956", "ambience": "sfx/amb/old-lab.mp3",
+      "broll": [{ "on": "In 1956", "kw": ["archive:Skinner box pigeon"] },
+                { "on": "the same trick", "kw": ["pigeon close up"], "sfx": "sfx/spot/pigeon-coo.mp3" }] },
+    { "text": "The fix takes ten seconds.", "fx": "reveal", "emphasis": "10 SECONDS", "emphasisOn": "ten seconds",
+      "broll": [{ "on": "The fix", "kw": ["file:my-clip.mp4"] }] },
     { "text": "...Follow for part two.", "visual": "kinetic" }
   ]
 }
@@ -79,6 +96,16 @@ on purpose:
   vhs, dream), `transition` overrides, `fx`: `reveal` (the payoff / rehook),
   `freeze` (the moment it went wrong), `shake` (rarely).
 - Pattern interrupt every 8-12s (Shorts) / 60-90s (long). Restraint everywhere else.
+- Transitions: leave `transitionStyle: "auto"`, which picks by meaning (flash into a
+  reveal, dip into a flashback or a new chapter, whip to the next list item, zoom
+  into a comparison, otherwise whip and zoom alternate). Set `transition` on a scene only to break that rule on purpose.
+- Sound design, like big channels: a beat `sfx` where the picture makes a sound
+  (camera shutter, door slam, cash register, crowd gasp; or a kit sound: `hit`,
+  `whoosh`, `pop`), and a scene `ambience` where the place has a sound (rain,
+  city night, office hum, forest). 2-5 beat sounds in a Short, not one per cut.
+  Files come from the Epidemic Sound connector or the user (see below).
+- `emphasis` lands when the voice says its words (or `emphasisOn`), so the text
+  and the word hit together.
 
 Then run the gate: `node scripts/lint-script.mjs`. It checks the hook (warm-ups,
 length, tension), word budget vs `targetSeconds`, scene and sentence length,
@@ -133,6 +160,14 @@ is available in this session, or the user supplies files, use real sound:
    pipeline measures each file's loudest moment and lines THAT up with the
    cut / word / reveal, so where the peak sits inside the file doesn't matter.
    Any slot without a file uses the synthesized one.
+   **Beat sounds and ambience** (what the footage itself sounds like): search sound
+   effects for the thing on screen ("camera shutter", "door slam", "cash register",
+   "city street night ambience", "rain on window", "office ambience"), download into
+   `public/sfx/spot/` and `public/sfx/amb/`, and reference them from the beat
+   (`"sfx": "sfx/spot/shutter.mp3"`) or the scene (`"ambience": "sfx/amb/rain.mp3"`).
+   Beat sounds are peak-normalized and start on the beat's cut; ambience is
+   loudness-normalized, loops under the scene (scenes in a row with the same file
+   share one loop) and ducks under the voice like the music.
 3. The `audio` step normalizes everything (SFX peaks to -1 dB, music to -14 LUFS)
    so `sfxLevel` and `music.volume` behave the same with any source, and
    measures where each SFX peaks. Nothing in `public/sfx/` or `public/music/` is
@@ -149,35 +184,46 @@ cp -r <this-skill>/assets/template ./my-video && cd my-video
 npm install
 pip install edge-tts            # free TTS; skip if using elevenlabs/openai/file
 # write project.json (Step 2); keys come from the user's environment:
-# PIXABAY_API_KEY / PEXELS_API_KEY (stock), OPENAI_API_KEY (ai: images, optional)
+# PIXABAY_API_KEY (stock; Pexels has paused new keys, an existing PEXELS_API_KEY still works),
+# COVERR_API_KEY (stock video, optional), DVIDS_API_KEY (US government archive video, optional),
+# OPENAI_API_KEY (ai: images, optional). Adobe Stock goes through the Adobe connector (below).
 node scripts/auto.mjs --review
 ```
 `--review` runs lint and the voiceover, then builds **candidate sheets** in
-`build/review/<scene>-<shot>.jpg`: up to 6 options per shot, numbered 1-6 left to
-right, top to bottom, from every source that fits the keyword. By default it
-covers the shots that matter most or that search is unsure about (the hook,
-emphasis / reveal / split scenes, weak matches); `node scripts/fetch-broll.mjs
---review=all` covers every shot.
+`build/review/<scene>-<shot>.jpg` for every shot: up to 6 options, numbered 1-6
+left to right, top to bottom, from every source that fits the keyword.
+`build/review.json` gives each shot's `words`: exactly what the voice says while
+it is on screen. (`node scripts/fetch-broll.mjs --review=key` limits it to the
+hook, emphasis / reveal / split scenes and weak matches, for very long videos.)
 
 **Do the picking yourself, without asking the user** - this is what makes the
 footage accurate:
-1. Look at every sheet (`build/review.json` has the keyword, the line and each
-   candidate's source/text). Pick the candidate that shows what the LINE says,
-   not just the keyword. Reject green screens, watermarks, text-heavy frames,
-   dark or blurry tiles, and anything that contradicts the line.
+1. Look at every sheet (`build/review.json` has the keyword, the shot's `words`
+   and each candidate's source/text). Pick the candidate that shows what those
+   WORDS say, not just the keyword. Reject green screens, watermarks, text-heavy
+   frames, dark or blurry tiles, and anything that contradicts the line.
 2. Write the picks to `build/picks.json`: `{"s001-1": 3, "s002-2": 1}`.
 3. No candidate fits? Change that keyword in project.json instead: more concrete
    words, `archive:` for real people / places / events / dates (Wikimedia
    Commons + NASA), `photo:` for stills, `ai:<prompt>` for something that
    can't be filmed (needs OPENAI_API_KEY; never for real events), or `file:` for
    the user's own asset. Re-run `node scripts/fetch-broll.mjs --review` and
-   check the new sheet.
+   check the new sheet. With the **Adobe connector** in this session, search
+   Adobe Stock for that shot too, build its sheet and add the licensed clip
+   (`scripts/adobe-stock.mjs`, flow in `references/footage-sources.md`); free
+   assets license directly, anything with a price only after the user says yes.
+   A fact, number, place or quote with no honest footage: make the beat a `graphic`.
 4. Continue: `node scripts/auto.mjs --from=broll` (downloads, frame-checks,
    renders, masters, checks).
 
 Without picks the fetcher still chooses automatically (relevance-scored, with
 black / green-screen clips rejected), so `npm run auto` works end to end; the
-review is how you get from "plausible" to "accurate". Re-run any step with
+review is how you get from "plausible" to "accurate". It never uses a random
+clip: a result that shares no words with the keyword (`brollMinRelevance`,
+default 0.25) is skipped, then the beat's other keywords are tried, then the
+shot falls back to the kinetic background and the run says which words it
+couldn't illustrate. Fix those keywords. Stock clips that are edits of several
+shots are cut-detected; the timeline plays a stretch without an internal cut. Re-run any step with
 `node scripts/auto.mjs --from=<step>` (lint, voice, broll, timeline, audio,
 render, master, check). Voice, searches and downloads are cached.
 
@@ -185,9 +231,11 @@ CC BY / BY-SA archive images need attribution: the run says so - put
 `build/credits.txt` in the video description.
 
 User has their own recording? Put it in `public/`, set
-`"voice": {"provider": "file", "file": "my-voice.mp3"}` - the pipeline transcribes
-it locally with whisper.cpp, splits it into the scenes and jump-cuts pauses
-over 0.4s (`voice.tightenPauses: false` to keep them).
+`"voice": {"provider": "file", "file": "my-voice.mp3", "language": "bn"}` - the
+pipeline cleans it (noise, de-ess, compression, -16 LUFS), gets word timestamps
+(local whisper.cpp, or `"transcriber": "elevenlabs"` / `"openai"`, or the user's own
+`"transcript"` JSON), splits it into the scenes and jump-cuts pauses over 0.4s
+(`voice.tightenPauses: false` to keep them). `references/voice-and-audio.md` has the options.
 
 If the render can't download Chrome, set `REMOTION_BROWSER=/path/to/chrome`
 (Playwright's `chrome-headless-shell` works). No stock key? Archive photos and
@@ -203,9 +251,11 @@ Check, in this order:
 
 1. **Hook frame** (first two tiles): is something big, readable and moving? Is the
    emphasis inside the safe zone (not under the top 12% / bottom 20% UI)?
-2. **B-roll relevance**: does each shot actually show what that line says? A wrong
-   clip is worse than a kinetic background. Fix the keyword, delete the file from
-   `public/broll/`, re-run `--from=broll`.
+2. **Sync** - open `out/check/sync.txt` next to the sheet (tiles are numbered):
+   each line is one shot with the words spoken over it, its keyword and how well
+   the clip matched. Does every tile show what ITS words say? A wrong clip is
+   worse than a kinetic background. Check the "weak?" and "KINETIC" lines first.
+   Fix: better keyword or a pick from the review sheet, re-run `--from=broll`.
 3. **Repeats**: same clip or same-looking clip twice in a row.
 4. **Captions**: readable over every shot, no word touching the frame edge, no
    page over two lines.
@@ -224,17 +274,48 @@ Fix -> re-run the affected steps -> re-check. Deliver only after a clean pass.
 
 ## Step 5 - Deliver
 
-Give the user `out/final.mp4` plus, in the reply: a title (under 60 chars, curiosity
-gap), a 1-2 line description, 3-5 hashtags, `build/youtube-chapters.txt` for
-long form, and `build/credits.txt` if stock footage was used. Mention anything you defaulted (voice, style, length).
+`auto` also renders `out/thumbnail.jpg` (1280x720): scene 1's emphasis (or
+`thumbnail.text`) over a frame of the best B-roll. **Look at it** like a contact
+sheet: subject not hidden by the text, readable at phone size. Fix with
+`thumbnail.text` / `scene` / `image` / `side`, then `npm run thumbnail`.
+
+Write the upload metadata into `project.json` -> `"youtube"`: title (under 60
+chars, curiosity gap), description (first two lines are the hook), tags,
+3-5 hashtags. Chapters (`build/youtube-chapters.txt`) and credits
+(`build/credits.txt`) are appended to the description automatically.
+
+Give the user `out/final.mp4` + `out/thumbnail.jpg`, and the title, description and
+hashtags in the reply. Mention anything you defaulted (voice, style, length).
+
+## Step 6 - Upload to YouTube (when the user wants it)
+
+Read `references/youtube-upload.md`. The first time, the user creates a Google
+Cloud OAuth client (about 10 minutes, steps in the reference) and signs in once with
+`node scripts/youtube.mjs --auth`. From a phone / a cloud session: a "TVs and
+Limited Input devices" client in the environment (`YOUTUBE_CLIENT_ID`,
+`YOUTUBE_CLIENT_SECRET`) and `node scripts/youtube.mjs --auth --device` run in
+the background; give the user the code it prints for google.com/device. Then:
+
+1. `node scripts/youtube.mjs --dry-run`: show the user the exact title, description,
+   privacy and schedule, and **get an explicit yes**. A public upload can't be taken back.
+2. `node scripts/youtube.mjs`: resumable upload + thumbnail, then the `youtu.be` link.
+   Re-running resumes an interrupted upload and refuses duplicates (`--force` to override).
+
+Defaults to `"privacy": "private"`. Scheduling: `"publishAt"` (ISO time, privacy
+private). Tell the user the two limits up front: videos stay **locked private
+until their Google Cloud project passes YouTube's API audit**, and the sign-in
+expires every 7 days while the consent screen is in Testing.
 
 ## Editing rules baked into the template (don't fight them)
 
-- Cut every `maxShotSeconds` (from `editStyle`), snapped to word starts.
+- Shots start on their beat's words (2 frames early, so the picture lands with
+  the word); beats longer than ~`maxShotSeconds` get more shots of the same subject.
+- Stock clips play a stretch without their own internal cut.
 - Zoom-punch on every cut, Ken Burns drift on every shot, punch-ins on highlights,
   transitions + matching SFX between scenes (chapters in long form).
 - Five-layer stack: mesh background -> footage -> scrim -> text -> grade/grain/vignette.
-- Music ducks under the voice and swells in the outro; hit SFX on frame 0.
+- Music (and ambience) duck under the voice and come up in the gaps between lines
+  (`music.gapBoost`, default 1.7x), swell in the outro; hit SFX on frame 0.
 - All colors, fonts, easings live in `src/theme.ts` (`STYLES`). Change the look there,
   never inline in a component. Bengali/Hindi glyph fallbacks are already loaded.
 
@@ -248,12 +329,16 @@ property entrances, staggers, exits faster than entrances.
 For N videos: one folder per video (`cp -r template video-01`), share
 `node_modules` via a symlink, write each `project.json`, run `npm run auto` in each.
 Check every contact sheet - batch is where unwatched mistakes ship.
+For daily posting, give each project a `publishAt` a day apart and upload them all
+at once (`references/youtube-upload.md`, Batch + schedule; about 6 uploads a day fit the default quota).
 
 ## Reference files
 - `references/script-formula.md` - hooks, retention structure, niche templates, word budgets.
 - `references/editing-playbook.md` - every edit tool, when to use it, niche recipes, hook archetypes, sound design.
-- `references/broll-keywords.md` - turning lines into searchable, filmable keywords.
+- `references/broll-keywords.md` - turning lines into searchable, filmable keywords; beats; motion graphics.
+- `references/footage-sources.md` - which source for which line, Adobe Stock through the connector, archives, paid libraries.
 - `references/voice-and-audio.md` - providers, voices per language, music, loudness.
 - `references/long-form.md` - chapters, retention for 10-40 min, B-roll at scale, chunked rendering.
 - `references/project-schema.md` - every project.json field and what it does.
+- `references/youtube-upload.md` - thumbnail options, Google Cloud setup, upload, scheduling, limits.
 - `references/troubleshooting.md` - render, network, TTS and alignment failures.

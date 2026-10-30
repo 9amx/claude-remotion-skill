@@ -5,47 +5,75 @@
 //   Pixabay  (PIXABAY_API_KEY) stock video + photos, 100 searches/minute
 //   Wikimedia Commons (no key) real people, places, events, documents; CC/PD licences only
 //   NASA Image Library (no key) space, science, aviation; public domain
+//   Coverr   (COVERR_API_KEY)  free cinematic stock video, no attribution needed
+//   DVIDS    (DVIDS_API_KEY)   US military / government video: wars, disasters, rescues,
+//                              aircraft, ships. Mostly public domain; credited anyway
 //   OpenAI images (OPENAI_API_KEY) generated stills for "ai:" keywords
 // Keyword prefixes in scene.broll:
 //   "city traffic night"   stock video first, photos as fallback; archive photos join in
 //                          automatically when the keyword names something real (a year,
 //                          a proper noun) or stock has nothing relevant
 //   "photo:old map"        photos only (stock + archive)
-//   "archive:Apollo 11"    Wikimedia + NASA only: accurate, real imagery
+//   "archive:Apollo 11"    Wikimedia + NASA (+ DVIDS video) only: accurate, real imagery
 //   "ai:prompt"            generate an image (needs OPENAI_API_KEY)
-//   "file:clip.mp4"        your own asset in public/
+//   "file:clip.mp4"        your own asset in public/; "file:talk.mp4#12.5-16" uses just
+//                          that part (cut once into broll/clip-*.mp4). A beat's "credit"
+//                          goes to build/credits.txt (CC BY and licensed clips need it).
+//   "adobe:430358060"      an Adobe Stock clip licensed through the Adobe connector
+//                          and added with scripts/adobe-stock.mjs (also usable as a pick)
+// Beats with "graphic" need no search: map places given as names are geocoded
+// (OpenStreetMap Nominatim, cached in build/geocode.json) and the country
+// shapes are copied to public/geo/.
+//
+// Shots follow the words: scene.broll beats ({ "on": "phrase", "kw": [...] }) start
+// on their phrase (lib.mjs planShots), so every search knows exactly which words
+// it has to illustrate and for how long.
 //
 // Review (accuracy): `node scripts/fetch-broll.mjs --review` downloads only small
 // thumbnails and writes build/review/<scene>-<shot>.jpg (candidates numbered 1-6,
-// left to right, top to bottom) + build/review.json. Look at them, then write the
-// winners to build/picks.json, e.g. {"s001-1": 3, "s004-2": 1}. The normal run uses
-// the picks. `--review=all` reviews every shot; by default only shots that matter
-// most or that search is unsure about (hook, emphasis/reveal/split scenes, weak matches).
+// left to right, top to bottom) + build/review.json (with the words spoken over
+// each shot). Look at them, then write the winners to build/picks.json, e.g.
+// {"s001-1": 3, "s004-2": 1}. The normal run uses the picks. `--review` covers
+// every shot; `--review=key` only the ones that matter most or that search is
+// unsure about (hook, emphasis/reveal/split scenes, weak matches). Long form:
+// `--review --chapter=N` does one chapter and keeps the other chapters' sheets.
 //
+// No random footage: a result is used automatically only if it shares words with
+// the keyword (brollMinRelevance, default 0.25); otherwise the beat's other
+// keywords are tried, then the kinetic fallback. Review picks always win.
 // Every downloaded clip is frame-checked (nearly black or green-screen -> next
-// result), long clips are trimmed to what the shot needs, picks stay stable across
-// runs. Writes build/broll.json and build/credits.txt (attribution for CC images).
+// result), long clips are trimmed to what the shot needs, the clip's own internal
+// cuts are detected (build-timeline plays a stretch without one), picks stay
+// stable across runs. Writes build/broll.json and build/credits.txt (attribution for CC images).
 import fs from "node:fs";
 import path from "node:path";
-import { BUILD, FORMATS, PUBLIC, ffmpeg, ffmpegRaw, log, probeDuration, readJson, readProject, sceneId, sleep, writeJson } from "./lib.mjs";
+import { BLOCK, BUILD, FORMATS, GRAPHIC_TYPES, PUBLIC, ROOT, adobeAsset, ffmpeg, ffmpegRaw, fail, log, parseFileRef, planShots, probeDuration, readJson, readProject,
+  relevance, sceneId, sleep, writeJson } from "./lib.mjs";
 
 const args = process.argv.slice(2);
 const reviewArg = args.find((a) => a.startsWith("--review"));
-const reviewAll = reviewArg === "--review=all";
+const reviewAll = reviewArg !== "--review=key";
+// Long form: review one chapter at a time (--chapter=2); earlier sheets and picks stay.
+const chapterArg = Number(args.find((a) => a.startsWith("--chapter="))?.slice(10)) || null;
 const project = readProject();
 const fmt = FORMATS[project.format];
-const KEYS = { pexels: process.env.PEXELS_API_KEY, pixabay: process.env.PIXABAY_API_KEY, openai: process.env.OPENAI_API_KEY };
-const stockSources = (project.brollSources ?? ["pexels", "pixabay"]).filter((s) => KEYS[s]);
-const archiveOn = project.archive !== false; // Wikimedia + NASA need no key
+const KEYS = { pexels: process.env.PEXELS_API_KEY, pixabay: process.env.PIXABAY_API_KEY, coverr: process.env.COVERR_API_KEY,
+  dvids: process.env.DVIDS_API_KEY, openai: process.env.OPENAI_API_KEY };
+// Coverr joins the stock search whenever its key is set, after the listed sources.
+const listed = project.brollSources ?? ["pexels", "pixabay"];
+const stockSources = [...listed, ...(listed.includes("coverr") ? [] : ["coverr"])].filter((s) => KEYS[s]);
+const archiveOn = project.archive !== false; // Wikimedia + NASA need no key, DVIDS needs DVIDS_API_KEY
+const ARCHIVE = new Set(["wikimedia", "nasa", "dvids"]);
 const maxWaitMs = (project.brollMaxWaitMinutes ?? 0) * 60_000;
 const trim = project.trimBroll !== false;
+const MIN_REL = project.brollMinRelevance ?? 0.25;
 const UA = { "User-Agent": "faceless-video-editor/1.0 (https://github.com/9amx/claude-remotion-skill)" };
 const exhausted = new Set();
 const used = new Set();
 const VIDEO_EXT = /\.(mp4|mov|webm|mkv)$/i;
 let searches = 0, fellBack = 0;
 
-if (!stockSources.length) log("broll", "No PEXELS_API_KEY / PIXABAY_API_KEY: stock video off; archive photos and file: assets still work.");
+if (!stockSources.length) log("broll", "No PEXELS_API_KEY / PIXABAY_API_KEY / COVERR_API_KEY: stock video off; archive photos and file: assets still work.");
 
 class RateLimited extends Error {}
 
@@ -130,6 +158,31 @@ const SOURCES = {
     return data.hits.map((p) => ({ id: `pixabay-photo-${p.id}`, source: "pixabay", kind: "image", url: p.fullHDURL || p.largeImageURL, ext: "jpg",
       thumb: p.webformatURL, text: p.tags ?? "", w: p.imageWidth, h: p.imageHeight, credit: `${p.user} - ${p.pageURL}` }));
   },
+  async coverr(query) {
+    const q = new URLSearchParams({ query: query.slice(0, 100), page_size: "30", urls: "true" });
+    const data = await getJson("coverr", `https://api.coverr.co/videos?${q}`, { Authorization: `Bearer ${KEYS.coverr}` });
+    return (data.hits ?? []).map((v) => {
+      const url = v.urls?.mp4_download || v.urls?.mp4;
+      return url && { id: `coverr-${v.id}`, source: "coverr", kind: "video", url, ext: "mp4", thumb: v.thumbnail || v.poster,
+        text: `${v.title ?? ""} ${v.description ?? ""} ${(v.tags ?? []).join(" ")}`, w: v.max_width, h: v.max_height, duration: v.duration,
+        // Coverr's terms: every download is reported (fetchOnce does it).
+        ping: `https://api.coverr.co/videos/${v.id}/stats/downloads`, credit: `Coverr - "${v.title ?? v.id}" - https://coverr.co/videos/${v.id}` };
+    }).filter(Boolean);
+  },
+  async dvids(query) {
+    // DVIDS answers "landscape"/"portrait" with nothing; 16:9 works (vertical video is rare there).
+    const aspect = fmt.orientation === "landscape" ? "16:9" : "";
+    const q = new URLSearchParams({ api_key: KEYS.dvids, q: query.slice(0, 100), type: "video", hd: "1", max_results: "25", short_description_length: "300",
+      thumb_width: "320", thumb_height: "180", ...(aspect ? { aspect_ratio: aspect } : {}) });
+    const data = await getJson("dvids", `https://api.dvidshub.net/search?${q}`);
+    // Search has no file links: resolveUrl asks /asset for them once a clip is chosen.
+    return (data.results ?? []).filter((r) => r.type === "video" && r.id).map((r) => ({
+      id: `dvids-${String(r.id).replace(/^video:/, "")}`, source: "dvids", kind: "video", url: null, dvidsId: r.id, ext: "mp4", thumb: r.thumbnail,
+      text: `${r.title ?? ""} ${strip(r.short_description)} ${[].concat(r.keywords ?? []).join(" ")}`, duration: r.duration,
+      // Shape only (for the orientation score); the real size comes with the asset call.
+      w: Number(String(r.aspect_ratio).split(":")[0]) || 0, h: Number(String(r.aspect_ratio).split(":")[1]) || 0,
+      credit: `DVIDS - "${r.title}" - ${[r.credit, r.unit_name, r.branch].filter(Boolean).join(", ")} - ${r.url} (U.S. government work; no endorsement implied)` }));
+  },
   async wikimedia(query) {
     const q = new URLSearchParams({ action: "query", format: "json", generator: "search", gsrsearch: `${query} filetype:bitmap`, gsrnamespace: "6",
       gsrlimit: "20", prop: "imageinfo", iiprop: "url|size|extmetadata|mime", iiurlwidth: String(Math.max(fmt.width, fmt.height)) });
@@ -168,13 +221,6 @@ const SOURCES = {
 // Score each candidate by how many keyword words its tags / title / description
 // contain, then orientation, motion and length, keeping each API's own order as
 // the tie-break. Green-screen / mockup / template clips are never usable.
-const STOP = new Set(["the", "and", "with", "for", "from", "into", "over", "close", "shot", "video", "footage", "photo", "image"]);
-const BLOCK = /green ?screen|chroma|mock-?up|template|alpha channel|lower third|placeholder/i;
-const wordsOf = (q) => q.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 2 && !STOP.has(w));
-const relevance = (query, text) => {
-  const words = wordsOf(query), t = text.toLowerCase();
-  return words.length ? words.filter((w) => t.includes(w)).length / words.length : 0;
-};
 // Names something real and specific (a year, a proper noun after the first word):
 // archive imagery is then likely more accurate than stock.
 const factual = (q) => /\b(1[5-9]\d\d|20\d\d)\b/.test(q) || /\s[A-Z][a-z]/.test(q);
@@ -184,7 +230,7 @@ function rank(cands, query, minSec) {
     .filter((c) => !used.has(c.id) && !BLOCK.test(c.text))
     .map((c, i) => {
       const rel = relevance(query, c.text);
-      const archive = c.source === "wikimedia" || c.source === "nasa";
+      const archive = ARCHIVE.has(c.source);
       const score = rel * 3 + (c.w && orientationOk(c.w, c.h) ? 1 : 0) + (c.kind === "video" ? 0.6 : 0) +
         ((c.duration ?? minSec) >= minSec ? 0.4 : 0) + (archive && factual(query) ? 0.8 : 0) - i * 0.01;
       return { ...c, rel, score };
@@ -197,7 +243,7 @@ function rank(cands, query, minSec) {
 async function candidatesFor(keyword, minSec, want = 6) {
   const mode = keyword.match(/^(photo|archive):/)?.[1] ?? "auto";
   const query = keyword.replace(/^(photo|archive):/, "").trim();
-  const archive = archiveOn ? ["wikimedia", "nasa"] : [];
+  const archive = archiveOn ? [...(KEYS.dvids ? ["dvids"] : []), "wikimedia", "nasa"] : [];
   const photos = [...(KEYS.pexels ? ["pexelsPhoto"] : []), ...(KEYS.pixabay ? ["pixabayPhoto"] : [])];
   const order =
     mode === "archive" ? archive :
@@ -240,17 +286,35 @@ async function download(url, dest, fallbackUrl) {
   fs.renameSync(dest + ".part", dest);
 }
 
+// DVIDS search results carry no file links: the asset call lists the MP4 renditions.
+async function resolveUrl(hit) {
+  if (hit.url || hit.source !== "dvids") return hit.url;
+  if (!KEYS.dvids) throw new Error("DVIDS_API_KEY is not set");
+  const q = new URLSearchParams({ api_key: KEYS.dvids, id: hit.dvidsId });
+  const data = await getJson("dvids", `https://api.dvidshub.net/asset?${q}`);
+  const f = pickRendition((data.results?.files ?? []).filter((x) => x.type === "video/mp4" && x.src));
+  if (!f) throw new Error("DVIDS asset has no MP4 file");
+  return f.src;
+}
+
 async function fetchOnce({ shot, hit, shotSec }) {
   const abs = path.join(PUBLIC, shot.src);
   // A trimmed copy is named by the length it keeps; reuse it if it is long enough.
-  const keep = Math.ceil(shotSec + 2);
+  // Room to spare: build-timeline may skip past a cut inside the clip.
+  const keep = Math.ceil(shotSec + 4);
   const trimmed = abs.replace(/\.mp4$/, `.t${keep}.mp4`);
   if (shot.type === "video" && fs.existsSync(trimmed)) {
     shot.src = path.relative(PUBLIC, trimmed);
     shot.duration = probeDuration(trimmed);
     return;
   }
-  if (!fs.existsSync(abs)) await download(hit.url, abs, hit.fallbackUrl);
+  if (!fs.existsSync(abs)) {
+    await download(await resolveUrl(hit), abs, hit.fallbackUrl);
+    if (hit.ping && KEYS.coverr) {
+      await fetch(hit.ping, { method: "PATCH", headers: { ...UA, Authorization: `Bearer ${KEYS.coverr}` } })
+        .catch((e) => log("broll", `coverr download report failed (${e.message})`));
+    }
+  }
   if (shot.type !== "video") return;
   shot.duration = probeDuration(abs);
   // Stock clips are often 10-60s; a 40 minute video would keep gigabytes it never shows.
@@ -258,7 +322,7 @@ async function fetchOnce({ shot, hit, shotSec }) {
     const offset = Math.min((shot.duration - keep) * 0.35, 4);
     const r = ffmpeg(["-ss", offset.toFixed(2), "-i", abs, "-t", String(keep), "-an", "-c:v", "copy", "-movflags", "+faststart", trimmed]);
     if (r.status === 0 && fs.existsSync(trimmed)) {
-      fs.rmSync(abs);
+      if (!hit.local) fs.rmSync(abs); // a licensed original stays: re-downloading needs the connector
       shot.src = path.relative(PUBLIC, trimmed);
       shot.duration = probeDuration(trimmed);
     }
@@ -289,7 +353,40 @@ function frameProblem(file, duration) {
   return null;
 }
 
-const shotFromHit = (hit, kw) => ({ type: hit.kind, src: `broll/${hit.id.replace(/[^\w.-]+/g, "_")}.${hit.ext}`, duration: null, assetId: hit.id, keyword: kw, credit: hit.credit });
+// Stock clips are often edits of several shots. Times (s) where the picture
+// changes completely, so build-timeline can play a stretch without one.
+// A cut is a one-frame spike in the scene-change score; camera moves and fast
+// action raise it over several frames, so compare each frame with its neighbours.
+function detectCuts(file) {
+  const r = ffmpeg(["-i", file, "-an", "-vf", "scale=160:-2,select='gte(scene,0)',metadata=print:key=lavfi.scene_score", "-f", "null", "-"], { capture: true });
+  const frames = [];
+  let t = null;
+  for (const line of (r.stderr || "").split("\n")) {
+    const pts = /pts_time:([\d.]+)/.exec(line);
+    if (pts) t = parseFloat(pts[1]);
+    const sc = /scene_score=([\d.]+)/.exec(line);
+    if (sc && t !== null) frames.push([t, parseFloat(sc[1])]);
+  }
+  return frames.filter(([, s], i) => {
+    const near = Math.max(0, ...[-2, -1, 1, 2].map((d) => frames[i + d]?.[1] ?? 0));
+    return s >= 0.4 || (s >= 0.15 && s > near * 3 + 0.02);
+  }).map(([at]) => Math.round(at * 100) / 100);
+}
+
+// keyword: what the script asked for (keeps a clip across runs); query: what found it.
+const shotFromHit = (hit, kw, query = kw) => ({ type: hit.kind, src: `broll/${hit.id.replace(/[^\w.-]+/g, "_")}.${hit.ext}`, duration: null,
+  assetId: hit.id, keyword: kw, ...(query !== kw ? { query } : {}), rel: Math.round((hit.rel ?? 0) * 100) / 100, credit: hit.credit });
+
+// Best candidate that actually matches: the shot's keyword first, then the beat's
+// other keywords. null = nothing relevant (better a kinetic shot than a random clip).
+async function bestFor(shot, shotSec, alts) {
+  for (const q of [shot, ...alts.filter((a) => a !== shot)]) {
+    if (!q || /^(file|ai|adobe):/.test(q)) continue;
+    const hit = (await candidatesFor(q, shotSec)).find((c) => c.rel >= MIN_REL);
+    if (hit) return { hit, query: q };
+  }
+  return null;
+}
 
 async function fetchJob(job) {
   if (job.ai) {
@@ -307,20 +404,77 @@ async function fetchJob(job) {
       return;
     }
     fs.rmSync(file, { force: true });
-    const next = (await candidatesFor(job.kw, job.shotSec))[0];
-    log("broll", `${job.label}: ${path.basename(job.shot.src)} is ${problem}, ${next ? "trying the next result" : "no more results"}`);
+    const next = await bestFor(job.query ?? job.kw, job.shotSec, job.alts ?? []);
+    log("broll", `${job.label}: ${path.basename(job.shot.src)} is ${problem}, ${next ? "trying the next result" : "no more relevant results"}`);
     if (!next) break;
-    used.add(next.id);
-    job.hit = next;
-    Object.assign(job.shot, shotFromHit(next, job.kw));
+    used.add(next.hit.id);
+    job.hit = next.hit;
+    job.query = next.query;
+    Object.assign(job.shot, shotFromHit(next.hit, job.kw, next.query));
   }
   throw new Error("no usable clip");
 }
 
+// ---------- graphics ----------
+// Map places: names are geocoded once (Nominatim allows 1 request/second) and
+// cached; give { "name", "lat", "lon" } to skip it. The log prints what each
+// name resolved to: check it ("Paris" could be Paris, Texas).
+const geocodeFile = path.join(BUILD, "geocode.json");
+const geocoded = readJson(geocodeFile, {});
+async function geocode(name) {
+  if (geocoded[name]) return geocoded[name];
+  const q = new URLSearchParams({ q: name, format: "json", limit: "1", "accept-language": "en" });
+  let res;
+  try {
+    res = await fetch(`https://nominatim.openstreetmap.org/search?${q}`, { headers: UA });
+  } catch (e) {
+    fail(`map place "${name}": geocoding failed (${e.message}). Give it as { "name": "${name}", "lat": ..., "lon": ... }`);
+  }
+  if (!res.ok) fail(`map place "${name}": geocoder answered ${res.status}. Give it as { "name": "${name}", "lat": ..., "lon": ... }`);
+  const [hit] = await res.json();
+  if (!hit) fail(`map place "${name}": not found. Use a fuller name ("Sylhet, Bangladesh") or give lat/lon.`);
+  geocoded[name] = { lat: Number(hit.lat), lon: Number(hit.lon), found: hit.display_name };
+  writeJson(geocodeFile, geocoded);
+  log("broll", `map: "${name}" -> ${hit.display_name} (${Number(hit.lat).toFixed(2)}, ${Number(hit.lon).toFixed(2)})`);
+  await sleep(1100);
+  return geocoded[name];
+}
+let geoNames = null;
+const countryNames = () => {
+  if (geoNames) return geoNames;
+  const src = path.join(ROOT, "node_modules", "world-atlas", "countries-50m.json");
+  if (!fs.existsSync(src)) fail("Map graphics need the world-atlas package: run npm install");
+  const dest = path.join(PUBLIC, "geo", "countries-50m.json");
+  if (!fs.existsSync(dest)) {
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.copyFileSync(src, dest);
+  }
+  return (geoNames = JSON.parse(fs.readFileSync(src, "utf8")).objects.countries.geometries.map((g) => g.properties.name));
+};
+async function resolveGraphic(g, label) {
+  if (!GRAPHIC_TYPES.includes(g.type)) fail(`${label}: graphic type "${g.type}" - use ${GRAPHIC_TYPES.join(", ")}`);
+  if (g.type !== "map") return g;
+  const names = countryNames();
+  for (const c of g.countries ?? []) {
+    if (!names.some((n) => n.toLowerCase() === c.toLowerCase())) {
+      const near = names.filter((n) => n.toLowerCase().includes(c.toLowerCase().slice(0, 4))).slice(0, 4);
+      fail(`${label}: no country called "${c}" on the map${near.length ? ` - did you mean ${near.map((n) => `"${n}"`).join(", ")}?` : ""}`);
+    }
+  }
+  const places = [];
+  for (const p of g.places ?? []) {
+    const name = typeof p === "string" ? p : p.name;
+    const at = typeof p === "object" && Number.isFinite(p.lat) && Number.isFinite(p.lon) ? p : await geocode(name);
+    places.push({ name: name.split(",")[0], lat: at.lat, lon: at.lon, ...(p.label ? { label: p.label } : {}) });
+  }
+  if (!places.length && !(g.countries ?? []).length) fail(`${label}: a map needs "places" or "countries"`);
+  return { ...g, places };
+}
+
 // ---------- 1. plan ----------
-// Shots: scene length / maxShotSeconds (split layout: always 2). Shot k uses
-// keyword k (cycling). A shot keeps the clip it got last run (same keyword, file
-// on disk), so re-runs only fill gaps. Review picks override everything.
+// Shots: lib.mjs planShots - one per beat, starting on the beat's words, more
+// for long beats (split layout: always 2). A shot keeps the clip it got last run
+// (same keyword, file on disk), so re-runs only fill gaps. Review picks override everything.
 const previous = readJson(path.join(BUILD, "broll.json"), {});
 const picks = readJson(path.join(BUILD, "picks.json"), {});
 const review = readJson(path.join(BUILD, "review.json"), {});
@@ -333,27 +487,27 @@ const shotsOf = (scene, i) => {
   const id = sceneId(i);
   const vo = readJson(path.join(BUILD, "vo", `${id}.json`), null);
   if (!vo) throw new Error(`Missing build/vo/${id}.json - run the voiceover step first.`);
-  const sec = vo.durationMs / 1000;
-  const split = scene.layout === "split";
-  const nShots = split ? 2 : Math.max(1, Math.ceil(sec / project.maxShotSeconds));
-  return { id, nShots, shotSec: split ? sec : sec / nShots, keywords: scene.broll?.length ? scene.broll : [] };
+  const { shots, notes } = planShots(scene, vo, project.maxShotSeconds);
+  for (const n of notes) log("broll", `${id}: ${n}`);
+  return { id, shots: shots.map((sh) => ({ ...sh, sec: (sh.endMs - sh.startMs) / 1000 })) };
 };
 
 // ---------- review mode: contact sheets of candidates ----------
 if (reviewArg) {
-  const out = {};
   const dir = path.join(BUILD, "review");
-  fs.rmSync(dir, { recursive: true, force: true });
+  const out = chapterArg ? readJson(path.join(BUILD, "review.json"), {}) : {};
+  if (!chapterArg) fs.rmSync(dir, { recursive: true, force: true });
   fs.mkdirSync(dir, { recursive: true });
   let sheets = 0;
   for (const [i, scene] of project.scenes.entries()) {
-    const { id, nShots, shotSec, keywords } = shotsOf(scene, i);
+    if (chapterArg && scene.chapter !== chapterArg - 1) continue;
+    const { id, shots } = shotsOf(scene, i);
     const important = i === 0 || scene.emphasis || [].concat(scene.fx ?? []).includes("reveal") || scene.layout === "split";
-    for (let k = 0; k < nShots; k++) {
-      const kw = keywords.length ? keywords[k % keywords.length] : null;
+    for (const [k, sh] of shots.entries()) {
+      const kw = sh.kw;
       if (!kw || scene.visual === "kinetic" || /^(file|ai):/.test(kw)) continue;
       const key = `${id}-${k + 1}`;
-      const cands = (await candidatesFor(kw, shotSec)).slice(0, 6);
+      const cands = (await candidatesFor(kw, sh.sec)).slice(0, 6);
       if (!cands.length) continue;
       // Default: review the hook, emphasis/reveal/split scenes and weak matches only.
       if (!reviewAll && !important && cands[0].rel >= 0.67) continue;
@@ -370,14 +524,15 @@ if (reviewArg) {
       }
       ffmpeg(["-framerate", "1", "-start_number", "1", "-i", path.join(dir, `${key}-t%d.jpg`), "-vf", "tile=3x2:padding=8:color=white", "-frames:v", "1", path.join(dir, `${key}.jpg`)]);
       for (let n = 1; n <= cands.length; n++) fs.rmSync(path.join(dir, `${key}-t${n}.jpg`), { force: true });
-      out[key] = { scene: id, keyword: kw, line: scene.text, sheet: `build/review/${key}.jpg`,
+      // words: exactly what the voice says while this shot is on screen - pick for THAT.
+      out[key] = { scene: id, keyword: kw, words: sh.words, seconds: Math.round(sh.sec * 10) / 10, line: scene.text, sheet: `build/review/${key}.jpg`,
         candidates: cands.map((c, n) => ({ n: n + 1, id: c.id, source: c.source, kind: c.kind, rel: Math.round(c.rel * 100) / 100, text: c.text.slice(0, 140), hit: c })) };
       sheets++;
     }
   }
   writeJson(path.join(BUILD, "review.json"), out);
-  log("broll", `review: ${sheets} sheets in build/review/ (candidates 1-6, left to right, top to bottom).`);
-  log("broll", 'Write choices to build/picks.json, e.g. {"s001-1": 3}; change the keyword instead if none fits. Then run without --review.');
+  log("broll", `review: ${sheets} sheets in build/review/${chapterArg ? ` for chapter ${chapterArg}` : ""} (candidates 1-6, left to right, top to bottom).`);
+  log("broll", 'Pick for the WORDS of each shot (build/review.json "words"). Write choices to build/picks.json, e.g. {"s001-1": 3}; change the keyword instead if none fits. Then run without --review.');
   process.exit(0);
 }
 
@@ -386,14 +541,20 @@ if (reviewArg) {
 // one shot to another. Everything else already on screen stays reserved.
 const pickFor = (key, kw) => {
   const rv = review[key], n = picks[key];
-  return n != null && rv?.keyword === kw ? rv.candidates.find((c) => c.n === Number(n) || c.id === n)?.hit ?? null : null;
+  if (n == null || rv?.keyword !== kw) return null;
+  if (/^adobe:/.test(String(n))) {
+    const hit = adobeAsset(n);
+    if (!hit) fail(`${key}: pick ${n} is not added yet - license it with the Adobe connector, then: node scripts/adobe-stock.mjs add ${String(n).slice(6)} <url>`);
+    return hit;
+  }
+  return rv.candidates.find((c) => c.n === Number(n) || c.id === n)?.hit ?? null;
 };
 const pickedBy = new Map();
 const replaced = new Set();
 for (const [i, scene] of project.scenes.entries()) {
-  const { id, nShots, keywords } = shotsOf(scene, i);
-  for (let k = 0; k < nShots; k++) {
-    const kw = keywords.length ? keywords[k % keywords.length] : null;
+  const { id, shots } = shotsOf(scene, i);
+  for (const [k, sh] of shots.entries()) {
+    const kw = sh.kw;
     const hit = kw && pickFor(`${id}-${k + 1}`, kw);
     if (!hit) continue;
     if (!pickedBy.has(hit.id)) pickedBy.set(hit.id, `${id}-${k + 1}`);
@@ -406,21 +567,49 @@ for (const pid of pickedBy.keys()) used.add(pid);
 const plan = {};
 const jobs = [];
 for (const [i, scene] of project.scenes.entries()) {
-  const { id, nShots, shotSec, keywords } = shotsOf(scene, i);
+  const { id, shots } = shotsOf(scene, i);
   plan[id] = [];
-  for (let k = 0; k < nShots; k++) {
-    const kw = keywords.length ? keywords[k % keywords.length] : null;
+  for (const [k, sh] of shots.entries()) {
+    const kw = sh.kw;
+    const shotSec = sh.sec;
     const label = `${id} shot ${k + 1} "${kw}"`;
+    if (sh.graphic && scene.visual !== "kinetic") {
+      plan[id].push({ type: "graphic", graphic: await resolveGraphic(sh.graphic, `${id} shot ${k + 1}`) });
+      continue;
+    }
+    if (kw?.startsWith("adobe:")) {
+      const hit = adobeAsset(kw);
+      if (!hit) fail(`${label}: not added yet - license it with the Adobe connector, then: node scripts/adobe-stock.mjs add ${kw.slice(6)} <url>`);
+      const shot = { ...shotFromHit(hit, kw), picked: true };
+      plan[id].push(shot);
+      jobs.push({ shot, hit, kw, shotSec, label, picked: true });
+      continue;
+    }
     if (scene.visual === "kinetic" || !kw) {
       plan[id].push({ type: "kinetic" });
       continue;
     }
     if (kw.startsWith("file:")) {
-      const src = kw.slice(5).trim();
+      const ref = parseFileRef(kw.slice(5));
+      let src = ref.file;
       const abs = path.join(PUBLIC, src);
       if (!fs.existsSync(abs)) throw new Error(`${id}: ${src} not found in public/`);
       const isVideo = VIDEO_EXT.test(src);
-      plan[id].push({ type: isVideo ? "video" : "image", src, duration: isVideo ? probeDuration(abs) : null });
+      if (ref.from !== null) {
+        // Cut the part once (re-encoded, so it starts exactly there); the edit then treats it like any clip.
+        const total = probeDuration(abs);
+        if (!isVideo || ref.to <= ref.from || (total && ref.to > total + 0.05)) fail(`${label}: range ${ref.from}-${ref.to}s doesn't fit ${src}${total ? ` (${total.toFixed(1)}s long)` : ""}`);
+        const cut = `broll/clip-${path.basename(src).replace(/\.[^.]+$/, "").replace(/[^\w.-]+/g, "_")}-${ref.from}-${ref.to}.mp4`;
+        if (!fs.existsSync(path.join(PUBLIC, cut))) {
+          fs.mkdirSync(path.join(PUBLIC, "broll"), { recursive: true });
+          const r = ffmpeg(["-ss", String(ref.from), "-i", abs, "-t", String(ref.to - ref.from), "-an", "-c:v", "libx264", "-crf", "18", "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart", path.join(PUBLIC, cut)]);
+          if (r.status !== 0) fail(`${label}: could not cut ${src}`);
+        }
+        src = cut;
+      }
+      plan[id].push({ type: isVideo ? "video" : "image", src, duration: isVideo ? probeDuration(path.join(PUBLIC, src)) : null, keyword: kw,
+        ...(sh.credit ? { credit: sh.credit } : {}) });
       continue;
     }
     if (kw.startsWith("ai:")) {
@@ -443,17 +632,19 @@ for (const [i, scene] of project.scenes.entries()) {
       plan[id].push(prev);
       continue;
     }
-    const hit = picked ?? (await candidatesFor(kw, shotSec))[0];
-    if (!hit) {
-      log("broll", `${label}: nothing found -> kinetic`);
+    const best = picked ? { hit: picked, query: kw } : await bestFor(kw, shotSec, sh.alts);
+    if (!best) {
+      log("broll", `${label}: no footage that matches "${sh.words}" -> kinetic. Use a more literal keyword, photo:/archive:, or pick in --review`);
       fellBack++;
       plan[id].push({ type: "kinetic" });
       continue;
     }
+    const { hit, query } = best;
     used.add(hit.id);
-    const shot = shotFromHit(hit, kw);
+    const shot = shotFromHit(hit, kw, query);
+    if (picked) shot.picked = true;
     plan[id].push(shot);
-    jobs.push({ shot, hit, kw, shotSec, label, picked: !!picked });
+    jobs.push({ shot, hit, kw, query, alts: sh.alts, shotSec, label, picked: !!picked });
   }
 }
 
@@ -473,6 +664,11 @@ await Promise.all(
   }),
 );
 
+// Internal cuts of every clip (cached in broll.json with the shot).
+for (const sh of Object.values(plan).flat()) {
+  if (sh.type === "video" && sh.src && !sh.cuts && fs.existsSync(path.join(PUBLIC, sh.src))) sh.cuts = detectCuts(path.join(PUBLIC, sh.src));
+}
+
 writeJson(path.join(BUILD, "broll.json"), plan);
 const all = Object.values(plan).flat();
 const credits = [...new Set(all.map((s) => s.credit).filter(Boolean))];
@@ -481,7 +677,7 @@ const keep = new Set(all.map((s) => s.src).filter(Boolean).map((s) => path.basen
 const brollDir = path.join(PUBLIC, "broll");
 if (fs.existsSync(brollDir)) {
   for (const f of fs.readdirSync(brollDir)) {
-    if (/^(pexels|pixabay|wikimedia|nasa)-/.test(f) && !keep.has(f) && !f.endsWith(".part")) fs.rmSync(path.join(brollDir, f));
+    if ((/^(pexels|pixabay|coverr|dvids|wikimedia|nasa|clip)-/.test(f) || /^adobe-.*\.t\d+\.mp4$/.test(f)) && !keep.has(f) && !f.endsWith(".part")) fs.rmSync(path.join(brollDir, f));
   }
 }
 fs.writeFileSync(path.join(BUILD, "credits.txt"), credits.join("\n") + "\n");

@@ -3,7 +3,34 @@
 // Usage: node scripts/lint-script.mjs [--strict]   (--strict exits 1 on errors)
 // The rules are practitioner defaults (see references/editing-playbook.md), not
 // laws: fix errors, read warnings, and override with judgement when the story needs it.
-import { log, readProject, stripMarkup } from "./lib.mjs";
+import fs from "node:fs";
+import path from "node:path";
+import { GRAPHIC_TYPES, PUBLIC, ROOT, SFX_NAMES, brollEntries, findPhrase, log, parseFileRef, planShots, readProject, stripMarkup } from "./lib.mjs";
+
+// Country names the map knows (world-atlas, when installed).
+const atlas = path.join(ROOT, "node_modules", "world-atlas", "countries-50m.json");
+const COUNTRIES = fs.existsSync(atlas) ? JSON.parse(fs.readFileSync(atlas, "utf8")).objects.countries.geometries.map((g) => g.properties.name.toLowerCase()) : null;
+// What a motion graphic needs to be drawn, and drawn correctly.
+function graphicProblems(g) {
+  const out = [];
+  if (!GRAPHIC_TYPES.includes(g?.type)) return [`graphic type "${g?.type}" - use ${GRAPHIC_TYPES.join(", ")}`];
+  const num = (v) => typeof v === "number" && Number.isFinite(v);
+  if (g.type === "counter" && !num(g.value)) out.push('counter needs a numeric "value" (3500000, not "3.5 million")');
+  if (g.type === "bars") {
+    if (!Array.isArray(g.data) || g.data.length < 2 || !g.data.every((r) => Array.isArray(r) && typeof r[0] === "string" && num(r[1]))) out.push('bars need "data": [["label", number], ...] with 2+ rows');
+    else if (g.data.length > 7) out.push(`bars: ${g.data.length} rows won't read on a phone - keep it to 2-6`);
+  }
+  if (g.type === "timeline" && !(Array.isArray(g.events) && g.events.length >= 2 && g.events.every((e) => Array.isArray(e) && e.length === 2))) out.push('timeline needs "events": [["1969", "what happened"], ...] with 2+ rows');
+  if (g.type === "timeline" && g.events?.length > 6) out.push("timeline: more than 6 events won't read on a phone");
+  if (g.type === "quote" && !g.text) out.push('quote needs "text" (and "by")');
+  if (g.type === "map") {
+    if (!(g.places?.length || g.countries?.length)) out.push('map needs "places" and/or "countries"');
+    for (const c of g.countries ?? []) if (COUNTRIES && !COUNTRIES.includes(c.toLowerCase())) out.push(`map: no country called "${c}" (names are English, e.g. "United States of America")`);
+    for (const p of g.places ?? []) if (typeof p === "object" && !(num(p.lat) && num(p.lon))) out.push(`map place ${JSON.stringify(p)} needs lat and lon (or give just the name to geocode it)`);
+  }
+  if (["counter", "bars", "map"].includes(g.type) && !g.source) out.push(`${g.type}: add "source" - a number or map on screen should say where it comes from`);
+  return out;
+}
 
 const strict = process.argv.includes("--strict");
 const p = readProject();
@@ -73,11 +100,52 @@ if (!hlTotal && p.punchIns) notes.push("no *highlighted* words: mark 1-2 power w
 // ---------- B-roll keywords ----------
 const ABSTRACT = /^(success|motivation|happiness|love|life|time|money|business|freedom|power|growth|mindset|future|idea|ideas|thinking|concept|problem|solution|change|truth|fear|hope|dream|dreams|goal|goals|wealth|knowledge|history|science|technology)$/i;
 const kwCount = new Map();
+let plainScenes = 0;
 p.scenes.forEach((s, i) => {
   if (s.visual === "kinetic") return;
   if (!s.broll?.length) warnings.push(`${at(i)}: no broll keywords - this scene will be the kinetic fallback.`);
-  for (const k of s.broll ?? []) {
-    if (k.startsWith("file:")) continue;
+  const entries = brollEntries(s);
+  const toks = words(s.text);
+  // Beats: each "on" phrase must be in the line, in order, so the shot can start on it.
+  let from = 0;
+  for (const [k, e] of entries.entries()) {
+    if (!e.kw.length && !e.graphic) errors.push(`${at(i)}: beat ${k + 1} has no "kw" or "graphic".`);
+    if (e.graphic) {
+      for (const pr of graphicProblems(e.graphic)) (/^(graphic type|counter needs|bars need|timeline needs|quote needs|map needs|map: no|map place)/.test(pr) ? errors : warnings).push(`${at(i)}: ${pr}`);
+    }
+    if (e.on == null) continue;
+    const idx = findPhrase(toks, e.on, from, true);
+    if (idx < 0) {
+      errors.push(findPhrase(toks, e.on, 0, true) >= 0
+        ? `${at(i)}: beat "${e.on}" is out of order - beats follow the line.`
+        : `${at(i)}: beat "${e.on}" is not in the line word for word - copy the words exactly.`);
+    } else from = idx + 1;
+    if (e.sfx) {
+      const f = typeof e.sfx === "string" ? e.sfx : e.sfx.file;
+      if (!SFX_NAMES.includes(f) && !fs.existsSync(path.join(PUBLIC, f ?? ""))) warnings.push(`${at(i)}: beat "${e.on}" sfx ${f} is not in public/ yet - download it before the timeline step.`);
+    }
+  }
+  if (s.emphasis && entries.some((e) => e.graphic)) warnings.push(`${at(i)}: emphasis and a graphic in one scene compete for the same space - drop one.`);
+  if (entries.length > 1 && s.layout !== "split" && entries.some((e) => e.on == null)) {
+    plainScenes++;
+    if (indic) warnings.push(`${at(i)}: English keywords can't be matched to the words of this line - give every beat an "on" phrase from the line.`);
+  }
+  // Rough timing from reading speed: beats that would flash by.
+  if (s.layout !== "split" && entries.length > 1) {
+    const est = toks.map((w, j) => ({ text: w, startMs: (j / wps) * 1000, endMs: ((j + 0.8) / wps) * 1000 }));
+    for (const n of planShots(s, { durationMs: (toks.length / wps) * 1000, words: est }, p.maxShotSeconds).notes) warnings.push(`${at(i)}: ${n} (estimated)`);
+  }
+  const amb = typeof s.ambience === "string" ? s.ambience : s.ambience?.file;
+  if (amb && amb !== "none" && !fs.existsSync(path.join(PUBLIC, amb))) warnings.push(`${at(i)}: ambience ${amb} is not in public/ yet.`);
+  for (const k of entries.flatMap((e) => e.kw)) {
+    if (k.startsWith("file:")) {
+      const ref = parseFileRef(k.slice(5));
+      if (/#/.test(k) && ref.from === null) errors.push(`${at(i)}: "${k}" - write the part as #start-end in seconds or m:ss, e.g. #12.5-16 or #1:05-1:09`);
+      else if (ref.from !== null && ref.to <= ref.from) errors.push(`${at(i)}: "${k}" ends before it starts`);
+      else if (!fs.existsSync(path.join(PUBLIC, ref.file))) warnings.push(`${at(i)}: ${ref.file} is not in public/ yet`);
+      continue;
+    }
+    if (k.startsWith("adobe:")) continue;
     const q = k.replace(/^photo:/, "").trim();
     kwCount.set(q, (kwCount.get(q) ?? 0) + 1);
     if (q.split(/\s+/).length === 1) warnings.push(`${at(i)}: keyword "${q}" is one word - add subject + action + setting ("${q} close up night").`);
@@ -85,15 +153,29 @@ p.scenes.forEach((s, i) => {
   }
   if (s.layout === "split" && (s.broll?.length ?? 0) < 2) warnings.push(`${at(i)}: split layout needs two broll entries (left/top and right/bottom).`);
 });
-const aiShots = p.scenes.flatMap((sc) => sc.broll ?? []).filter((k) => k.startsWith("ai:")).length;
+if (plainScenes) notes.push(`${plainScenes} scene(s) use plain keyword strings: they are matched to the line automatically, but beats ({"on": "words from the line", "kw": [...]}) put each shot exactly on its words.`);
+// Your own recording: the files and keys the transcribe step will need.
+if (p.voice.provider === "file") {
+  if (!p.voice.file) errors.push('voice.provider "file" needs voice.file (the recording, in public/).');
+  else if (!fs.existsSync(path.join(PUBLIC, p.voice.file))) warnings.push(`voice.file ${p.voice.file} is not in public/ yet.`);
+  if (p.voice.transcript && ![path.join(PUBLIC, p.voice.transcript), path.join(ROOT, p.voice.transcript)].some((f) => fs.existsSync(f))) warnings.push(`voice.transcript ${p.voice.transcript} is not in public/ yet.`);
+  const tr = p.voice.transcript ? null : (p.voice.transcriber ?? "local");
+  if (tr === "openai" && !process.env.OPENAI_API_KEY) warnings.push('voice.transcriber "openai" needs OPENAI_API_KEY in the environment.');
+  if (tr === "elevenlabs" && !process.env.ELEVENLABS_API_KEY) warnings.push('voice.transcriber "elevenlabs" needs ELEVENLABS_API_KEY in the environment.');
+  if (indic && !p.voice.language) warnings.push('set voice.language ("bn", "hi") so the transcription knows the language.');
+  if (tr === "local" && indic) notes.push('Bengali/Hindi on the local transcriber: large-v3-turbo is used (slow on a CPU, cached after). "elevenlabs" is faster and usually more accurate.');
+}
+if (p.voice.provider === "openai") warnings.push('voice.provider "openai" has no word timestamps (they are estimated), so shots and captions can drift off the words. Use edge or elevenlabs for exact sync.');
+const allKw = p.scenes.flatMap((sc) => brollEntries(sc).flatMap((e) => e.kw));
+const aiShots = allKw.filter((k) => k.startsWith("ai:")).length;
 if (aiShots) notes.push(`${aiShots} ai: images: fine for illustration; never to depict a real event or person. Tick YouTube's altered/synthetic disclosure if they look real.`);
-const realNoArchive = p.scenes.flatMap((sc) => sc.broll ?? []).filter((k) => !/^(archive|photo|file|ai):/.test(k) && (/\b(1[5-9]\d\d|20\d\d)\b/.test(k) || /\s[A-Z][a-z]/.test(k)));
+const realNoArchive = allKw.filter((k) => !/^(archive|photo|file|ai):/.test(k) && (/\b(1[5-9]\d\d|20\d\d)\b/.test(k) || /\s[A-Z][a-z]/.test(k)));
 if (realNoArchive.length) notes.push(`keywords naming real things (${realNoArchive.slice(0, 3).map((k) => `"${k}"`).join(", ")}): consider archive: for accurate imagery (Wikimedia/NASA).`);
 for (const [k, n] of kwCount) if (n > (shorts ? 3 : 8)) warnings.push(`keyword "${k}" used ${n} times - viewers notice repeated footage. Vary it.`);
 
 // ---------- pattern interrupts ----------
 // Something bigger than a cut: emphasis, badge, lower third, fx, split, look change, chapter.
-const interrupt = (s, i) => s.emphasis || s.badge || s.lowerThird || s.fx || s.layout === "split" || s.chapterStart ||
+const interrupt = (s, i) => s.emphasis || s.badge || s.lowerThird || s.fx || s.layout === "split" || s.chapterStart || brollEntries(s).some((e) => e.graphic) ||
   (i > 0 && (s.look ?? "normal") !== (p.scenes[i - 1].look ?? "normal")) || /\*/.test(s.text);
 const gapMax = shorts ? 12 : 90;
 let lastI = 0;

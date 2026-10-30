@@ -4,14 +4,30 @@ export type Word = { text: string; startMs: number; endMs: number; scene: number
 export type Transition = "whip" | "zoom" | "glitch" | "flash" | "dip" | "fade" | "cut";
 export type Look = "normal" | "flashback" | "dramatic" | "night" | "vhs" | "dream";
 
+// Motion graphics drawn from data (components/Graphic.tsx). Map places are
+// resolved to coordinates by fetch-broll (geocoded when given as names).
+export type MapPlace = { name: string; lat: number; lon: number; label?: string };
+export type GraphicSpec =
+  | { type: "counter"; value: number; decimals?: number; prefix?: string; suffix?: string; label?: string; title?: string; source?: string }
+  | { type: "bars"; data: [string, number][]; unit?: string; highlight?: number; title?: string; source?: string }
+  | { type: "timeline"; events: [string, string][]; highlight?: number; title?: string; source?: string }
+  | { type: "quote"; text: string; by?: string; source?: string }
+  | { type: "map"; places: MapPlace[]; countries?: string[]; route?: boolean; title?: string; source?: string };
+
 export type Shot = {
-  type: "video" | "image" | "kinetic";
+  type: "video" | "image" | "kinetic" | "graphic";
+  graphic?: GraphicSpec;
   src?: string;
   from: number; // frames, relative to the scene
   durationInFrames: number;
   zoomIn: boolean;
   playbackRate?: number;
   trimBefore?: number;
+  words?: string; // what the voice says over this shot (check / sync report)
+  keyword?: string;
+  rel?: number; // how well the search result matched the keyword (0-1)
+  picked?: boolean; // chosen from a review sheet
+  crossesCut?: boolean; // the clip's own internal cut is visible in this shot
 };
 
 export type Scene = {
@@ -21,6 +37,7 @@ export type Scene = {
   audio: string | null;
   text: string;
   emphasis: string | null;
+  emphasisFrom: number; // frame (relative to the scene) the emphasis lands on
   lowerThird: { title: string; subtitle?: string } | null;
   badge: string | null;
   transition: Transition; // how this scene enters
@@ -38,6 +55,10 @@ export type Scene = {
 
 export type Chapter = { title: string; mood: string; startFrame: number; durationInFrames: number };
 
+// A sound on a beat (door slam on the door shot), onset-aligned to `at`.
+export type Spot = { src: string; file?: string; at: number; volume: number; scene: string };
+export type AmbienceSegment = { src: string; file: string; volume: number; from: number; durationInFrames: number };
+
 export type MusicSegment = { src: string; from: number; durationInFrames: number; mood?: string; file?: string };
 
 export type Timeline = {
@@ -54,6 +75,9 @@ export type Timeline = {
   sfxLevel: number;
   sfxFiles?: Record<string, string[]>; // slot -> files (own SFX variants or the synthesized one)
   sfxPeaks?: Record<string, number>; // file -> ms from its start to its alignment point (peak for whoosh/riser, onset otherwise)
+  spots?: Spot[];
+  ambience?: AmbienceSegment[];
+  musicGapBoost?: number; // music rises by this factor when nobody is speaking
   editStyle: string;
   reveals: number[]; // absolute frames where a reveal lands
   transitions: "scene" | "chapter" | "none";

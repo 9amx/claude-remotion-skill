@@ -1,8 +1,10 @@
 // One command, script to finished video:
 //   lint -> voiceover -> b-roll -> timeline -> audio -> render -> loudness master -> check
-// Usage: node scripts/auto.mjs [--review] [--from=broll] [--only=voice] [--no-render]
-//   --review  lint + voice, then B-roll candidate sheets for picking (build/review/),
-//             and stop. Pick, then continue with --from=broll.
+//   -> thumbnail [-> YouTube upload, only with --upload]
+// Usage: node scripts/auto.mjs [--review] [--from=broll] [--only=voice] [--no-render] [--upload]
+//   --review  lint + voice, then B-roll candidate sheets for every shot, with the
+//             words spoken over it (build/review/), and stop. Pick, then continue with --from=broll.
+//   --upload  after a clean run, upload to YouTube (scripts/youtube.mjs; sign in once with --auth)
 // Env:   REMOTION_BROWSER=/path/to/chrome   (only if Remotion can't download its own)
 //        REMOTION_FLAGS="--concurrency=4"     (extra flags for the render step)
 import { spawnSync } from "node:child_process";
@@ -15,6 +17,7 @@ const from = args.find((a) => a.startsWith("--from="))?.slice(7);
 const only = args.find((a) => a.startsWith("--only="))?.slice(7);
 const noRender = args.includes("--no-render");
 const reviewMode = args.includes("--review");
+const uploadAfter = args.includes("--upload");
 const project = readProject();
 
 const run = (cmd, cmdArgs) => {
@@ -49,6 +52,8 @@ const steps = [
     }
   }],
   ["check", () => run("node", ["scripts/check.mjs"])],
+  ["thumbnail", () => run("node", ["scripts/thumbnail.mjs"])],
+  ["upload", () => run("node", ["scripts/youtube.mjs"])],
 ];
 
 let started = !from;
@@ -56,9 +61,13 @@ for (const [name, fn] of steps) {
   if (name === from) started = true;
   if (!started || (only && name !== only)) continue;
   if (reviewMode && !["lint", "voice", "broll"].includes(name)) break;
-  if (noRender && ["render", "master", "check"].includes(name)) continue;
+  if (noRender && ["render", "master", "check", "thumbnail", "upload"].includes(name)) continue;
+  if (name === "upload" && !uploadAfter && only !== "upload") continue;
   log("auto", `--- ${name} ---`);
   fn();
 }
 if (reviewMode) log("auto", "review sheets ready in build/review/ - pick into build/picks.json, then: node scripts/auto.mjs --from=broll");
-else if (!noRender && !only) log("auto", "done -> out/final.mp4  (inspect the out/check/ contact sheets before delivering)");
+else if (!noRender && !only) {
+  log("auto", "done -> out/final.mp4 + out/thumbnail.jpg  (inspect the out/check/ contact sheets and the thumbnail before delivering)");
+  if (!uploadAfter) log("auto", "upload: node scripts/youtube.mjs --dry-run, then node scripts/youtube.mjs");
+}

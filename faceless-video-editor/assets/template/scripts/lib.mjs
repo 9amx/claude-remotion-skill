@@ -5,6 +5,15 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+// Behind an HTTPS proxy (cloud sandboxes, company networks) Node's fetch ignores
+// HTTPS_PROXY unless NODE_USE_ENV_PROXY is set at startup (Node 22.21+ / 24), and
+// hosts the network only reaches through the proxy fail with ENOTFOUND. Re-run
+// this script once with it set; child scripts inherit it.
+if ((process.env.HTTPS_PROXY || process.env.https_proxy) && !process.env.NODE_USE_ENV_PROXY) {
+  const r = spawnSync(process.execPath, [...process.execArgv, ...process.argv.slice(1)], { stdio: "inherit", env: { ...process.env, NODE_USE_ENV_PROXY: "1" } });
+  process.exit(r.status ?? 1);
+}
+
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const PUBLIC = path.join(ROOT, "public");
 export const BUILD = path.join(ROOT, "build");
@@ -36,7 +45,7 @@ export function readProject() {
   if (Array.isArray(p.chapters)) {
     if (p.scenes) fail('Use either "scenes" or "chapters" in project.json, not both.');
     p.scenes = p.chapters.flatMap((ch, c) =>
-      (ch.scenes || []).map((s, k) => ({ ...s, broll: s.broll?.length ? s.broll : ch.broll, look: s.look ?? ch.look, chapter: c, chapterStart: k === 0 })),
+      (ch.scenes || []).map((s, k) => ({ ...s, broll: s.broll?.length ? s.broll : ch.broll, look: s.look ?? ch.look, ambience: s.ambience ?? ch.ambience, chapter: c, chapterStart: k === 0 })),
     );
   } else {
     p.chapters = [{ title: p.title ?? "" }];
@@ -99,12 +108,156 @@ export function userSfx() {
 export const stem = (f) => path.basename(f).replace(/\.[^.]+$/, "");
 export const userSfxPath = (file) => `audio/user/sfx-${stem(file)}.wav`;
 export const userMusicPath = (file) => `audio/user/music-${stem(file)}.m4a`;
+// Beat SFX (peak-normalized, onset-aligned) and ambience beds (loudness-normalized).
+// "file:clips/talk.mp4#12.5-16" or "#1:05-1:09": a part of your own (or licensed) video.
+export function parseFileRef(ref) {
+  const m = /^(.*?)#(\d+(?::\d+)?(?:\.\d+)?)-(\d+(?::\d+)?(?:\.\d+)?)$/.exec(ref.trim());
+  if (!m) return { file: ref.trim(), from: null, to: null };
+  const sec = (t) => t.split(":").reduce((a, v) => a * 60 + parseFloat(v), 0);
+  return { file: m[1], from: sec(m[2]), to: sec(m[3]) };
+}
+export const userSpotPath = (file) => `audio/user/spot-${stem(file)}.wav`;
+export const userAmbiencePath = (file) => `audio/user/amb-${stem(file)}.m4a`;
 
 // Script markup: *word* marks a word to highlight (accent color, punch-in zoom).
 // The asterisks never reach the voice.
 export const stripMarkup = (text) => text.replace(/\*/g, "");
 
 export const sceneId = (i) => `s${String(i + 1).padStart(3, "0")}`;
+
+// ---------- B-roll beats: footage locked to the words ----------
+// scene.broll entries are keyword strings or beats:
+//   { "on": "slot machine", "kw": ["slot machine lever casino", "slot reels spinning"], "sfx": "sfx/spot/slot.mp3" }
+//   { "on": "3.5 million", "graphic": { "type": "counter", "value": 3500000, ... } }   (motion graphic, no search)
+// A beat's picture starts on the first word of `on` and runs until the next
+// beat starts, so the viewer sees the thing as they hear it. A beat longer than
+// ~maxShotSeconds is covered by several shots of the same subject (kw[0], kw[1],
+// ... or another clip of kw[0]), cut on word starts. Plain strings are anchored
+// to the first word they share with the line (in order), else spread evenly.
+export const brollEntries = (scene) =>
+  (scene.broll ?? []).map((e) => (typeof e === "string" ? { kw: [e] } : { ...e, kw: [].concat(e.kw ?? []).filter(Boolean) }));
+export const GRAPHIC_TYPES = ["counter", "bars", "timeline", "quote", "map"];
+export const entryKeywords = (scene) => brollEntries(scene).flatMap((e) => e.kw);
+
+export const normWord = (w) => String(w).toLowerCase().replace(/[^\p{L}\p{M}\p{N}]/gu, "");
+const wordStem = (w) => (w.length > 4 ? w.replace(/(ing|ed|es|s|ly)$/, "") : w);
+const loose = (a, b) => a === b || (a.length >= 3 && b.length >= 3 && (a.startsWith(b) || b.startsWith(a)));
+
+// Index of the word where `phrase` starts in words[] (from `from` on), or -1.
+// strict: the whole phrase must match word for word (lint uses it on the script).
+export function findPhrase(words, phrase, from = 0, strict = false) {
+  const want = String(phrase).split(/\s+/).map(normWord).filter(Boolean);
+  const have = words.map((w) => normWord(w.text ?? w));
+  if (!want.length) return -1;
+  for (let i = from; i <= have.length - want.length; i++) if (want.every((t, j) => have[i + j] === t)) return i;
+  if (strict) return -1;
+  // Spoken text can differ from the script (numbers read out, a transcription):
+  // first two words loosely, then the first word alone.
+  for (let i = from; i < have.length; i++) if (loose(have[i], want[0]) && (want.length === 1 || loose(have[i + 1] ?? "", want[1]))) return i;
+  for (let i = from; i < have.length; i++) if (loose(have[i], want[0])) return i;
+  return -1;
+}
+
+const KW_STOP = new Set(["the", "and", "with", "for", "from", "into", "over", "close", "shot", "video", "footage", "photo", "image", "aerial", "slow", "motion", "night", "day", "view", "top", "background"]);
+// First word of the line (from `from`) that a keyword names: "phone screen glow" -> "phone's".
+// Only words at least minMs in count, so a beat never lands on top of the previous one.
+function autoAnchor(words, kw, from, minMs) {
+  const toks = kw.replace(/^[a-z]+:/, "").split(/\s+/).map(normWord).filter((t) => t.length >= 3 && !KW_STOP.has(t)).map(wordStem);
+  for (let i = from; i < words.length; i++) {
+    if (words[i].startMs - LEAD_MS < minMs) continue;
+    const w = wordStem(normWord(words[i].text));
+    if (w.length >= 3 && toks.some((t) => loose(t, w) && Math.min(t.length, w.length) >= 4 || t === w)) return i;
+  }
+  return -1;
+}
+
+// Stock search ranks loosely: score a result by the share of keyword words its
+// tags / title / description contain. Green-screen / mockup / template clips are never usable.
+const REL_STOP = new Set(["the", "and", "with", "for", "from", "into", "over", "close", "shot", "video", "footage", "photo", "image"]);
+export const BLOCK = /green ?screen|chroma|mock-?up|template|alpha channel|lower third|placeholder/i;
+const wordsOf = (q) => q.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 2 && !REL_STOP.has(w));
+export const relevance = (query, text) => {
+  const words = wordsOf(query), t = text.toLowerCase();
+  return words.length ? words.filter((w) => t.includes(w)).length / words.length : 0;
+};
+
+// Adobe Stock clips licensed through the Adobe connector and added with
+// scripts/adobe-stock.mjs: build/adobe.json maps the asset id to its local file.
+export function adobeAsset(ref) {
+  const id = String(ref).replace(/^adobe:/, "").trim();
+  const a = readJson(path.join(BUILD, "adobe.json"), {})[id];
+  if (!a || !fs.existsSync(path.join(PUBLIC, a.file))) return null;
+  return { id: `adobe-${id}`, source: "adobe", kind: a.kind, ext: path.extname(a.file).slice(1), local: true, rel: 1, text: a.title ?? "",
+    credit: `Adobe Stock #${id}${a.title ? ` - ${a.title}` : ""} (licensed)` };
+}
+
+export const LEAD_MS = 70; // picture cuts ~2 frames before the word: it lands as the word is heard
+const MIN_SHOT_MS = 600;
+
+// Shots of one scene: [{ kw, alts, entry, sub, startMs, endMs, words, sfx, on }] covering
+// [0, vo.durationMs]. Shared by fetch-broll (what to search) and build-timeline (where to cut).
+export function planShots(scene, vo, maxShotSeconds) {
+  const total = vo.durationMs;
+  const words = vo.words ?? [];
+  const entries = brollEntries(scene).filter((e) => e.kw.length || e.graphic);
+  const spoken = (a, b) => words.filter((w) => (w.startMs + w.endMs) / 2 >= a && (w.startMs + w.endMs) / 2 < b).map((w) => stripMarkup(w.text)).join(" ");
+  if (scene.visual === "kinetic" || !entries.length) return { shots: [{ kw: null, alts: [], entry: -1, sub: 0, startMs: 0, endMs: total, words: spoken(0, total) }], notes: [] };
+  if (scene.layout === "split") {
+    return { shots: [0, 1].map((k) => ({ kw: entries[k]?.kw[0] ?? null, alts: entries[k]?.kw ?? [], entry: k, sub: 0, startMs: 0, endMs: total,
+      words: spoken(0, total), ...(entries[k]?.sfx ? { sfx: entries[k].sfx } : {}), ...(entries[k]?.credit ? { credit: entries[k].credit } : {}) })), notes: [] };
+  }
+  const notes = [];
+  // 1. anchor every beat to a word
+  const anchors = [];
+  let from = 0;
+  entries.forEach((e, k) => {
+    // The first beat opens the scene whatever it names: a plain keyword there takes word 0.
+    const minMs = (anchors[anchors.length - 1]?.ms ?? 0) + MIN_SHOT_MS;
+    let idx = e.on ? findPhrase(words, e.on, from) : k === 0 ? 0 : e.kw.length ? autoAnchor(words, e.kw[0], from, minMs) : -1;
+    if (e.on && idx < 0) notes.push(`beat ${k + 1}: "${e.on}" not found in the spoken words - placed by position`);
+    if (idx < 0) {
+      // Even spread, snapped to the nearest word start after the previous beat.
+      const target = Math.max(minMs, (total * k) / entries.length);
+      idx = words.reduce((b, w, i) => (i >= from && (b < 0 || Math.abs(w.startMs - target) < Math.abs(words[b].startMs - target)) ? i : b), -1);
+    }
+    const ms = k === 0 || idx < 0 ? 0 : Math.max(0, words[idx].startMs - LEAD_MS);
+    anchors.push({ e, k, ms });
+    if (idx >= 0) from = idx + 1;
+  });
+  // 2. beats too close together can't both be seen: keep the earlier one
+  const beats = [];
+  for (const a of anchors) {
+    const prev = beats[beats.length - 1];
+    if (prev && a.ms - prev.ms < MIN_SHOT_MS) {
+      notes.push(`beat ${a.k + 1}${a.e.on ? ` "${a.e.on}"` : ""} starts ${(Math.max(0, a.ms - prev.ms) / 1000).toFixed(1)}s after the previous one - too short to see, merged into it`);
+      continue;
+    }
+    beats.push(a);
+  }
+  // 3. long beats: more shots of the same subject, cut on word starts
+  const maxMs = maxShotSeconds * 1000;
+  const shots = [];
+  beats.forEach((b, i) => {
+    const end = beats[i + 1]?.ms ?? total;
+    // Your own file / an AI still / a graphic can't give a second angle: one shot per distinct asset.
+    const fixed = b.e.graphic || b.e.kw.every((k) => /^(file|ai|adobe):/.test(k));
+    const n = Math.max(1, Math.min(Math.round((end - b.ms) / maxMs), b.e.graphic ? 1 : fixed ? new Set(b.e.kw).size : Infinity));
+    const cuts = [b.ms];
+    for (let j = 1; j < n; j++) {
+      const target = b.ms + ((end - b.ms) * j) / n;
+      const near = words.map((w) => w.startMs - LEAD_MS).filter((t) => t > cuts[j - 1] + MIN_SHOT_MS && t < end - MIN_SHOT_MS)
+        .reduce((best, t) => (best === null || Math.abs(t - target) < Math.abs(best - target) ? t : best), null);
+      if (near !== null) cuts.push(near);
+    }
+    cuts.push(end);
+    for (let j = 0; j < cuts.length - 1; j++) {
+      shots.push({ kw: b.e.graphic ? null : b.e.kw[j % b.e.kw.length], alts: b.e.kw, entry: b.k, sub: j, on: b.e.on, startMs: cuts[j], endMs: cuts[j + 1],
+        words: spoken(cuts[j], cuts[j + 1]), ...(b.e.graphic ? { graphic: b.e.graphic } : {}), ...(j === 0 && b.e.sfx ? { sfx: b.e.sfx } : {}),
+        ...(b.e.credit ? { credit: b.e.credit } : {}) });
+    }
+  });
+  return { shots, notes };
+}
 
 export function readJson(file, fallback) {
   return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : fallback;
@@ -212,7 +365,14 @@ export function splitIntoScenes(words, sceneTokens) {
     bounds.push(best);
   }
   bounds.push(words.length);
-  return { bounds, matched: match.filter((m) => m !== null).length };
+  // Share of each scene's script words found in the recording: a low one means
+  // that scene was said differently (or not at all).
+  const perScene = [];
+  for (let s = 0, t = 0; s < sceneTokens.length; t += sceneTokens[s].length, s++) {
+    const own = match.slice(t, t + sceneTokens[s].length);
+    perScene.push(own.length ? own.filter((m) => m !== null).length / own.length : 1);
+  }
+  return { bounds, matched: match.filter((m) => m !== null).length, perScene };
 }
 
 // Jump-cut dead air out of a recording. Given words (absolute ms) inside

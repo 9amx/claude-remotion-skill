@@ -8,6 +8,8 @@
 //   public/audio/scratch.wav freeze frame (fx "freeze")
 //   public/audio/glitch.wav glitch transition
 //   public/audio/tick.wav   highlighted caption words
+// Your own files are normalized into public/audio/user/: public/sfx/<slot>*.wav|mp3
+// (kit replacements), beat sounds and ambience beds named in project.json, music.
 import fs from "node:fs";
 import path from "node:path";
 import { PUBLIC, ffmpeg, fail, log, readJson, userMusicPath, userSfx, userSfxPath } from "./lib.mjs";
@@ -129,26 +131,30 @@ const timeline = readJson(path.join(PUBLIC, "timeline.json"), null);
 if (!timeline) fail("Run build-timeline first (beds are sized to the video).");
 const fresh = (src, dest) => fs.existsSync(dest) && fs.statSync(dest).mtimeMs > fs.statSync(src).mtimeMs;
 fs.mkdirSync(path.join(OUT, "user"), { recursive: true });
+// SFX: convert first (mono -> stereo changes the level), then set the peak to -1 dBFS.
+function peakNormalize(src, dest, label) {
+  if (fresh(src, dest)) return;
+  const tmp = dest.replace(/\.wav$/, ".tmp.wav");
+  if (ffmpeg(["-i", src, "-ar", "48000", "-ac", "2", tmp]).status !== 0) fail(`could not read ${path.relative(PUBLIC, src)}`);
+  const m = /max_volume:\s*(-?[\d.]+) dB/.exec(ffmpeg(["-i", tmp, "-af", "volumedetect", "-f", "null", "-"], { capture: true }).stderr || "");
+  const gain = m ? Math.min(20, -1 - parseFloat(m[1])) : 0; // cap: never blow up a near-silent file
+  ffmpeg(["-i", tmp, "-af", `volume=${gain.toFixed(2)}dB`, dest]);
+  fs.rmSync(tmp);
+  log("audio", `${label}: ${path.relative(PUBLIC, src)} (${gain >= 0 ? "+" : ""}${gain.toFixed(1)} dB)`);
+}
+// Music and ambience: loudness, so volume means the same for every file.
+function loudnessNormalize(file, dest, label) {
+  const src = path.join(PUBLIC, file);
+  if (fresh(src, dest)) return;
+  if (ffmpeg(["-i", src, "-vn", "-af", "loudnorm=I=-14:TP=-1.5:LRA=11", "-ar", "48000", "-ac", "2", "-c:a", "aac", "-b:a", "192k", dest]).status !== 0) fail(`could not read ${file}`);
+  log("audio", `${label}: ${file} (normalized to -14 LUFS)`);
+}
 for (const files of Object.values(userSfx())) {
-  for (const f of files) {
-    const src = path.join(PUBLIC, "sfx", f), dest = path.join(PUBLIC, userSfxPath(f));
-    if (fresh(src, dest)) continue;
-    // Convert first (mono -> stereo changes the level), then measure and set the peak to -1 dBFS.
-    const tmp = dest.replace(/\.wav$/, ".tmp.wav");
-    if (ffmpeg(["-i", src, "-ar", "48000", "-ac", "2", tmp]).status !== 0) fail(`could not read public/sfx/${f}`);
-    const m = /max_volume:\s*(-?[\d.]+) dB/.exec(ffmpeg(["-i", tmp, "-af", "volumedetect", "-f", "null", "-"], { capture: true }).stderr || "");
-    const gain = m ? Math.min(20, -1 - parseFloat(m[1])) : 0; // cap: never blow up a near-silent file
-    ffmpeg(["-i", tmp, "-af", `volume=${gain.toFixed(2)}dB`, dest]);
-    fs.rmSync(tmp);
-    log("audio", `own SFX: ${f} (${gain >= 0 ? "+" : ""}${gain.toFixed(1)} dB)`);
-  }
+  for (const f of files) peakNormalize(path.join(PUBLIC, "sfx", f), path.join(PUBLIC, userSfxPath(f)), "own SFX");
 }
-for (const seg of timeline.music.segments.filter((m) => m.file)) {
-  const src = path.join(PUBLIC, seg.file), dest = path.join(PUBLIC, userMusicPath(seg.file));
-  if (fresh(src, dest)) continue;
-  if (ffmpeg(["-i", src, "-vn", "-af", "loudnorm=I=-14:TP=-1.5:LRA=11", "-ar", "48000", "-ac", "2", "-c:a", "aac", "-b:a", "192k", dest]).status !== 0) fail(`could not read ${seg.file}`);
-  log("audio", `own music: ${seg.file} (normalized to -14 LUFS)`);
-}
+for (const sp of (timeline.spots ?? []).filter((x) => x.file)) peakNormalize(path.join(PUBLIC, sp.file), path.join(PUBLIC, sp.src), "beat SFX");
+for (const seg of timeline.music.segments.filter((m) => m.file)) loudnessNormalize(seg.file, path.join(PUBLIC, userMusicPath(seg.file)), "own music");
+for (const a of timeline.ambience ?? []) loudnessNormalize(a.file, path.join(PUBLIC, a.src), "ambience");
 
 // ---------- SFX alignment ----------
 // Library SFX put their energy anywhere: a whoosh peaks ~0.4s in, a riser just
@@ -183,6 +189,10 @@ for (const [slot, list] of Object.entries(timeline.sfxFiles ?? {})) {
   for (const src of list) {
     if (fs.existsSync(path.join(PUBLIC, src))) timeline.sfxPeaks[src] = alignMs(path.join(PUBLIC, src), PEAK_ALIGNED.has(slot) ? "peak" : "onset");
   }
+}
+// Beat sounds start on their cut (a door slam, a camera shutter): onset.
+for (const sp of timeline.spots ?? []) {
+  if (!(sp.src in timeline.sfxPeaks) && fs.existsSync(path.join(PUBLIC, sp.src))) timeline.sfxPeaks[sp.src] = alignMs(path.join(PUBLIC, sp.src), "onset");
 }
 fs.writeFileSync(path.join(PUBLIC, "timeline.json"), JSON.stringify(timeline, null, 2));
 
