@@ -5,6 +5,15 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+// Behind an HTTPS proxy (cloud sandboxes, company networks) Node's fetch ignores
+// HTTPS_PROXY unless NODE_USE_ENV_PROXY is set at startup (Node 22.21+ / 24), and
+// hosts the network only reaches through the proxy fail with ENOTFOUND. Re-run
+// this script once with it set; child scripts inherit it.
+if ((process.env.HTTPS_PROXY || process.env.https_proxy) && !process.env.NODE_USE_ENV_PROXY) {
+  const r = spawnSync(process.execPath, [...process.execArgv, ...process.argv.slice(1)], { stdio: "inherit", env: { ...process.env, NODE_USE_ENV_PROXY: "1" } });
+  process.exit(r.status ?? 1);
+}
+
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const PUBLIC = path.join(ROOT, "public");
 export const BUILD = path.join(ROOT, "build");

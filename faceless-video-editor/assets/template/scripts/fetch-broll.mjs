@@ -170,14 +170,17 @@ const SOURCES = {
     }).filter(Boolean);
   },
   async dvids(query) {
-    const aspect = fmt.orientation === "portrait" ? "portrait" : fmt.orientation === "landscape" ? "landscape" : "";
+    // DVIDS answers "landscape"/"portrait" with nothing; 16:9 works (vertical video is rare there).
+    const aspect = fmt.orientation === "landscape" ? "16:9" : "";
     const q = new URLSearchParams({ api_key: KEYS.dvids, q: query.slice(0, 100), type: "video", hd: "1", max_results: "25", short_description_length: "300",
       thumb_width: "320", thumb_height: "180", ...(aspect ? { aspect_ratio: aspect } : {}) });
     const data = await getJson("dvids", `https://api.dvidshub.net/search?${q}`);
     // Search has no file links: resolveUrl asks /asset for them once a clip is chosen.
     return (data.results ?? []).filter((r) => r.type === "video" && r.id).map((r) => ({
       id: `dvids-${String(r.id).replace(/^video:/, "")}`, source: "dvids", kind: "video", url: null, dvidsId: r.id, ext: "mp4", thumb: r.thumbnail,
-      text: `${r.title ?? ""} ${strip(r.short_description)} ${[].concat(r.keywords ?? []).join(" ")}`, w: 0, h: 0, duration: r.duration,
+      text: `${r.title ?? ""} ${strip(r.short_description)} ${[].concat(r.keywords ?? []).join(" ")}`, duration: r.duration,
+      // Shape only (for the orientation score); the real size comes with the asset call.
+      w: Number(String(r.aspect_ratio).split(":")[0]) || 0, h: Number(String(r.aspect_ratio).split(":")[1]) || 0,
       credit: `DVIDS - "${r.title}" - ${[r.credit, r.unit_name, r.branch].filter(Boolean).join(", ")} - ${r.url} (U.S. government work; no endorsement implied)` }));
   },
   async wikimedia(query) {
