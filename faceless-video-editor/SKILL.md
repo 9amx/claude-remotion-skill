@@ -34,6 +34,25 @@ never on rendering.
 If the user gave a topic and nothing else, don't interrogate them. Pick defaults,
 state them in one line, build.
 
+**Look in the working folder first.** A recording there (`voice.wav`, `*.mp3`) plus
+a script (`script.txt`, `.md`, `.docx`) means long form from the user's own
+recording: `landscape`, `"voice": {"provider": "file"}`, the script word for word
+as scene text (chapter headings `## ...` become chapters, `[...]` notes become
+beats and are never spoken), `editStyle` `story`. Copy the recording to the
+project's `public/`, `clips/` to `public/clips/`. `reference/` holds style
+references: look at every image (and frames pulled from any video with ffmpeg),
+read `notes.txt`, then write the style you will apply in a few lines (look,
+cut pace, captions, graphics, transitions, sound) and render a 30-60 s preview
+for approval before the full render. A YouTube link in the notes is never
+downloaded: use only its public oEmbed data (`https://www.youtube.com/oembed?url=<link>&format=json`:
+title, channel, thumbnail URL) and the screenshots. References inform style
+only; never copy their wording or footage.
+
+**Report every footage key that is set**, not just Pexels/Pixabay: `PIXABAY_API_KEY`,
+`PEXELS_API_KEY`, `COVERR_API_KEY`, `DVIDS_API_KEY`, plus the Adobe and Epidemic
+Sound connectors when present. Check with the environment, not assumptions
+(`node -e "console.log(['PIXABAY','PEXELS','COVERR','DVIDS'].map(k=>k+':'+!!process.env[k+'_API_KEY']).join(' '))"`).
+
 ## Step 2 - Write the script into project.json
 
 Read `references/script-formula.md` before writing. Non-negotiables:
