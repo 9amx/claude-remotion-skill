@@ -100,6 +100,13 @@ export const stem = (f) => path.basename(f).replace(/\.[^.]+$/, "");
 export const userSfxPath = (file) => `audio/user/sfx-${stem(file)}.wav`;
 export const userMusicPath = (file) => `audio/user/music-${stem(file)}.m4a`;
 // Beat SFX (peak-normalized, onset-aligned) and ambience beds (loudness-normalized).
+// "file:clips/talk.mp4#12.5-16" or "#1:05-1:09": a part of your own (or licensed) video.
+export function parseFileRef(ref) {
+  const m = /^(.*?)#(\d+(?::\d+)?(?:\.\d+)?)-(\d+(?::\d+)?(?:\.\d+)?)$/.exec(ref.trim());
+  if (!m) return { file: ref.trim(), from: null, to: null };
+  const sec = (t) => t.split(":").reduce((a, v) => a * 60 + parseFloat(v), 0);
+  return { file: m[1], from: sec(m[2]), to: sec(m[3]) };
+}
 export const userSpotPath = (file) => `audio/user/spot-${stem(file)}.wav`;
 export const userAmbiencePath = (file) => `audio/user/amb-${stem(file)}.m4a`;
 
@@ -188,7 +195,7 @@ export function planShots(scene, vo, maxShotSeconds) {
   if (scene.visual === "kinetic" || !entries.length) return { shots: [{ kw: null, alts: [], entry: -1, sub: 0, startMs: 0, endMs: total, words: spoken(0, total) }], notes: [] };
   if (scene.layout === "split") {
     return { shots: [0, 1].map((k) => ({ kw: entries[k]?.kw[0] ?? null, alts: entries[k]?.kw ?? [], entry: k, sub: 0, startMs: 0, endMs: total,
-      words: spoken(0, total), ...(entries[k]?.sfx ? { sfx: entries[k].sfx } : {}) })), notes: [] };
+      words: spoken(0, total), ...(entries[k]?.sfx ? { sfx: entries[k].sfx } : {}), ...(entries[k]?.credit ? { credit: entries[k].credit } : {}) })), notes: [] };
   }
   const notes = [];
   // 1. anchor every beat to a word
@@ -236,7 +243,8 @@ export function planShots(scene, vo, maxShotSeconds) {
     cuts.push(end);
     for (let j = 0; j < cuts.length - 1; j++) {
       shots.push({ kw: b.e.graphic ? null : b.e.kw[j % b.e.kw.length], alts: b.e.kw, entry: b.k, sub: j, on: b.e.on, startMs: cuts[j], endMs: cuts[j + 1],
-        words: spoken(cuts[j], cuts[j + 1]), ...(b.e.graphic ? { graphic: b.e.graphic } : {}), ...(j === 0 && b.e.sfx ? { sfx: b.e.sfx } : {}) });
+        words: spoken(cuts[j], cuts[j + 1]), ...(b.e.graphic ? { graphic: b.e.graphic } : {}), ...(j === 0 && b.e.sfx ? { sfx: b.e.sfx } : {}),
+        ...(b.e.credit ? { credit: b.e.credit } : {}) });
     }
   });
   return { shots, notes };

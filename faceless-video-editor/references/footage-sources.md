@@ -61,6 +61,29 @@ results into review sheets and local files.
 `"adobe:<id>"` also works directly as a beat keyword. Licensed originals are
 never deleted by the cleanup; `build/credits.txt` lists them as licensed.
 
+## Short clips from other people's videos
+
+Length doesn't make a clip safe: Content ID matches a few seconds, and there is
+no "5 second" or "10 second" rule. A clip you don't have the rights to can cost
+the video its revenue (claim), the channel a strike (three end it), and a
+channel built from other people's footage its monetization ("reused content").
+Never pull footage out of YouTube with a downloader: YouTube's terms forbid it.
+
+Clips you can use:
+- **Creative Commons (CC BY):** YouTube search -> Filters -> Creative Commons.
+  Check the uploader made it (a re-upload marked CC still gets claimed), and get
+  the file from the maker's own site or archive where possible.
+- **With permission:** ask the maker for the file and written permission.
+- **Public bodies:** NASA, ESA, government agencies, museums publish the same
+  footage in their own archives (`archive:` covers NASA and Wikimedia).
+- **Shorts Remix -> Cut** in the YouTube app: 1-5 seconds of an eligible video
+  inside a Short, credited and linked by YouTube itself.
+
+Use them as `"file:clips/source.mp4#12.5-16"` (just that part, cut exactly) with
+a `"credit"` on the beat; the credit lands in `build/credits.txt` and the
+YouTube description. Keep each clip short and talk over it with your own point:
+it should support the story, not be the story.
+
 ## Archives
 
 `archive:` searches Wikimedia Commons (licences that allow commercial reuse,

@@ -5,7 +5,7 @@
 // laws: fix errors, read warnings, and override with judgement when the story needs it.
 import fs from "node:fs";
 import path from "node:path";
-import { GRAPHIC_TYPES, PUBLIC, ROOT, SFX_NAMES, brollEntries, findPhrase, log, planShots, readProject, stripMarkup } from "./lib.mjs";
+import { GRAPHIC_TYPES, PUBLIC, ROOT, SFX_NAMES, brollEntries, findPhrase, log, parseFileRef, planShots, readProject, stripMarkup } from "./lib.mjs";
 
 // Country names the map knows (world-atlas, when installed).
 const atlas = path.join(ROOT, "node_modules", "world-atlas", "countries-50m.json");
@@ -138,7 +138,14 @@ p.scenes.forEach((s, i) => {
   const amb = typeof s.ambience === "string" ? s.ambience : s.ambience?.file;
   if (amb && amb !== "none" && !fs.existsSync(path.join(PUBLIC, amb))) warnings.push(`${at(i)}: ambience ${amb} is not in public/ yet.`);
   for (const k of entries.flatMap((e) => e.kw)) {
-    if (k.startsWith("file:")) continue;
+    if (k.startsWith("file:")) {
+      const ref = parseFileRef(k.slice(5));
+      if (/#/.test(k) && ref.from === null) errors.push(`${at(i)}: "${k}" - write the part as #start-end in seconds or m:ss, e.g. #12.5-16 or #1:05-1:09`);
+      else if (ref.from !== null && ref.to <= ref.from) errors.push(`${at(i)}: "${k}" ends before it starts`);
+      else if (!fs.existsSync(path.join(PUBLIC, ref.file))) warnings.push(`${at(i)}: ${ref.file} is not in public/ yet`);
+      continue;
+    }
+    if (k.startsWith("adobe:")) continue;
     const q = k.replace(/^photo:/, "").trim();
     kwCount.set(q, (kwCount.get(q) ?? 0) + 1);
     if (q.split(/\s+/).length === 1) warnings.push(`${at(i)}: keyword "${q}" is one word - add subject + action + setting ("${q} close up night").`);

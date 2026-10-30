@@ -25,6 +25,8 @@ Write every scene's `broll` as beats. A beat names the words it illustrates
   fallbacks when the first finds nothing relevant. Long beat, one keyword: a
   second clip of the same keyword.
 - `sfx` (optional): a sound for what the picture shows, starting on the cut.
+- `credit` (optional): attribution for that clip, e.g. `"\"Title\" by Name, CC BY 4.0 - <link>"`.
+  It goes to `build/credits.txt` and into the YouTube description.
 
 Plain strings (`"broll": ["kw a", "kw b"]`) still work: each is matched to the
 first word of the line it names ("phone screen glow" -> "phone"), else spread
@@ -54,6 +56,7 @@ evenly. That's a guess, so use beats when it matters, always for non-English lin
 | `"archive:Apollo 11 launch"` | Wikimedia Commons + NASA only: real people, places, events, dates. CC/PD licences that allow commercial use; CC BY needs the credits in the description |
 | `"ai:a 1950s lab with pigeons in boxes"` | generated still (OPENAI_API_KEY). For things that can't be filmed; never to "show" a real event. Disclose if it looks real |
 | `"file:intro.mp4"` / `"file:chart.png"` | user's own asset in `public/` |
+| `"file:clips/talk.mp4#12.5-16"` | just that part of your own or licensed video (seconds, or `#1:05-1:09`); cut once, exactly |
 | `"adobe:430358060"` | an Adobe Stock clip licensed through the Adobe connector and added with `scripts/adobe-stock.mjs` (see footage-sources.md) |
 
 Scene-level `"visual": "kinetic"` skips B-roll entirely (animated background) -

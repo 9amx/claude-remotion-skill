@@ -13,7 +13,9 @@
 //   "photo:old map"        photos only (stock + archive)
 //   "archive:Apollo 11"    Wikimedia + NASA only: accurate, real imagery
 //   "ai:prompt"            generate an image (needs OPENAI_API_KEY)
-//   "file:clip.mp4"        your own asset in public/
+//   "file:clip.mp4"        your own asset in public/; "file:talk.mp4#12.5-16" uses just
+//                          that part (cut once into broll/clip-*.mp4). A beat's "credit"
+//                          goes to build/credits.txt (CC BY and licensed clips need it).
 //   "adobe:430358060"      an Adobe Stock clip licensed through the Adobe connector
 //                          and added with scripts/adobe-stock.mjs (also usable as a pick)
 // Beats with "graphic" need no search: map places given as names are geocoded
@@ -41,8 +43,8 @@
 // stable across runs. Writes build/broll.json and build/credits.txt (attribution for CC images).
 import fs from "node:fs";
 import path from "node:path";
-import { BLOCK, BUILD, FORMATS, GRAPHIC_TYPES, PUBLIC, ROOT, adobeAsset, ffmpeg, ffmpegRaw, fail, log, planShots, probeDuration, readJson, readProject, relevance,
-  sceneId, sleep, writeJson } from "./lib.mjs";
+import { BLOCK, BUILD, FORMATS, GRAPHIC_TYPES, PUBLIC, ROOT, adobeAsset, ffmpeg, ffmpegRaw, fail, log, parseFileRef, planShots, probeDuration, readJson, readProject,
+  relevance, sceneId, sleep, writeJson } from "./lib.mjs";
 
 const args = process.argv.slice(2);
 const reviewArg = args.find((a) => a.startsWith("--review"));
@@ -535,11 +537,26 @@ for (const [i, scene] of project.scenes.entries()) {
       continue;
     }
     if (kw.startsWith("file:")) {
-      const src = kw.slice(5).trim();
+      const ref = parseFileRef(kw.slice(5));
+      let src = ref.file;
       const abs = path.join(PUBLIC, src);
       if (!fs.existsSync(abs)) throw new Error(`${id}: ${src} not found in public/`);
       const isVideo = VIDEO_EXT.test(src);
-      plan[id].push({ type: isVideo ? "video" : "image", src, duration: isVideo ? probeDuration(abs) : null });
+      if (ref.from !== null) {
+        // Cut the part once (re-encoded, so it starts exactly there); the edit then treats it like any clip.
+        const total = probeDuration(abs);
+        if (!isVideo || ref.to <= ref.from || (total && ref.to > total + 0.05)) fail(`${label}: range ${ref.from}-${ref.to}s doesn't fit ${src}${total ? ` (${total.toFixed(1)}s long)` : ""}`);
+        const cut = `broll/clip-${path.basename(src).replace(/\.[^.]+$/, "").replace(/[^\w.-]+/g, "_")}-${ref.from}-${ref.to}.mp4`;
+        if (!fs.existsSync(path.join(PUBLIC, cut))) {
+          fs.mkdirSync(path.join(PUBLIC, "broll"), { recursive: true });
+          const r = ffmpeg(["-ss", String(ref.from), "-i", abs, "-t", String(ref.to - ref.from), "-an", "-c:v", "libx264", "-crf", "18", "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart", path.join(PUBLIC, cut)]);
+          if (r.status !== 0) fail(`${label}: could not cut ${src}`);
+        }
+        src = cut;
+      }
+      plan[id].push({ type: isVideo ? "video" : "image", src, duration: isVideo ? probeDuration(path.join(PUBLIC, src)) : null, keyword: kw,
+        ...(sh.credit ? { credit: sh.credit } : {}) });
       continue;
     }
     if (kw.startsWith("ai:")) {
@@ -607,7 +624,7 @@ const keep = new Set(all.map((s) => s.src).filter(Boolean).map((s) => path.basen
 const brollDir = path.join(PUBLIC, "broll");
 if (fs.existsSync(brollDir)) {
   for (const f of fs.readdirSync(brollDir)) {
-    if ((/^(pexels|pixabay|wikimedia|nasa)-/.test(f) || /^adobe-.*\.t\d+\.mp4$/.test(f)) && !keep.has(f) && !f.endsWith(".part")) fs.rmSync(path.join(brollDir, f));
+    if ((/^(pexels|pixabay|wikimedia|nasa|clip)-/.test(f) || /^adobe-.*\.t\d+\.mp4$/.test(f)) && !keep.has(f) && !f.endsWith(".part")) fs.rmSync(path.join(brollDir, f));
   }
 }
 fs.writeFileSync(path.join(BUILD, "credits.txt"), credits.join("\n") + "\n");
