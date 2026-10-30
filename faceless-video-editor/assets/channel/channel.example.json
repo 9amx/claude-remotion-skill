@@ -1,0 +1,13 @@
+{
+  "name": "My Bangla facts channel",
+  "target": "@targetchannel",
+  "format": "shorts",
+  "language": "bn",
+  "voice": { "provider": "edge", "voice": "bn-BD-PradeepNeural", "rate": "+5%" },
+  "editStyle": "viral",
+  "style": "bold",
+  "schedule": { "times": ["19:00"], "timezone": "Asia/Dhaka", "days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"], "minLeadMinutes": 45 },
+  "upload": { "privacy": "private", "publishAtSlot": true, "categoryId": 27, "account": "default", "hashtags": ["shorts"] },
+  "quality": { "maxRevisionRounds": 3 },
+  "notes": "Who the audience is, the channel's voice, topics to avoid."
+}

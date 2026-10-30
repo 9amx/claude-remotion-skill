@@ -1,6 +1,6 @@
 ---
 name: faceless-video-editor
-description: Fully automated faceless video production with Remotion - topic or script in, finished captioned video out. Use this skill EVERY time the user wants a faceless video, YouTube automation / "cash cow" channel content, Shorts/Reels/TikToks made from a topic, script, article, list, story or Reddit post, an AI voiceover video, a stock B-roll edit, auto-captioned narration, a top-10/facts/explainer/history/motivation/true-crime video, or says "make a video about X" without filming anything. Also trigger when they have their own voiceover recording and want B-roll + captions added automatically, want a batch of faceless videos, or want a long-form YouTube video (documentary, video essay, explainer, story) of 5 to 40+ minutes. Also use it to make a YouTube thumbnail or upload/schedule the finished video to YouTube. Handles script writing, TTS voiceover with word timestamps (free edge-tts, ElevenLabs, OpenAI) or Whisper on their own recording, Pexels/Pixabay B-roll, word-synced captions, music bed, SFX, rendering, loudness mastering, frame verification, thumbnail and YouTube upload. Works in any language (Bengali, Hindi, etc.).
+description: Fully automated faceless video production with Remotion - topic or script in, finished captioned video out. Also runs a channel on autopilot - a daily scheduled run that makes, checks and uploads a video and reports back. Use this skill EVERY time the user wants a faceless video, YouTube automation / "cash cow" channel content, Shorts/Reels/TikToks made from a topic, script, article, list, story or Reddit post, an AI voiceover video, a stock B-roll edit, auto-captioned narration, a top-10/facts/explainer/history/motivation/true-crime video, or says "make a video about X" without filming anything. Also trigger when they have their own voiceover recording and want B-roll + captions added automatically, want a batch of faceless videos, or want a long-form YouTube video (documentary, video essay, explainer, story) of 5 to 40+ minutes. Also use it to make a YouTube thumbnail or upload/schedule the finished video to YouTube. Handles script writing, TTS voiceover with word timestamps (free edge-tts, ElevenLabs, OpenAI) or Whisper on their own recording, Pexels/Pixabay B-roll, word-synced captions, music bed, SFX, rendering, loudness mastering, frame verification, thumbnail and YouTube upload. Works in any language (Bengali, Hindi, etc.).
 ---
 
 # Faceless Video Editor
@@ -321,6 +321,18 @@ charts), edit `src/components/` and follow the motion rules of the
 `remotion-motion-graphics` skill if it is installed: springs not linear, 2-3
 property entrances, staggers, exits faster than entrances.
 
+## Autopilot (a video every day, on schedule)
+
+When the user wants the channel to run by itself ("upload a video every day at
+7pm", "use @channel as the target", "I'll send scripts sometimes"), read
+`references/autopilot.md`. It covers the private channel workspace
+(`assets/channel/`: `channel.json`, `queue/`, `autopilot.mjs`,
+`channel-research.mjs`), the Google and environment setup that lets an empty
+scheduled session upload, the scheduled task, and the daily run: next job and
+slot, original script (topics from the target channel, never its words), edit,
+the revision gate (nothing that fails it is uploaded), upload for the slot,
+record, report.
+
 ## Batch mode
 
 For N videos: one folder per video (`cp -r template video-01`), share
@@ -338,4 +350,5 @@ at once (`references/youtube-upload.md`, Batch + schedule; about 6 uploads a day
 - `references/long-form.md` - chapters, retention for 10-40 min, B-roll at scale, chunked rendering.
 - `references/project-schema.md` - every project.json field and what it does.
 - `references/youtube-upload.md` - thumbnail options, Google Cloud setup, upload, scheduling, limits.
+- `references/autopilot.md` - the daily scheduled run: setup, the run step by step, the revision gate, the task prompt.
 - `references/troubleshooting.md` - render, network, TTS and alignment failures.

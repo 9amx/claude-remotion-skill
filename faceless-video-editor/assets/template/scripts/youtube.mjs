@@ -12,6 +12,7 @@
 // Setup (client_secret.json from Google Cloud) and limits: references/youtube-upload.md.
 // Env: YOUTUBE_CLIENT_ID + YOUTUBE_CLIENT_SECRET (the OAuth client's values, e.g. from a cloud
 //      environment's settings), or YOUTUBE_CLIENT_SECRET_FILE=/path/client_secret.json;
+//      YOUTUBE_REFRESH_TOKEN (scheduled runs: upload with no sign-in; see references/autopilot.md);
 //      YOUTUBE_CONFIG_DIR (token location)
 import { spawn } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
@@ -72,7 +73,7 @@ async function tokenRequest(params) {
   const r = await fetch(TOKEN_URL, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams(params) });
   const json = await r.json().catch(() => ({}));
   if (!r.ok) {
-    if (json.error === "invalid_grant") fail(`YouTube sign-in expired or was revoked (apps in "Testing" mode expire after 7 days). Run: node scripts/youtube.mjs --auth${account !== "default" ? ` --account=${account}` : ""}`);
+    if (json.error === "invalid_grant") fail(`YouTube sign-in expired or was revoked (apps in "Testing" mode expire after 7 days). Run: node scripts/youtube.mjs --auth${account !== "default" ? ` --account=${account}` : ""}, or put a new YOUTUBE_REFRESH_TOKEN in the environment`);
     fail(`Google token request failed: ${json.error_description || json.error || r.status}`);
   }
   return json;
@@ -162,8 +163,14 @@ async function signInDevice() {
   fail("The code expired before it was entered. Run --auth --device again.");
 }
 
+// A refresh token in the environment (YOUTUBE_REFRESH_TOKEN, or
+// YOUTUBE_REFRESH_TOKEN_<ACCOUNT> per channel) lets scheduled runs upload with
+// no sign-in step: cloud containers start empty every time.
+const envRefresh = () => process.env[`YOUTUBE_REFRESH_TOKEN_${account.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`]
+  ?? (account === "default" ? process.env.YOUTUBE_REFRESH_TOKEN : undefined);
+
 async function accessToken() {
-  const saved = readJson(tokenFile, null);
+  const saved = readJson(tokenFile, null) ?? (envRefresh() ? { refresh_token: envRefresh().trim() } : null);
   if (!saved) fail(`Not signed in to YouTube${account !== "default" ? ` (account "${account}")` : ""}. Run: node scripts/youtube.mjs --auth${account !== "default" ? ` --account=${account}` : ""} (add --device on a phone / in a cloud session)`);
   const client = clientSecret();
   const tok = await tokenRequest({ refresh_token: saved.refresh_token, client_id: client.client_id, client_secret: client.client_secret, grant_type: "refresh_token" });
