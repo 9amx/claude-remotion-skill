@@ -66,7 +66,8 @@ const archiveOn = project.archive !== false; // Wikimedia + NASA need no key, DV
 const ARCHIVE = new Set(["wikimedia", "nasa", "dvids"]);
 const maxWaitMs = (project.brollMaxWaitMinutes ?? 0) * 60_000;
 const trim = project.trimBroll !== false;
-const MIN_REL = project.brollMinRelevance ?? 0.25;
+// Below this share of keyword words a result is never auto-picked: 1 of 3 words ("closed shop sign" -> a shop) is not a match.
+const MIN_REL = project.brollMinRelevance ?? 0.4;
 const UA = { "User-Agent": "faceless-video-editor/1.0 (https://github.com/9amx/claude-remotion-skill)" };
 const exhausted = new Set();
 const used = new Set();

@@ -21,7 +21,9 @@ const allShots = t.scenes.flatMap((s) => s.shots.map((sh, k) => ({ ...sh, scene:
 for (const sh of allShots) {
   const where = `${sh.scene} @ ${timecode(sec(sh.at))}`;
   if (sh.durationInFrames < t.fps * 0.6) warnings.push(`${where}: shot only ${sh.durationInFrames} frames`);
-  if (sh.durationInFrames > t.fps * 8) warnings.push(`${where}: shot holds ${sec(sh.durationInFrames).toFixed(1)}s - add B-roll keywords`);
+  const steps = [0, ...(sh.graphic?.at ?? []), sh.durationInFrames];
+  const still = Math.max(...steps.slice(1).map((a, k) => a - steps[k]));
+  if (still > t.fps * 8) warnings.push(`${where}: shot holds ${sec(sh.durationInFrames).toFixed(1)}s - add B-roll keywords`);
 }
 for (let i = 1; i < allShots.length; i++) {
   if (allShots[i].src && allShots[i].src === allShots[i - 1].src) warnings.push(`${allShots[i].scene}: same clip twice in a row (${allShots[i].src})`);
@@ -50,7 +52,10 @@ const shorts = t.height > t.width;
 const visual = new Set([0]), interrupts = [0];
 t.scenes.forEach((s, i) => {
   visual.add(s.startFrame);
-  s.shots.forEach((sh) => visual.add(s.startFrame + sh.from));
+  s.shots.forEach((sh) => {
+    visual.add(s.startFrame + sh.from);
+    (sh.graphic?.at ?? []).forEach((a) => visual.add(s.startFrame + sh.from + a)); // each explainer item landing
+  });
   (s.punches ?? []).forEach((f) => visual.add(s.startFrame + f));
   const prevLook = t.scenes[i - 1]?.look ?? "normal";
   if (s.emphasis || s.badge || s.lowerThird || (s.chapterStart && t.showChapterCards) || s.fx?.length || s.layout === "split" ||

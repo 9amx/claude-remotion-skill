@@ -264,8 +264,8 @@ automatic pick:
 Without picks the fetcher still chooses automatically (relevance-scored, with
 black / green-screen clips rejected), so `npm run auto` works end to end; the
 review is how you get from "plausible" to "accurate". It never uses a random
-clip: a result that shares no words with the keyword (`brollMinRelevance`,
-default 0.25) is skipped, then the beat's other keywords are tried, then the
+clip: a result that shares too few words with the keyword (`brollMinRelevance`,
+default 0.4; cartoons, renders and holiday scenes count as no match unless asked for) is skipped, then the beat's other keywords are tried, then the
 shot falls back to the kinetic background and the run says which words it
 couldn't illustrate. Fix those keywords. Stock clips that are edits of several
 shots are cut-detected; the timeline plays a stretch without an internal cut. Re-run any step with

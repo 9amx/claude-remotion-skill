@@ -331,14 +331,17 @@ const itemText = (it: Item) => (typeof it === "string" ? it : it.text);
 const itemIcon = (it: Item) => (typeof it === "string" ? undefined : it.icon);
 const atOf = (at: number[] | undefined, i: number, gap = 8) => at?.[i] ?? 4 + i * gap;
 
+// Every slot is laid out as a faint outline from the first frame (so the screen is
+// never empty while the voice gets to item 1); an item fills its slot on its words.
 const Card: React.FC<{ style: Style; active: boolean; p: number; children: React.ReactNode; css?: React.CSSProperties }> = ({ style, active, p, children, css }) => {
   const z = useZone();
+  const ghost = useEnter(0);
   return (
     <div style={{
       background: `linear-gradient(180deg, ${style.colors.bgAlt}F2, ${style.colors.bg}F2)`,
       border: `${Math.max(2, z.unit * 0.0025)}px solid ${active ? style.colors.primary : `${style.colors.text}26`}`,
       borderRadius: z.unit * 0.022, boxShadow: active ? `0 0 ${z.unit * 0.04}px ${style.colors.primary}55, 0 ${z.unit * 0.012}px ${z.unit * 0.04}px rgba(0,0,0,0.45)` : `0 ${z.unit * 0.01}px ${z.unit * 0.03}px rgba(0,0,0,0.4)`,
-      opacity: interpolate(p, [0, 0.4], [0, 1], clamp), ...css,
+      opacity: Math.max(0.28 * ghost, interpolate(p, [0, 0.4], [0, 1], clamp)), ...css,
     }}>{children}</div>
   );
 };
@@ -373,11 +376,11 @@ const ListG: React.FC<{ g: Extract<GraphicSpec, { type: "list" }>; style: Style 
           <Card key={i} style={style} active={active} p={p} css={{
             position: "absolute", left: z.x + (z.w - w) / 2, width: w, top: top + (area - (row * n + gapY * (n - 1))) / 2 + i * (row + gapY), height: row,
             display: "flex", alignItems: "center", gap: row * 0.25, padding: `0 ${row * 0.25}px`,
-            transform: `translateY(${interpolate(p, [0, 1], [row * 0.5, 0])}px) scale(${active ? 1 + 0.02 * p : 1})`,
+            transform: `translateY(${interpolate(p, [0, 1], [row * 0.15, 0])}px) scale(${active ? 1 + 0.02 * p : 1})`,
             filter: i < current ? "saturate(0.6) brightness(0.8)" : "none",
           }}>
             <Bullet style={style} label={itemIcon(it) ?? (g.numbered === false ? "•" : String(i + 1))} size={row * 0.6} active={active} />
-            <div style={{ fontFamily: style.fonts.caption, fontWeight: style.captionWeight, fontSize, color: style.colors.text, lineHeight: 1.12 }}>{itemText(it)}</div>
+            <div style={{ fontFamily: style.fonts.caption, fontWeight: style.captionWeight, fontSize, color: style.colors.text, lineHeight: 1.12, opacity: interpolate(p, [0.2, 0.7], [0, 1], clamp) }}>{itemText(it)}</div>
           </Card>
         );
       })}
@@ -434,10 +437,10 @@ const StepsG: React.FC<{ g: Extract<GraphicSpec, { type: "steps" }>; style: Styl
             position: "absolute", left: x, top: y, width: nodeW, height: nodeH, display: "flex",
             flexDirection: across ? "column" : "row", alignItems: "center", justifyContent: across ? "center" : "flex-start",
             gap: z.unit * 0.02, padding: z.unit * 0.02, textAlign: across ? "center" : "left",
-            transform: `scale(${interpolate(p, [0, 1], [0.85, active ? 1.04 : 1])})`,
+            transform: `scale(${interpolate(p, [0, 1], [0.94, active ? 1.04 : 1])})`,
           }}>
             <Bullet style={style} label={itemIcon(it) ?? String(i + 1)} size={across ? nodeW * 0.24 : nodeH * 0.55} active={active || i < current} />
-            <div style={{ fontFamily: style.fonts.caption, fontWeight: style.captionWeight, fontSize, color: style.colors.text, lineHeight: 1.12 }}>{itemText(it)}</div>
+            <div style={{ fontFamily: style.fonts.caption, fontWeight: style.captionWeight, fontSize, color: style.colors.text, lineHeight: 1.12, opacity: interpolate(p, [0.2, 0.7], [0, 1], clamp) }}>{itemText(it)}</div>
           </Card>
         );
       })}

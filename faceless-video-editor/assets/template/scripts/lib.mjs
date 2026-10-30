@@ -180,9 +180,15 @@ function autoAnchor(words, kw, from, minMs) {
 const REL_STOP = new Set(["the", "and", "with", "for", "from", "into", "over", "close", "shot", "video", "footage", "photo", "image"]);
 export const BLOCK = /green ?screen|chroma|mock-?up|template|alpha channel|lower third|placeholder/i;
 const wordsOf = (q) => q.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 2 && !REL_STOP.has(w));
+// Looks a real-footage edit never wants unless the keyword asks for them: a
+// cartoon or a Christmas scene that shares one word with "team celebrating office".
+const OFF_LOOK = /\b(cartoon|animated|animation|3d|render|illustration|vector|clip ?art|drawing|anime|christmas|xmas|santa|halloween|easter|valentine)\b/i;
 export const relevance = (query, text) => {
   const words = wordsOf(query), t = text.toLowerCase();
-  return words.length ? words.filter((w) => t.includes(w)).length / words.length : 0;
+  if (!words.length) return 0;
+  const off = OFF_LOOK.exec(t);
+  if (off && !query.toLowerCase().includes(off[1].toLowerCase().slice(0, 4))) return 0;
+  return words.filter((w) => t.includes(w)).length / words.length;
 };
 
 // Adobe Stock clips licensed through the Adobe connector and added with

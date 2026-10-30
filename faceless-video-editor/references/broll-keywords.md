@@ -133,7 +133,7 @@ so it is exactly right, and it counts as a pattern interrupt:
 ## No random footage
 
 A search result is used automatically only if its tags / title share words with
-the keyword (`brollMinRelevance`, default 0.25: at least one of four words). If
+the keyword (`brollMinRelevance`, default 0.4: at least 2 of 4 words, or 1 of 2; cartoons, 3D renders and holiday scenes never match unless the keyword asks). If
 the main keyword has none, the beat's other keywords are tried; if none has a
 relevant result the shot becomes the kinetic background, and the run prints the
 words it couldn't illustrate. A review pick always wins. `out/check/sync.txt`

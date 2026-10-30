@@ -36,7 +36,7 @@
   "maxShotSeconds": 2.2,             // B-roll cut length (default from editStyle)
   "brollSources": ["pexels", "pixabay"], // search order; sources without a key are skipped. "coverr" joins
                                      // (last) whenever COVERR_API_KEY is set; DVIDS runs with the archive sources
-  "brollMinRelevance": 0.25,         // auto-pick only results sharing this share of keyword words (0 = anything goes)
+  "brollMinRelevance": 0.4,          // auto-pick only results sharing this share of keyword words (0 = anything goes)
   "brollMaxWaitMinutes": 0,          // wait out a Pexels hourly limit up to this long (else fall back)
   "trimBroll": true,                 // trim long stock clips to what each shot needs
   "progressBar": true,               // default true for shorts
