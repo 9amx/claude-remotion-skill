@@ -288,7 +288,10 @@ hashtags in the reply. Mention anything you defaulted (voice, style, length).
 
 Read `references/youtube-upload.md`. The first time, the user creates a Google
 Cloud OAuth client (about 10 minutes, steps in the reference) and signs in once with
-`node scripts/youtube.mjs --auth`. Then:
+`node scripts/youtube.mjs --auth`. From a phone / a cloud session: a "TVs and
+Limited Input devices" client in the environment (`YOUTUBE_CLIENT_ID`,
+`YOUTUBE_CLIENT_SECRET`) and `node scripts/youtube.mjs --auth --device` run in
+the background; give the user the code it prints for google.com/device. Then:
 
 1. `node scripts/youtube.mjs --dry-run`: show the user the exact title, description,
    privacy and schedule, and **get an explicit yes**. A public upload can't be taken back.
