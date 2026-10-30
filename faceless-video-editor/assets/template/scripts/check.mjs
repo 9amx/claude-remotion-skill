@@ -55,6 +55,7 @@ t.scenes.forEach((s, i) => {
   const prevLook = t.scenes[i - 1]?.look ?? "normal";
   if (s.emphasis || s.badge || s.lowerThird || (s.chapterStart && t.showChapterCards) || s.fx?.length || s.layout === "split" ||
     (s.transition && s.transition !== "cut") || (i > 0 && (s.look ?? "normal") !== prevLook)) interrupts.push(s.startFrame);
+  s.shots.forEach((sh) => sh.type === "graphic" && interrupts.push(s.startFrame + sh.from)); // a chart or map is an interrupt
 });
 const maxGap = (frames) => {
   const f = [...frames, t.durationInFrames].sort((a, b) => a - b);
@@ -104,12 +105,15 @@ const sync = ["tile  time         shot       says -> shows (keyword)  [match]"];
 samples.slice(2).forEach((s, k) => {
   const sh = allShots[k];
   const a = sec(sh.at), b = sec(sh.at + sh.durationInFrames);
-  const shows = sh.type === "kinetic" ? "KINETIC FALLBACK (no matching footage)" : sh.keyword ?? sh.src;
-  const match = sh.type === "kinetic" ? "!" : sh.picked ? "picked" : sh.rel == null ? "own" : sh.rel < 0.5 ? `${sh.rel} weak?` : String(sh.rel);
+  const g = sh.graphic;
+  const shows = sh.type === "kinetic" ? "KINETIC FALLBACK (no matching footage)"
+    : g ? `GRAPHIC ${g.type}: ${g.title ?? g.label ?? g.text ?? (g.places ?? []).map((p) => p.name).concat(g.countries ?? []).join(", ") ?? ""}`.trim()
+    : sh.keyword ?? sh.src;
+  const match = sh.type === "kinetic" ? "!" : g ? "data" : sh.picked ? "picked" : sh.rel == null ? "own" : sh.rel < 0.5 ? `${sh.rel} weak?` : String(sh.rel);
   sync.push(`${String(k + 3).padStart(4)}  ${a.toFixed(1).padStart(5)}-${b.toFixed(1).padEnd(5)}  ${sh.scene}-${String(sh.n).padEnd(3)}  "${sh.words ?? ""}" -> ${shows}  [${match}]`);
 });
 fs.writeFileSync(path.join(dir, "sync.txt"), sync.join("\n") + "\n");
-const weak = allShots.filter((sh) => sh.type !== "kinetic" && !sh.picked && sh.rel != null && sh.rel < 0.5).length;
+const weak = allShots.filter((sh) => sh.type !== "kinetic" && sh.type !== "graphic" && !sh.picked && sh.rel != null && sh.rel < 0.5).length;
 
 // 3. Contact sheets; the log prints each sheet's time range so a bad tile maps back to the video
 const portrait = t.width < t.height;

@@ -5,7 +5,32 @@
 // laws: fix errors, read warnings, and override with judgement when the story needs it.
 import fs from "node:fs";
 import path from "node:path";
-import { PUBLIC, SFX_NAMES, brollEntries, findPhrase, log, planShots, readProject, stripMarkup } from "./lib.mjs";
+import { GRAPHIC_TYPES, PUBLIC, ROOT, SFX_NAMES, brollEntries, findPhrase, log, parseFileRef, planShots, readProject, stripMarkup } from "./lib.mjs";
+
+// Country names the map knows (world-atlas, when installed).
+const atlas = path.join(ROOT, "node_modules", "world-atlas", "countries-50m.json");
+const COUNTRIES = fs.existsSync(atlas) ? JSON.parse(fs.readFileSync(atlas, "utf8")).objects.countries.geometries.map((g) => g.properties.name.toLowerCase()) : null;
+// What a motion graphic needs to be drawn, and drawn correctly.
+function graphicProblems(g) {
+  const out = [];
+  if (!GRAPHIC_TYPES.includes(g?.type)) return [`graphic type "${g?.type}" - use ${GRAPHIC_TYPES.join(", ")}`];
+  const num = (v) => typeof v === "number" && Number.isFinite(v);
+  if (g.type === "counter" && !num(g.value)) out.push('counter needs a numeric "value" (3500000, not "3.5 million")');
+  if (g.type === "bars") {
+    if (!Array.isArray(g.data) || g.data.length < 2 || !g.data.every((r) => Array.isArray(r) && typeof r[0] === "string" && num(r[1]))) out.push('bars need "data": [["label", number], ...] with 2+ rows');
+    else if (g.data.length > 7) out.push(`bars: ${g.data.length} rows won't read on a phone - keep it to 2-6`);
+  }
+  if (g.type === "timeline" && !(Array.isArray(g.events) && g.events.length >= 2 && g.events.every((e) => Array.isArray(e) && e.length === 2))) out.push('timeline needs "events": [["1969", "what happened"], ...] with 2+ rows');
+  if (g.type === "timeline" && g.events?.length > 6) out.push("timeline: more than 6 events won't read on a phone");
+  if (g.type === "quote" && !g.text) out.push('quote needs "text" (and "by")');
+  if (g.type === "map") {
+    if (!(g.places?.length || g.countries?.length)) out.push('map needs "places" and/or "countries"');
+    for (const c of g.countries ?? []) if (COUNTRIES && !COUNTRIES.includes(c.toLowerCase())) out.push(`map: no country called "${c}" (names are English, e.g. "United States of America")`);
+    for (const p of g.places ?? []) if (typeof p === "object" && !(num(p.lat) && num(p.lon))) out.push(`map place ${JSON.stringify(p)} needs lat and lon (or give just the name to geocode it)`);
+  }
+  if (["counter", "bars", "map"].includes(g.type) && !g.source) out.push(`${g.type}: add "source" - a number or map on screen should say where it comes from`);
+  return out;
+}
 
 const strict = process.argv.includes("--strict");
 const p = readProject();
@@ -84,7 +109,10 @@ p.scenes.forEach((s, i) => {
   // Beats: each "on" phrase must be in the line, in order, so the shot can start on it.
   let from = 0;
   for (const [k, e] of entries.entries()) {
-    if (!e.kw.length) errors.push(`${at(i)}: beat ${k + 1} has no "kw".`);
+    if (!e.kw.length && !e.graphic) errors.push(`${at(i)}: beat ${k + 1} has no "kw" or "graphic".`);
+    if (e.graphic) {
+      for (const pr of graphicProblems(e.graphic)) (/^(graphic type|counter needs|bars need|timeline needs|quote needs|map needs|map: no|map place)/.test(pr) ? errors : warnings).push(`${at(i)}: ${pr}`);
+    }
     if (e.on == null) continue;
     const idx = findPhrase(toks, e.on, from, true);
     if (idx < 0) {
@@ -97,6 +125,7 @@ p.scenes.forEach((s, i) => {
       if (!SFX_NAMES.includes(f) && !fs.existsSync(path.join(PUBLIC, f ?? ""))) warnings.push(`${at(i)}: beat "${e.on}" sfx ${f} is not in public/ yet - download it before the timeline step.`);
     }
   }
+  if (s.emphasis && entries.some((e) => e.graphic)) warnings.push(`${at(i)}: emphasis and a graphic in one scene compete for the same space - drop one.`);
   if (entries.length > 1 && s.layout !== "split" && entries.some((e) => e.on == null)) {
     plainScenes++;
     if (indic) warnings.push(`${at(i)}: English keywords can't be matched to the words of this line - give every beat an "on" phrase from the line.`);
@@ -109,7 +138,14 @@ p.scenes.forEach((s, i) => {
   const amb = typeof s.ambience === "string" ? s.ambience : s.ambience?.file;
   if (amb && amb !== "none" && !fs.existsSync(path.join(PUBLIC, amb))) warnings.push(`${at(i)}: ambience ${amb} is not in public/ yet.`);
   for (const k of entries.flatMap((e) => e.kw)) {
-    if (k.startsWith("file:")) continue;
+    if (k.startsWith("file:")) {
+      const ref = parseFileRef(k.slice(5));
+      if (/#/.test(k) && ref.from === null) errors.push(`${at(i)}: "${k}" - write the part as #start-end in seconds or m:ss, e.g. #12.5-16 or #1:05-1:09`);
+      else if (ref.from !== null && ref.to <= ref.from) errors.push(`${at(i)}: "${k}" ends before it starts`);
+      else if (!fs.existsSync(path.join(PUBLIC, ref.file))) warnings.push(`${at(i)}: ${ref.file} is not in public/ yet`);
+      continue;
+    }
+    if (k.startsWith("adobe:")) continue;
     const q = k.replace(/^photo:/, "").trim();
     kwCount.set(q, (kwCount.get(q) ?? 0) + 1);
     if (q.split(/\s+/).length === 1) warnings.push(`${at(i)}: keyword "${q}" is one word - add subject + action + setting ("${q} close up night").`);
@@ -128,7 +164,7 @@ for (const [k, n] of kwCount) if (n > (shorts ? 3 : 8)) warnings.push(`keyword "
 
 // ---------- pattern interrupts ----------
 // Something bigger than a cut: emphasis, badge, lower third, fx, split, look change, chapter.
-const interrupt = (s, i) => s.emphasis || s.badge || s.lowerThird || s.fx || s.layout === "split" || s.chapterStart ||
+const interrupt = (s, i) => s.emphasis || s.badge || s.lowerThird || s.fx || s.layout === "split" || s.chapterStart || brollEntries(s).some((e) => e.graphic) ||
   (i > 0 && (s.look ?? "normal") !== (p.scenes[i - 1].look ?? "normal")) || /\*/.test(s.text);
 const gapMax = shorts ? 12 : 90;
 let lastI = 0;

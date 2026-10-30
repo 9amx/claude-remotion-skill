@@ -4,8 +4,19 @@ export type Word = { text: string; startMs: number; endMs: number; scene: number
 export type Transition = "whip" | "zoom" | "glitch" | "flash" | "dip" | "fade" | "cut";
 export type Look = "normal" | "flashback" | "dramatic" | "night" | "vhs" | "dream";
 
+// Motion graphics drawn from data (components/Graphic.tsx). Map places are
+// resolved to coordinates by fetch-broll (geocoded when given as names).
+export type MapPlace = { name: string; lat: number; lon: number; label?: string };
+export type GraphicSpec =
+  | { type: "counter"; value: number; decimals?: number; prefix?: string; suffix?: string; label?: string; title?: string; source?: string }
+  | { type: "bars"; data: [string, number][]; unit?: string; highlight?: number; title?: string; source?: string }
+  | { type: "timeline"; events: [string, string][]; highlight?: number; title?: string; source?: string }
+  | { type: "quote"; text: string; by?: string; source?: string }
+  | { type: "map"; places: MapPlace[]; countries?: string[]; route?: boolean; title?: string; source?: string };
+
 export type Shot = {
-  type: "video" | "image" | "kinetic";
+  type: "video" | "image" | "kinetic" | "graphic";
+  graphic?: GraphicSpec;
   src?: string;
   from: number; // frames, relative to the scene
   durationInFrames: number;

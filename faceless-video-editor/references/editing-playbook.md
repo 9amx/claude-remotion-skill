@@ -139,6 +139,16 @@ FOOTAGE sound real:
   Very quiet (`volume` 0.06-0.15). It sells "we are there" more than any effect.
 - Silence is a sound too: the reveal drops music and ambience for a beat.
 
+## Motion graphics (facts on screen)
+
+Big explainer and documentary channels put every number, place and date on
+screen as a graphic: it proves the claim and resets attention. Use a `graphic`
+beat (broll-keywords.md) for:
+- the number the video is about (counter), a comparison or ranking (bars),
+- where it happened or a journey (map), how it unfolded (timeline),
+- what someone actually said (quote).
+1-3 in a Short, one every 1-2 minutes in long form; always with a `source`.
+
 ## Transitions: motivated, not random
 
 `transitionStyle: "auto"` (the viral default) chooses by meaning: **flash** into a

@@ -46,12 +46,36 @@ The upload goes through the user's own Google Cloud project. Walk them through i
    -> Download JSON. Save it as:
    - macOS / Linux: `~/.config/faceless-video/client_secret.json`
    - Windows: `%APPDATA%\faceless-video\client_secret.json`
-   (or a `client_secret.json` in the project folder, or `YOUTUBE_CLIENT_SECRET=/path`)
+   (or a `client_secret.json` in the project folder, or `YOUTUBE_CLIENT_SECRET_FILE=/path`, or the two values as `YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET`)
 5. Sign in once: `node scripts/youtube.mjs --auth`. A browser opens: pick the
    account, then the channel (brand accounts are listed there), and allow access.
    It prints the channel name it connected to. If the browser runs on another
    machine, paste the address the browser ended on (`http://127.0.0.1:...?code=...`)
    into the terminal.
+
+### From a phone (cloud session)
+
+When the user works from the Claude mobile app, the pipeline runs in a cloud
+container that no phone browser can reach, so use the device flow instead of
+steps 4-5:
+
+1. Steps 1-3 as above (in the phone's browser; "Desktop site" helps on Google Cloud).
+2. Credentials -> Create credentials -> OAuth client ID -> type
+   **TVs and Limited Input devices**. Copy its Client ID and Client secret into
+   the cloud environment's settings (environment menu in the session's title
+   bar -> Edit) as environment variables `YOUTUBE_CLIENT_ID` and
+   `YOUTUBE_CLIENT_SECRET`, never into the chat. If the environment limits
+   network access, allow `oauth2.googleapis.com` and `www.googleapis.com`.
+   Start a new session so it picks them up.
+3. Run `node scripts/youtube.mjs --auth --device` in the background and tell the
+   user the code it prints: they open google.com/device on the phone, enter it,
+   pick the account and channel, and allow. The command finishes by itself and
+   prints the channel name.
+
+The device flow can only ask for the broader "manage your YouTube account"
+permission (Google doesn't offer upload-only there); tell the user. The
+container is wiped when the session ends, so a new session needs the 30-second
+code step again; the Client ID and secret stay in the environment.
 
 The token is saved next to `client_secret.json`, outside the project, so every
 video folder of a batch uses it. Never commit `client_secret.json` or the token

@@ -1,14 +1,18 @@
 // Upload out/final.mp4 (+ out/thumbnail.jpg) to YouTube with the YouTube Data API v3.
-// No dependencies: OAuth (desktop app + PKCE) and a resumable upload over fetch.
+// No dependencies: OAuth (desktop app + PKCE, or the device flow) and a resumable upload over fetch.
 // Usage:
 //   node scripts/youtube.mjs --auth            one-time sign-in (opens a browser)
+//   node scripts/youtube.mjs --auth --device   sign in from a phone: prints a code to enter at
+//                                              google.com/device (cloud sessions, no browser here)
 //   node scripts/youtube.mjs --dry-run         show the title/description/settings, upload nothing
 //   node scripts/youtube.mjs                   upload (resumes an interrupted upload)
 //   --account=<name>   separate sign-in per channel (default: youtube.account or "default")
 //   --force            upload again although build/youtube.json says it is already up
 //   --no-thumbnail     skip out/thumbnail.jpg
 // Setup (client_secret.json from Google Cloud) and limits: references/youtube-upload.md.
-// Env: YOUTUBE_CLIENT_SECRET=/path/client_secret.json, YOUTUBE_CONFIG_DIR (token location)
+// Env: YOUTUBE_CLIENT_ID + YOUTUBE_CLIENT_SECRET (the OAuth client's values, e.g. from a cloud
+//      environment's settings), or YOUTUBE_CLIENT_SECRET_FILE=/path/client_secret.json;
+//      YOUTUBE_CONFIG_DIR (token location)
 import { spawn } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import fs from "node:fs";
@@ -25,8 +29,11 @@ const opt = (name) => args.find((a) => a.startsWith(`--${name}=`))?.slice(name.l
 const API = "https://www.googleapis.com/youtube/v3";
 const UPLOAD = "https://www.googleapis.com/upload/youtube/v3";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
+const DEVICE_URL = "https://oauth2.googleapis.com/device/code";
 // upload: videos + thumbnails. readonly: show which channel you are signed in to.
 const SCOPES = ["https://www.googleapis.com/auth/youtube.upload", "https://www.googleapis.com/auth/youtube.readonly"];
+// The device flow only allows the broader "manage your YouTube account" scope.
+const DEVICE_SCOPES = ["https://www.googleapis.com/auth/youtube"];
 
 const project = readProject();
 const yt = project.youtube ?? {};
@@ -38,12 +45,17 @@ const stateFile = path.join(BUILD, "youtube.json");
 
 // ---------- OAuth ----------
 function clientSecret() {
-  const candidates = [process.env.YOUTUBE_CLIENT_SECRET, path.join(ROOT, "client_secret.json"), path.join(CONFIG, "client_secret.json")].filter(Boolean);
+  if (process.env.YOUTUBE_CLIENT_ID) {
+    if (!process.env.YOUTUBE_CLIENT_SECRET) fail("YOUTUBE_CLIENT_ID is set but YOUTUBE_CLIENT_SECRET is not - add both to the environment.");
+    return { client_id: process.env.YOUTUBE_CLIENT_ID.trim(), client_secret: process.env.YOUTUBE_CLIENT_SECRET.trim() };
+  }
+  const candidates = [process.env.YOUTUBE_CLIENT_SECRET_FILE, path.join(ROOT, "client_secret.json"), path.join(CONFIG, "client_secret.json")].filter(Boolean);
   const file = candidates.find((f) => fs.existsSync(f));
-  if (!file) fail(`No client_secret.json. Create a "Desktop app" OAuth client (references/youtube-upload.md) and save it as ${path.join(CONFIG, "client_secret.json")}`);
+  if (!file) fail(`No OAuth client. Set YOUTUBE_CLIENT_ID and YOUTUBE_CLIENT_SECRET, or save the client's JSON as ${path.join(CONFIG, "client_secret.json")} (references/youtube-upload.md)`);
   const json = JSON.parse(fs.readFileSync(file, "utf8"));
-  if (!json.installed) fail(`${file} is not a "Desktop app" OAuth client. Create one of type Desktop app and download its JSON.`);
-  return json.installed;
+  const client = json.installed ?? Object.values(json).find((v) => v?.client_id);
+  if (!client?.client_id) fail(`${file} is not an OAuth client JSON. Download it from Google Cloud -> Credentials.`);
+  return client;
 }
 
 const b64url = (buf) => buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -111,9 +123,48 @@ async function signIn() {
   return tok.access_token;
 }
 
+// Device flow: for a phone or a cloud session, where no browser can reach this
+// machine. Needs an OAuth client of type "TVs and Limited Input devices".
+async function signInDevice() {
+  const client = clientSecret();
+  const r = await fetch(DEVICE_URL, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ client_id: client.client_id, scope: DEVICE_SCOPES.join(" ") }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    fail(/not found|deleted/i.test(d.error_description ?? "") ? "Google doesn't know this OAuth client: check YOUTUBE_CLIENT_ID (copy the whole Client ID)."
+      : d.error === "invalid_client" || d.error === "unauthorized_client"
+      ? 'This OAuth client can\'t use the device flow: create one of type "TVs and Limited Input devices" (references/youtube-upload.md).'
+      : `Google refused the device sign-in: ${d.error_description || d.error || r.status}`);
+  }
+  log("youtube", `on your phone open ${d.verification_url} and enter the code:  ${d.user_code}`);
+  log("youtube", "then pick the Google account and the channel, and allow access. Waiting...");
+  let interval = (d.interval ?? 5) * 1000;
+  const until = Date.now() + (d.expires_in ?? 1800) * 1000;
+  while (Date.now() < until) {
+    await sleep(interval);
+    const t = await fetch(TOKEN_URL, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ client_id: client.client_id, client_secret: client.client_secret, device_code: d.device_code,
+        grant_type: "urn:ietf:params:oauth:grant-type:device_code" }) });
+    const tok = await t.json().catch(() => ({}));
+    if (t.ok && tok.access_token) {
+      if (!tok.refresh_token) fail("Google returned no refresh token. Run --auth --device again.");
+      fs.mkdirSync(CONFIG, { recursive: true });
+      fs.writeFileSync(tokenFile, JSON.stringify({ refresh_token: tok.refresh_token, client_id: client.client_id, scope: tok.scope, created: new Date().toISOString() }, null, 2), { mode: 0o600 });
+      log("youtube", `signed in, token saved to ${tokenFile}`);
+      return tok.access_token;
+    }
+    if (tok.error === "authorization_pending") continue;
+    if (tok.error === "slow_down") interval += 5000;
+    else if (tok.error === "access_denied") fail("Access was denied on the phone. Run --auth --device again and press Allow.");
+    else if (tok.error === "expired_token") break;
+    else fail(`device sign-in failed: ${tok.error_description || tok.error || t.status}`);
+  }
+  fail("The code expired before it was entered. Run --auth --device again.");
+}
+
 async function accessToken() {
   const saved = readJson(tokenFile, null);
-  if (!saved) fail(`Not signed in to YouTube${account !== "default" ? ` (account "${account}")` : ""}. Run: node scripts/youtube.mjs --auth${account !== "default" ? ` --account=${account}` : ""}`);
+  if (!saved) fail(`Not signed in to YouTube${account !== "default" ? ` (account "${account}")` : ""}. Run: node scripts/youtube.mjs --auth${account !== "default" ? ` --account=${account}` : ""} (add --device on a phone / in a cloud session)`);
   const client = clientSecret();
   const tok = await tokenRequest({ refresh_token: saved.refresh_token, client_id: client.client_id, client_secret: client.client_secret, grant_type: "refresh_token" });
   return tok.access_token;
@@ -284,7 +335,7 @@ async function upload(token, file, meta, notify) {
 
 // ---------- main ----------
 if (flag("auth")) {
-  const token = await signIn();
+  const token = flag("device") ? await signInDevice() : await signIn();
   const name = await channelName(token).catch(() => null);
   log("youtube", name ? `channel: ${name}` : "this account has no YouTube channel yet - create one before uploading");
   process.exit(0);

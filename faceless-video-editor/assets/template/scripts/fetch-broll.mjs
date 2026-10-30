@@ -13,7 +13,14 @@
 //   "photo:old map"        photos only (stock + archive)
 //   "archive:Apollo 11"    Wikimedia + NASA only: accurate, real imagery
 //   "ai:prompt"            generate an image (needs OPENAI_API_KEY)
-//   "file:clip.mp4"        your own asset in public/
+//   "file:clip.mp4"        your own asset in public/; "file:talk.mp4#12.5-16" uses just
+//                          that part (cut once into broll/clip-*.mp4). A beat's "credit"
+//                          goes to build/credits.txt (CC BY and licensed clips need it).
+//   "adobe:430358060"      an Adobe Stock clip licensed through the Adobe connector
+//                          and added with scripts/adobe-stock.mjs (also usable as a pick)
+// Beats with "graphic" need no search: map places given as names are geocoded
+// (OpenStreetMap Nominatim, cached in build/geocode.json) and the country
+// shapes are copied to public/geo/.
 //
 // Shots follow the words: scene.broll beats ({ "on": "phrase", "kw": [...] }) start
 // on their phrase (lib.mjs planShots), so every search knows exactly which words
@@ -36,7 +43,8 @@
 // stable across runs. Writes build/broll.json and build/credits.txt (attribution for CC images).
 import fs from "node:fs";
 import path from "node:path";
-import { BUILD, FORMATS, PUBLIC, ffmpeg, ffmpegRaw, log, planShots, probeDuration, readJson, readProject, sceneId, sleep, writeJson } from "./lib.mjs";
+import { BLOCK, BUILD, FORMATS, GRAPHIC_TYPES, PUBLIC, ROOT, adobeAsset, ffmpeg, ffmpegRaw, fail, log, parseFileRef, planShots, probeDuration, readJson, readProject,
+  relevance, sceneId, sleep, writeJson } from "./lib.mjs";
 
 const args = process.argv.slice(2);
 const reviewArg = args.find((a) => a.startsWith("--review"));
@@ -178,13 +186,6 @@ const SOURCES = {
 // Score each candidate by how many keyword words its tags / title / description
 // contain, then orientation, motion and length, keeping each API's own order as
 // the tie-break. Green-screen / mockup / template clips are never usable.
-const STOP = new Set(["the", "and", "with", "for", "from", "into", "over", "close", "shot", "video", "footage", "photo", "image"]);
-const BLOCK = /green ?screen|chroma|mock-?up|template|alpha channel|lower third|placeholder/i;
-const wordsOf = (q) => q.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 2 && !STOP.has(w));
-const relevance = (query, text) => {
-  const words = wordsOf(query), t = text.toLowerCase();
-  return words.length ? words.filter((w) => t.includes(w)).length / words.length : 0;
-};
 // Names something real and specific (a year, a proper noun after the first word):
 // archive imagery is then likely more accurate than stock.
 const factual = (q) => /\b(1[5-9]\d\d|20\d\d)\b/.test(q) || /\s[A-Z][a-z]/.test(q);
@@ -269,7 +270,7 @@ async function fetchOnce({ shot, hit, shotSec }) {
     const offset = Math.min((shot.duration - keep) * 0.35, 4);
     const r = ffmpeg(["-ss", offset.toFixed(2), "-i", abs, "-t", String(keep), "-an", "-c:v", "copy", "-movflags", "+faststart", trimmed]);
     if (r.status === 0 && fs.existsSync(trimmed)) {
-      fs.rmSync(abs);
+      if (!hit.local) fs.rmSync(abs); // a licensed original stays: re-downloading needs the connector
       shot.src = path.relative(PUBLIC, trimmed);
       shot.duration = probeDuration(trimmed);
     }
@@ -328,7 +329,7 @@ const shotFromHit = (hit, kw, query = kw) => ({ type: hit.kind, src: `broll/${hi
 // other keywords. null = nothing relevant (better a kinetic shot than a random clip).
 async function bestFor(shot, shotSec, alts) {
   for (const q of [shot, ...alts.filter((a) => a !== shot)]) {
-    if (!q || /^(file|ai):/.test(q)) continue;
+    if (!q || /^(file|ai|adobe):/.test(q)) continue;
     const hit = (await candidatesFor(q, shotSec)).find((c) => c.rel >= MIN_REL);
     if (hit) return { hit, query: q };
   }
@@ -360,6 +361,62 @@ async function fetchJob(job) {
     Object.assign(job.shot, shotFromHit(next.hit, job.kw, next.query));
   }
   throw new Error("no usable clip");
+}
+
+// ---------- graphics ----------
+// Map places: names are geocoded once (Nominatim allows 1 request/second) and
+// cached; give { "name", "lat", "lon" } to skip it. The log prints what each
+// name resolved to: check it ("Paris" could be Paris, Texas).
+const geocodeFile = path.join(BUILD, "geocode.json");
+const geocoded = readJson(geocodeFile, {});
+async function geocode(name) {
+  if (geocoded[name]) return geocoded[name];
+  const q = new URLSearchParams({ q: name, format: "json", limit: "1", "accept-language": "en" });
+  let res;
+  try {
+    res = await fetch(`https://nominatim.openstreetmap.org/search?${q}`, { headers: UA });
+  } catch (e) {
+    fail(`map place "${name}": geocoding failed (${e.message}). Give it as { "name": "${name}", "lat": ..., "lon": ... }`);
+  }
+  if (!res.ok) fail(`map place "${name}": geocoder answered ${res.status}. Give it as { "name": "${name}", "lat": ..., "lon": ... }`);
+  const [hit] = await res.json();
+  if (!hit) fail(`map place "${name}": not found. Use a fuller name ("Sylhet, Bangladesh") or give lat/lon.`);
+  geocoded[name] = { lat: Number(hit.lat), lon: Number(hit.lon), found: hit.display_name };
+  writeJson(geocodeFile, geocoded);
+  log("broll", `map: "${name}" -> ${hit.display_name} (${Number(hit.lat).toFixed(2)}, ${Number(hit.lon).toFixed(2)})`);
+  await sleep(1100);
+  return geocoded[name];
+}
+let geoNames = null;
+const countryNames = () => {
+  if (geoNames) return geoNames;
+  const src = path.join(ROOT, "node_modules", "world-atlas", "countries-50m.json");
+  if (!fs.existsSync(src)) fail("Map graphics need the world-atlas package: run npm install");
+  const dest = path.join(PUBLIC, "geo", "countries-50m.json");
+  if (!fs.existsSync(dest)) {
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.copyFileSync(src, dest);
+  }
+  return (geoNames = JSON.parse(fs.readFileSync(src, "utf8")).objects.countries.geometries.map((g) => g.properties.name));
+};
+async function resolveGraphic(g, label) {
+  if (!GRAPHIC_TYPES.includes(g.type)) fail(`${label}: graphic type "${g.type}" - use ${GRAPHIC_TYPES.join(", ")}`);
+  if (g.type !== "map") return g;
+  const names = countryNames();
+  for (const c of g.countries ?? []) {
+    if (!names.some((n) => n.toLowerCase() === c.toLowerCase())) {
+      const near = names.filter((n) => n.toLowerCase().includes(c.toLowerCase().slice(0, 4))).slice(0, 4);
+      fail(`${label}: no country called "${c}" on the map${near.length ? ` - did you mean ${near.map((n) => `"${n}"`).join(", ")}?` : ""}`);
+    }
+  }
+  const places = [];
+  for (const p of g.places ?? []) {
+    const name = typeof p === "string" ? p : p.name;
+    const at = typeof p === "object" && Number.isFinite(p.lat) && Number.isFinite(p.lon) ? p : await geocode(name);
+    places.push({ name: name.split(",")[0], lat: at.lat, lon: at.lon, ...(p.label ? { label: p.label } : {}) });
+  }
+  if (!places.length && !(g.countries ?? []).length) fail(`${label}: a map needs "places" or "countries"`);
+  return { ...g, places };
 }
 
 // ---------- 1. plan ----------
@@ -431,7 +488,13 @@ if (reviewArg) {
 // one shot to another. Everything else already on screen stays reserved.
 const pickFor = (key, kw) => {
   const rv = review[key], n = picks[key];
-  return n != null && rv?.keyword === kw ? rv.candidates.find((c) => c.n === Number(n) || c.id === n)?.hit ?? null : null;
+  if (n == null || rv?.keyword !== kw) return null;
+  if (/^adobe:/.test(String(n))) {
+    const hit = adobeAsset(n);
+    if (!hit) fail(`${key}: pick ${n} is not added yet - license it with the Adobe connector, then: node scripts/adobe-stock.mjs add ${String(n).slice(6)} <url>`);
+    return hit;
+  }
+  return rv.candidates.find((c) => c.n === Number(n) || c.id === n)?.hit ?? null;
 };
 const pickedBy = new Map();
 const replaced = new Set();
@@ -457,16 +520,43 @@ for (const [i, scene] of project.scenes.entries()) {
     const kw = sh.kw;
     const shotSec = sh.sec;
     const label = `${id} shot ${k + 1} "${kw}"`;
+    if (sh.graphic && scene.visual !== "kinetic") {
+      plan[id].push({ type: "graphic", graphic: await resolveGraphic(sh.graphic, `${id} shot ${k + 1}`) });
+      continue;
+    }
+    if (kw?.startsWith("adobe:")) {
+      const hit = adobeAsset(kw);
+      if (!hit) fail(`${label}: not added yet - license it with the Adobe connector, then: node scripts/adobe-stock.mjs add ${kw.slice(6)} <url>`);
+      const shot = { ...shotFromHit(hit, kw), picked: true };
+      plan[id].push(shot);
+      jobs.push({ shot, hit, kw, shotSec, label, picked: true });
+      continue;
+    }
     if (scene.visual === "kinetic" || !kw) {
       plan[id].push({ type: "kinetic" });
       continue;
     }
     if (kw.startsWith("file:")) {
-      const src = kw.slice(5).trim();
+      const ref = parseFileRef(kw.slice(5));
+      let src = ref.file;
       const abs = path.join(PUBLIC, src);
       if (!fs.existsSync(abs)) throw new Error(`${id}: ${src} not found in public/`);
       const isVideo = VIDEO_EXT.test(src);
-      plan[id].push({ type: isVideo ? "video" : "image", src, duration: isVideo ? probeDuration(abs) : null });
+      if (ref.from !== null) {
+        // Cut the part once (re-encoded, so it starts exactly there); the edit then treats it like any clip.
+        const total = probeDuration(abs);
+        if (!isVideo || ref.to <= ref.from || (total && ref.to > total + 0.05)) fail(`${label}: range ${ref.from}-${ref.to}s doesn't fit ${src}${total ? ` (${total.toFixed(1)}s long)` : ""}`);
+        const cut = `broll/clip-${path.basename(src).replace(/\.[^.]+$/, "").replace(/[^\w.-]+/g, "_")}-${ref.from}-${ref.to}.mp4`;
+        if (!fs.existsSync(path.join(PUBLIC, cut))) {
+          fs.mkdirSync(path.join(PUBLIC, "broll"), { recursive: true });
+          const r = ffmpeg(["-ss", String(ref.from), "-i", abs, "-t", String(ref.to - ref.from), "-an", "-c:v", "libx264", "-crf", "18", "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart", path.join(PUBLIC, cut)]);
+          if (r.status !== 0) fail(`${label}: could not cut ${src}`);
+        }
+        src = cut;
+      }
+      plan[id].push({ type: isVideo ? "video" : "image", src, duration: isVideo ? probeDuration(path.join(PUBLIC, src)) : null, keyword: kw,
+        ...(sh.credit ? { credit: sh.credit } : {}) });
       continue;
     }
     if (kw.startsWith("ai:")) {
@@ -534,7 +624,7 @@ const keep = new Set(all.map((s) => s.src).filter(Boolean).map((s) => path.basen
 const brollDir = path.join(PUBLIC, "broll");
 if (fs.existsSync(brollDir)) {
   for (const f of fs.readdirSync(brollDir)) {
-    if (/^(pexels|pixabay|wikimedia|nasa)-/.test(f) && !keep.has(f) && !f.endsWith(".part")) fs.rmSync(path.join(brollDir, f));
+    if ((/^(pexels|pixabay|wikimedia|nasa|clip)-/.test(f) || /^adobe-.*\.t\d+\.mp4$/.test(f)) && !keep.has(f) && !f.endsWith(".part")) fs.rmSync(path.join(brollDir, f));
   }
 }
 fs.writeFileSync(path.join(BUILD, "credits.txt"), credits.join("\n") + "\n");
