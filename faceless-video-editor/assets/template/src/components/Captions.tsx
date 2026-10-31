@@ -61,11 +61,13 @@ export const Captions: React.FC<{ timeline: Timeline; style: Style }> = ({ timel
         <div style={{
           position: "absolute", top: (cfg.position ?? (portrait ? 0.7 : 0.86)) * height, maxWidth: width * 0.8,
           transform: `translateY(-50%) translateY(${interpolate(p, [0, 1], [8, 0])}px)`, opacity: Math.min(p, out),
-          padding: `${fontSize * 0.18}px ${fontSize * 0.45}px`, borderRadius: fontSize * 0.25, background: "rgba(0,0,0,0.55)",
-          fontFamily: style.fonts.caption, fontWeight: 600, fontSize, lineHeight: 1.25, color: style.colors.text, textAlign: "center",
+          ...(style.editorial
+            ? { textShadow: `0 ${fontSize * 0.05}px ${fontSize * 0.25}px rgba(0,0,0,0.9), 0 0 ${fontSize * 0.6}px rgba(0,0,0,0.5)`, fontWeight: 500, letterSpacing: "0.005em" }
+            : { padding: `${fontSize * 0.18}px ${fontSize * 0.45}px`, borderRadius: fontSize * 0.25, background: "rgba(0,0,0,0.55)", fontWeight: 600 }),
+          fontFamily: style.fonts.caption, fontSize: style.editorial ? fontSize * 0.92 : fontSize, lineHeight: 1.25, color: style.colors.text, textAlign: "center",
         }}>
           {page.words.map((w, i) => (
-            <span key={i} style={{ color: w.hl ? style.colors.primary : undefined, fontWeight: w.hl ? 800 : undefined }}>
+            <span key={i} style={{ color: w.hl ? style.colors.primary : undefined, fontWeight: w.hl && !style.editorial ? 800 : undefined }}>
               {i ? " " : ""}{w.text}
             </span>
           ))}

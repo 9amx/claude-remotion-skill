@@ -175,6 +175,11 @@ on purpose:
   (reveal, flashback, comparison). If you can't say which, delete it.
 - Uneven finish: one style per video (colors, fonts, caption look), graphics in
   that style, consistent grade and grain, sources credited.
+- Template type (thick outlines, yellow all-caps slams, bouncing words,
+  highlighter boxes): the `documentary` and `minimal` styles set every on-screen
+  text editorially - a display face in mixed case (Fraunces / Inter Tight),
+  words rising out of a mask, fine accent rules, subtitles without a box. Keep
+  `bold` for Shorts; long form uses `documentary` or `minimal`.
 
 Then run the gate: `node scripts/lint-script.mjs`. It checks the hook (warm-ups,
 length, tension), word budget vs `targetSeconds`, scene and sentence length,

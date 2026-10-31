@@ -205,7 +205,8 @@ for (const [i, scene] of project.scenes.entries()) {
   // word it repeats. Never over a graphic, the emphasis, or another pop.
   const callouts = [];
   const graphicAt = (f) => shots.some((sh) => sh.type === "graphic" && f >= sh.from - 4 && f < sh.from + sh.durationInFrames);
-  const free = (f, len) => !graphicAt(f) && !(scene.emphasis && f + len > emphasisFrom && f < emphasisFrom + fps * 2.5) &&
+  // The emphasis stays up for the rest of its scene: no pop next to it.
+  const free = (f, len) => !graphicAt(f) && !(scene.emphasis && f + len > emphasisFrom) &&
     !callouts.some((c) => f < c.from + c.duration + 6 && f + len > c.from - 6);
   planned.forEach((p, k) => {
     if (!p.text || k >= shots.length) return;

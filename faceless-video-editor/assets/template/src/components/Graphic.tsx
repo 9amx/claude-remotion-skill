@@ -48,7 +48,8 @@ const Frame: React.FC<{ style: Style; title?: string; source?: string; children:
       {title ? (
         <div style={{
           position: "absolute", left: z.x, width: z.w, top: z.y, textAlign: "center",
-          fontFamily: style.fonts.caption, fontWeight: style.captionWeight, fontSize: z.unit * 0.05, color: style.colors.text,
+          fontFamily: style.editorial ? style.fonts.emphasis : style.fonts.caption, fontWeight: style.editorial ? 600 : style.captionWeight,
+          fontSize: z.unit * (style.editorial ? 0.054 : 0.05), color: style.colors.text, letterSpacing: style.editorial ? "-0.01em" : undefined,
           textTransform: style.uppercase ? "uppercase" : "none", lineHeight: 1.1,
           opacity: t, transform: `translateY(${interpolate(t, [0, 1], [z.unit * 0.03, 0])}px) scale(${interpolate(t, [0, 1], [0.94, 1])})`,
         }}>{title}</div>
