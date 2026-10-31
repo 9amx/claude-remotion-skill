@@ -574,6 +574,28 @@ function startAgent() {
   // Watches build/status.json. When finished becomes true and out/final.mp4 is new,
   // it performs an R2 multipart upload of 16 MB chunks in parallel with retries.
 
+  let lastReportedStatusKey = "";
+  async function reportStatusNotification(statusData) {
+    const key = `${statusData.failed || ""}:${statusData.step || ""}:${statusData.finished || false}`;
+    if (key === lastReportedStatusKey) return;
+    lastReportedStatusKey = key;
+
+    try {
+      await fetch(`${httpUrl}/api/projects/status`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${AGENT_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          projectId: PROJECT_ID,
+          projectTitle: PROJECT_TITLE,
+          status: statusData,
+        }),
+      });
+    } catch {}
+  }
+
   function checkRenderStatus() {
     if (isUploading) return;
 
@@ -582,6 +604,8 @@ function startAgent() {
       if (!fs.existsSync(statusFile)) return;
 
       const statusData = JSON.parse(fs.readFileSync(statusFile, "utf8"));
+      reportStatusNotification(statusData);
+
       if (statusData.finished !== true) return;
 
       // Find the output video file (final.mp4, video.mp4, or preview.mp4)
