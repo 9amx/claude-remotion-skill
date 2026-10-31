@@ -14,7 +14,9 @@ retention graph and "viewed vs swiped away" (Shorts) and adjust.
 
 1. **The first frame is a thumbnail.** Shorts autoplay muted in the feed: frame 0
    needs big readable text (scene 1 `emphasis`, visible on frame 0) over the most
-   striking shot you have. The voice starts within 0.5s.
+   striking shot you have. The voice starts within 0.5s. Long form is watched
+   with sound: open on the strongest moving picture and the voice, with little
+   or no text - follow the reference's opening, never more text than it uses.
 2. **One promise, kept.** The hook makes a promise; the video exists to pay it
    off. A hook the video doesn't pay off wins the swipe and loses the watch time.
 3. **The picture changes every 2-4s (Shorts) / 4-8s (long).** Cuts, punch-ins
@@ -175,7 +177,8 @@ Hook checklist (the `lint` step enforces the first three):
 - No warm-up ("hey guys", "in this video", "did you know", greetings in any language).
 - Under ~14 words (Shorts) / ~24 (long) for the first sentence.
 - A tension signal: a number, "you", a contrast, a question, a stake.
-- Readable `emphasis` text on frame 0 over the strongest shot.
+- Shorts: readable `emphasis` text on frame 0 over the strongest shot. Long form:
+  the strongest shot and the voice; text only as much as the reference uses.
 - Pay the hook off. If the payoff is weak, change the hook, not the payoff.
 
 ## Endings

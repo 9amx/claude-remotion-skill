@@ -40,6 +40,7 @@
   "colorMatch": true,                // even out exposure, contrast and white balance across clips from different libraries
   "qualityGate": true,               // skip footage that is too small for the frame, heavily compressed or out of focus
   "textRules": false,                // decorative lines beside on-screen text - only when the reference uses them
+  "hookTextFreeSeconds": 10,         // long form: no automatic text pops in the opening seconds
   "callouts": "auto",               // text pops on *highlighted* phrases: auto (only when captions are off) | on | off
   "brollSearchAll": true,            // search every source for every shot and compare all results (false: stop early, fewer API calls)
   "brollMaxWaitMinutes": 0,          // wait out a Pexels hourly limit up to this long (else fall back)
