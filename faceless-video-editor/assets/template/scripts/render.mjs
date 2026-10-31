@@ -8,7 +8,7 @@
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { PUBLIC, ROOT, ffmpeg, fail, log, readJson, readProject, remotionCmd, remotionEnv, sha1, timecode, writeJson } from "./lib.mjs";
+import { PUBLIC, ROOT, ffmpeg, fail, log, readJson, readProject, remotionCmd, remotionEnv, sha1, status, timecode, writeJson } from "./lib.mjs";
 
 const project = readProject();
 const t = readJson(path.join(PUBLIC, "timeline.json"), null);
@@ -81,12 +81,14 @@ for (const [i, [a, b]] of ranges.entries()) {
     continue;
   }
   log("render", label);
+  status({ doing: `Rendering ${label}`, progress: doneFrames / Math.max(1, todo) });
   const ts = Date.now();
   remotion([path.relative(ROOT, file), `--frames=${a}-${b}`, "--muted", "--codec", "h264", "--crf", "18"]);
   manifest[path.basename(file)] = key;
   writeJson(manifestFile, manifest); // saved after every part: a crash keeps finished parts
   doneFrames += b - a + 1;
   const fps = doneFrames / ((Date.now() - t0) / 1000);
+  status({ progress: doneFrames / Math.max(1, todo), etaSec: (todo - doneFrames) / fps });
   log("render", `${label} done in ${Math.round((Date.now() - ts) / 1000)}s - ${fps.toFixed(1)} frames/s, about ${Math.ceil((todo - doneFrames) / fps / 60)} min left`);
 }
 // Drop parts from an earlier, longer layout.

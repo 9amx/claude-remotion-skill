@@ -48,7 +48,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { BLOCK, BUILD, FORMATS, GRAPHIC_TYPES, PUBLIC, ROOT, adobeAsset, ffmpeg, ffmpegRaw, fail, log, parseFileRef, planShots, probeDuration, readJson, readProject,
-  relevance, sceneId, sleep, writeJson } from "./lib.mjs";
+  relevance, sceneId, sleep, status, writeJson } from "./lib.mjs";
 
 const args = process.argv.slice(2);
 const reviewArg = args.find((a) => a.startsWith("--review"));
@@ -591,6 +591,7 @@ const jobs = [];
 for (const [i, scene] of project.scenes.entries()) {
   const { id, shots } = shotsOf(scene, i);
   plan[id] = [];
+  status({ progress: (i / project.scenes.length) * 0.5, doing: `Searching footage: scene ${i + 1} of ${project.scenes.length}` });
   for (const [k, sh] of shots.entries()) {
     const kw = sh.kw;
     const shotSec = sh.sec;
@@ -672,6 +673,7 @@ for (const [i, scene] of project.scenes.entries()) {
 
 // ---------- 2. download (4 at a time) ----------
 const queue = [...jobs];
+let downloaded = 0;
 await Promise.all(
   Array.from({ length: 4 }, async () => {
     for (let job; (job = queue.shift()); ) {
@@ -682,6 +684,8 @@ await Promise.all(
         Object.assign(job.shot, { type: "kinetic", src: undefined, duration: undefined, assetId: undefined, credit: undefined });
         fellBack++;
       }
+      downloaded++;
+      status({ progress: 0.5 + (downloaded / Math.max(1, jobs.length)) * 0.5, doing: `Downloading and checking footage: ${downloaded} of ${jobs.length}` });
     }
   }),
 );
@@ -704,6 +708,13 @@ if (fs.existsSync(brollDir)) {
 }
 fs.writeFileSync(path.join(BUILD, "credits.txt"), credits.join("\n") + "\n");
 log("broll", `done: ${all.filter((s) => s.type !== "kinetic").length}/${all.length} shots have footage, ${searches} new searches`);
+{
+  const prev = readJson(path.join(BUILD, "status.json"), {});
+  const missing = Object.entries(plan).flatMap(([sid, list]) => list.map((s, k) => (s.type === "kinetic" ? `${sid}-${k + 1}: no matching footage (title card for now)` : null))).filter(Boolean);
+  status({ stats: { ...(prev.stats ?? {}), "shots": all.length, "with footage": all.filter((s) => s.type === "video" || s.type === "image").length,
+    "graphics": all.filter((s) => s.type === "graphic").length, "no footage yet": missing.length },
+    issues: [...(prev.issues ?? []).filter((x) => !/no matching footage/.test(x)), ...missing] });
+}
 const bySource = {};
 for (const s of all) if (s.assetId) bySource[s.assetId.split("-")[0]] = (bySource[s.assetId.split("-")[0]] ?? 0) + 1;
 if (Object.keys(bySource).length) log("broll", `sources: ${Object.entries(bySource).map(([k, v]) => `${k} ${v}`).join(", ")}`);

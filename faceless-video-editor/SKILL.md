@@ -316,6 +316,13 @@ If the render can't download Chrome, set `REMOTION_BROWSER=/path/to/chrome`
 `file:` assets still work; other shots fall back to an animated kinetic
 background - fine for a test, not for a real upload; tell the user.
 
+**Live status page.** Every run keeps `build/status.html` up to date (it reloads
+itself every 4 s): the step now running and its progress bar, the render's time
+left, which steps are done, shots with footage / graphics / still missing, what
+needs fixing, the storyboard pages and the log. At the start of a run, tell the
+user its full path so they can open it in a browser and watch (on Windows:
+`start build\status.html` from the project folder).
+
 **Read the storyboard before any render.** `auto.mjs` writes it after the
 timeline (`node scripts/storyboard.mjs` on its own): `build/storyboard/sb-NN-K.jpg`,
 one tile per shot in order - the exact frame the edit will show (or a card for a

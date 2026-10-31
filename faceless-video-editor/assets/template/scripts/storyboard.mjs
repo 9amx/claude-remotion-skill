@@ -10,7 +10,7 @@
 // Usage: node scripts/storyboard.mjs   (auto.mjs runs it after the timeline step)
 import fs from "node:fs";
 import path from "node:path";
-import { BUILD, PUBLIC, ffmpeg, log, readJson, timecode } from "./lib.mjs";
+import { BUILD, PUBLIC, ffmpeg, log, readJson, status, timecode } from "./lib.mjs";
 
 const t = readJson(path.join(PUBLIC, "timeline.json"), null);
 if (!t) {
@@ -91,6 +91,7 @@ for (const c of chapters) {
 }
 fs.writeFileSync(path.join(dir, "storyboard.txt"), lines.join("\n") + "\n");
 const missing = lines.filter((l) => l.includes("NO FOOTAGE")).length;
+status({ storyboard: sheets });
 log("storyboard", `${n} shots on ${sheets.length} page(s) in build/storyboard/ (${sheets.join(", ")}) + storyboard.txt` +
   (missing ? ` - ${missing} shot(s) with NO FOOTAGE` : ""));
 log("storyboard", "Look at every tile: does the picture show what the words under it say? Fix, re-run --from=broll, then render.");
