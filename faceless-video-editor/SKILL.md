@@ -287,6 +287,15 @@ If the render can't download Chrome, set `REMOTION_BROWSER=/path/to/chrome`
 `file:` assets still work; other shots fall back to an animated kinetic
 background - fine for a test, not for a real upload; tell the user.
 
+**Read the storyboard before any render.** `auto.mjs` writes it after the
+timeline (`node scripts/storyboard.mjs` on its own): `build/storyboard/sb-NN-K.jpg`,
+one tile per shot in order - the exact frame the edit will show (or a card for a
+graphic) with its time and the words spoken over it underneath - plus
+`storyboard.txt`. Look at every tile: does the picture show what its words say,
+at that moment? Any tile that fails (or says NO FOOTAGE) is fixed now - a pick,
+a sharper keyword, a split beat, or a graphic - then `--from=broll` again. The
+storyboard costs seconds; a wrong shot found after the render costs the render.
+
 **Show a preview before the full render.** For long form, after the picks:
 render the first 30-60 s (`npx remotion render src/index.ts Faceless out/preview.mp4 --frames=0-1799`),
 look at its frames, and tell the user in a few lines what the edit does (look,

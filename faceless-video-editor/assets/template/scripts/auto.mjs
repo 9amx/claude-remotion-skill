@@ -1,5 +1,5 @@
 // One command, script to finished video:
-//   lint -> voiceover -> b-roll -> timeline -> audio -> render -> loudness master -> check
+//   lint -> voiceover -> b-roll -> timeline -> storyboard -> audio -> render -> loudness master -> check
 //   -> thumbnail [-> YouTube upload, only with --upload]
 // Usage: node scripts/auto.mjs [--review] [--from=broll] [--only=voice] [--no-render] [--upload]
 //   --review  lint + voice, then B-roll candidate sheets for every shot, with the
@@ -31,6 +31,8 @@ const steps = [
   ["voice", () => (project.voice.provider === "file" ? run("node", ["scripts/transcribe.mjs"]) : run(PYTHON, ["scripts/voiceover.py"]))],
   ["broll", () => run("node", ["scripts/fetch-broll.mjs", ...(reviewMode ? ["--review"] : [])])],
   ["timeline", () => run("node", ["scripts/build-timeline.mjs"])],
+  // Every shot as a picture with its words, before any render time is spent.
+  ["storyboard", () => run("node", ["scripts/storyboard.mjs"])],
   ["audio", () => run("node", ["scripts/gen-audio.mjs"])],
   ["render", () => run("node", ["scripts/render.mjs"])], // chunked + resumable for long videos
   ["master", () => {
