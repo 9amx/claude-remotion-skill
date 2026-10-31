@@ -1,0 +1,138 @@
+{
+  "title": "Mount Rainier's Record Earthquake Swarm",
+  "format": "landscape",
+  "editStyle": "story",
+  "style": "documentary",
+  "targetSeconds": 66,
+  "voice": {
+    "provider": "file",
+    "file": "voice.mp3",
+    "language": "en",
+    "whisperModel": "base.en"
+  },
+  "music": {
+    "file": "music/night-hunter.mp3",
+    "volume": 0.16
+  },
+  "captions": {
+    "style": "subtitle"
+  },
+  "brollSources": [
+    "pixabay",
+    "pexels"
+  ],
+  "scenes": [
+    {
+      "text": "Right now, as the fall storms roll back into Washington State, America's most dangerous volcano looks calm.",
+      "emphasis": "AMERICA'S MOST DANGEROUS VOLCANO",
+      "lowerThird": {
+        "title": "Washington State",
+        "subtitle": "Fall 2026"
+      },
+      "broll": [
+        "storm clouds mountain timelapse",
+        "mount rainier clouds aerial"
+      ]
+    },
+    {
+      "text": "Peaceful. Picture *perfect*.",
+      "broll": [
+        "mount rainier lake reflection",
+        "archive:Mount Rainier Reflection Lake"
+      ],
+      "transition": "zoom"
+    },
+    {
+      "text": "But a little over a year ago, deep beneath its icy summit, that mountain started *shaking* like it never had before.",
+      "look": "dramatic",
+      "badge": "2025",
+      "broll": [
+        "archive:Mount Rainier summit crater glacier",
+        "archive:seismograph recording"
+      ],
+      "transition": "glitch",
+      "fx": [
+        "shake"
+      ]
+    },
+    {
+      "text": "Not once. Not a few times. Over and over and over again.",
+      "fx": [
+        "punch"
+      ],
+      "broll": [
+        "archive:seismogram earthquake",
+        "glacier crevasse aerial"
+      ],
+      "transition": "whip"
+    },
+    {
+      "text": "At its peak, instruments were catching earthquakes at a pace of roughly *40* every single hour.",
+      "broll": [
+        "archive:seismogram earthquake swarm",
+        "archive:Cascades Volcano Observatory"
+      ],
+      "transition": "flash"
+    },
+    {
+      "text": "By the time it was finally over, more than *1,350* earthquakes had been pinned down beneath the summit, with thousands more too small to even locate.",
+      "emphasis": "1,350 EARTHQUAKES",
+      "broll": [
+        "archive:Mount Rainier summit aerial",
+        "glacier ice mountain drone"
+      ],
+      "transition": "zoom"
+    },
+    {
+      "text": "It was the biggest earthquake swarm ever recorded at this mountain.",
+      "broll": [
+        "archive:Mount Rainier from Paradise",
+        "snow mountain drone"
+      ],
+      "transition": "whip"
+    },
+    {
+      "text": "And according to the scientists who watch it, the hidden process that caused all that shaking may *still* be going on right now, just too quietly for their instruments to pick up.",
+      "fx": [
+        "reveal"
+      ],
+      "look": "night",
+      "broll": [
+        "volcano steam fumarole",
+        "mount rainier night stars"
+      ],
+      "transition": "dip"
+    },
+    {
+      "text": "The mountain is *Mount Rainier*.",
+      "lowerThird": {
+        "title": "Mount Rainier",
+        "subtitle": "14,410 ft | Pierce County, WA"
+      },
+      "broll": [
+        "archive:Mount Rainier"
+      ],
+      "transition": "flash"
+    },
+    {
+      "text": "The same snowy peak that floats over the Seattle skyline on a clear day.",
+      "broll": [
+        "seattle skyline mount rainier",
+        "seattle space needle"
+      ],
+      "transition": "zoom"
+    },
+    {
+      "text": "The same peak printed on license plates and postcards and coffee cups.",
+      "broll": [
+        "archive:Mount Rainier postcard",
+        "coffee cup cafe"
+      ],
+      "transition": "whip"
+    }
+  ],
+  "sfxLevel": 1,
+  "punchIns": true,
+  "maxShotSeconds": 3.2,
+  "transitions": "scene"
+}

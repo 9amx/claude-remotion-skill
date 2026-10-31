@@ -1,0 +1,48 @@
+{
+  "title": "Ranking the Wildest Physics Moments",
+  "format": "shorts",
+  "editStyle": "viral",
+  "style": "bold",
+  "targetSeconds": 36,
+  "voice": { "provider": "edge", "voice": "en-US-AndrewNeural", "rate": "+8%" },
+  "music": { "mood": "tense", "volume": 0.12 },
+  "scenes": [
+    {
+      "text": "The 5 *wildest* physics moments ever filmed, ranked. Number one sounds fake.",
+      "emphasis": "PHYSICS RANKED",
+      "broll": ["archive:Apollo 15 David Scott Moon surface", "archive:Tacoma Narrows Bridge collapse 1940"]
+    },
+    {
+      "text": "Number five. In 1940, wind made a steel bridge *ripple* like a ribbon.",
+      "badge": "#5",
+      "look": "flashback",
+      "broll": ["archive:Tacoma Narrows Bridge collapse 1940", "archive:Tacoma Narrows Bridge twisting"]
+    },
+    {
+      "text": "Number four. A swinging pendulum that *proves* the Earth is spinning.",
+      "badge": "#4",
+      "broll": ["archive:Foucault pendulum Pantheon Paris", "archive:Foucault pendulum"]
+    },
+    {
+      "text": "Number three. Freeze a superconductor and a magnet *floats* in midair.",
+      "badge": "#3",
+      "broll": ["archive:superconductor magnet levitation Meissner effect", "archive:magnet levitating above superconductor liquid nitrogen"]
+    },
+    {
+      "text": "Number two. In space, water forms a *perfect sphere* that just hangs there.",
+      "badge": "#2",
+      "broll": ["archive:water sphere floating International Space Station", "archive:astronaut water bubble microgravity"]
+    },
+    {
+      "text": "And number one. On the Moon, a hammer and a feather hit the ground *together*.",
+      "badge": "#1",
+      "fx": "reveal",
+      "emphasis": "SAME SPEED",
+      "broll": ["archive:Apollo 15 hammer feather drop", "archive:Apollo 15 David Scott Moon surface"]
+    },
+    {
+      "text": "Galileo predicted it four hundred years earlier. Which one gets *your* number one?",
+      "broll": ["archive:Galileo Galilei portrait", "archive:Leaning Tower of Pisa"]
+    }
+  ]
+}

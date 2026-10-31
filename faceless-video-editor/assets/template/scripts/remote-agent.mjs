@@ -26,24 +26,101 @@ const PUBLIC = path.join(ROOT, "public");
 
 const args = process.argv.slice(2);
 
-// Load ws module: try standard import, then fallback to project's node_modules via createRequire
-let WebSocket = null;
+// Load ws module: try standard import, project node_modules, or built-in Node 22+ globalThis.WebSocket
+let ExternalWs = null;
 try {
   const wsMod = await import("ws");
-  WebSocket = wsMod.default || wsMod;
+  ExternalWs = wsMod.default || wsMod;
 } catch (e) {
   try {
     const req = createRequire(path.join(ROOT, "package.json"));
-    WebSocket = req("ws");
+    ExternalWs = req("ws");
   } catch (e2) {
     try {
       const req = createRequire(path.join(cwdRoot, "package.json"));
-      WebSocket = req("ws");
+      ExternalWs = req("ws");
     } catch (e3) {
-      // ws not found, handled in check/start
+      // ws package not installed
     }
   }
 }
+
+const NativeWs = typeof globalThis.WebSocket !== "undefined" ? globalThis.WebSocket : null;
+
+class UniversalWebSocket {
+  constructor(targetUrl, options = {}) {
+    if (ExternalWs) {
+      this._ws = new ExternalWs(targetUrl, options);
+    } else if (NativeWs) {
+      const parsed = new URL(targetUrl);
+      if (options.headers?.Authorization?.startsWith("Bearer ")) {
+        parsed.searchParams.set("token", options.headers.Authorization.slice(7).trim());
+      }
+      this._ws = new NativeWs(parsed.toString());
+      this._handlers = {};
+
+      this._ws.onopen = (e) => this._emit("open", e);
+      this._ws.onclose = (e) => this._emit("close", e.code, e.reason);
+      this._ws.onerror = (e) => this._emit("error", e);
+      this._ws.onmessage = async (e) => {
+        let data = e.data;
+        let isBinary = false;
+        if (data instanceof ArrayBuffer) {
+          data = Buffer.from(data);
+          isBinary = true;
+        } else if (typeof Blob !== "undefined" && data instanceof Blob) {
+          const ab = await data.arrayBuffer();
+          data = Buffer.from(ab);
+          isBinary = true;
+        }
+        this._emit("message", data, isBinary);
+      };
+    } else {
+      throw new Error("No WebSocket implementation found");
+    }
+  }
+
+  on(event, handler) {
+    if (this._ws.on) {
+      this._ws.on(event, handler);
+    } else {
+      if (!this._handlers[event]) this._handlers[event] = [];
+      this._handlers[event].push(handler);
+    }
+    return this;
+  }
+
+  _emit(event, ...args) {
+    const list = this._handlers?.[event] || [];
+    for (const fn of list) {
+      try { fn(...args); } catch (err) { console.error(err); }
+    }
+  }
+
+  send(data) {
+    return this._ws.send(data);
+  }
+
+  close(code, reason) {
+    return this._ws.close(code, reason);
+  }
+
+  terminate() {
+    if (this._ws.terminate) {
+      this._ws.terminate();
+    } else {
+      this._ws.close();
+    }
+  }
+
+  get readyState() {
+    return this._ws.readyState;
+  }
+}
+UniversalWebSocket.OPEN = 1;
+UniversalWebSocket.CLOSED = 3;
+
+const WebSocket = (ExternalWs || NativeWs) ? UniversalWebSocket : null;
 
 // Command line arguments / environment variables
 const remoteUrlArg = args.find((a) => a.startsWith("--url="))?.slice(6);
@@ -122,9 +199,10 @@ async function runCheck() {
 
   // 1b. Check ws dependency
   if (WebSocket) {
-    console.log(`[PASS] WebSocket package ('ws') is available`);
+    const wsType = ExternalWs ? "'ws' package" : "built-in Node WebSocket";
+    console.log(`[PASS] WebSocket support is available (${wsType})`);
   } else {
-    console.log(`[FAIL] WebSocket package ('ws') is not installed. Run: npm install ws`);
+    console.log(`[FAIL] WebSocket is not available. Please upgrade Node to >= 22 or run: npm install ws`);
     ok = false;
   }
 
@@ -267,8 +345,8 @@ if (isCheckMode) {
 // ---------- Main Remote Agent & Uploader Implementation ----------
 function startAgent() {
   if (!WebSocket) {
-    console.error("\x1b[31m[remote-agent error]\x1b[0m 'ws' package is not installed.");
-    console.error("  Run: npm install ws\n");
+    console.error("\x1b[31m[remote-agent error]\x1b[0m WebSocket support is not available.");
+    console.error("  Upgrade Node to >= 22 or run: npm install ws\n");
     process.exit(1);
   }
 
