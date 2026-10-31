@@ -263,6 +263,7 @@ export function planShots(scene, vo, maxShotSeconds) {
     for (let j = 0; j < cuts.length - 1; j++) {
       shots.push({ kw: b.e.graphic ? null : b.e.kw[j % b.e.kw.length], alts: b.e.kw, entry: b.k, sub: j, on: b.e.on, startMs: cuts[j], endMs: cuts[j + 1],
         words: spoken(cuts[j], cuts[j + 1]), ...(b.e.graphic ? { graphic: b.e.graphic } : {}), ...(j === 0 && b.e.sfx ? { sfx: b.e.sfx } : {}),
+        ...(b.e.move ? { move: b.e.move } : {}), ...(b.e.focus ? { focus: b.e.focus } : {}),
         ...(b.e.credit ? { credit: b.e.credit } : {}) });
     }
   });
@@ -287,6 +288,15 @@ export function probeDuration(file) {
   }
   const d = parseFloat((r.stdout || "").trim().split("\n").pop());
   return Number.isFinite(d) ? d : null;
+}
+
+// Picture size [width, height] of an image or video, or null.
+export function probeSize(file) {
+  const args = ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", file];
+  let r = spawnSync("ffprobe", args, { encoding: "utf8" });
+  if (r.status !== 0 || !r.stdout.trim()) r = spawnSync(...remotionCmd(["ffprobe", ...args]), { encoding: "utf8", cwd: ROOT });
+  const [w, h] = (r.stdout || "").trim().split("\n")[0].split(",").map(Number);
+  return w > 0 && h > 0 ? [w, h] : null;
 }
 
 export function hasCommand(cmd) {

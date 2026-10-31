@@ -287,7 +287,16 @@ async function generateImage(prompt, dest) {
 
 // ---------- download + checks ----------
 async function download(url, dest, fallbackUrl) {
-  let res = await fetch(url, { headers: UA });
+  // Wikimedia's file servers answer 429 when many files are fetched at once:
+  // wait (Retry-After, else 20-40s) and try again rather than losing the shot.
+  let res;
+  for (let attempt = 0; ; attempt++) {
+    res = await fetch(url, { headers: UA });
+    if (res.status !== 429 || attempt >= 3) break;
+    const wait = (Number(res.headers.get("retry-after")) || 20 * (attempt + 1)) * 1000;
+    log("broll", `${new URL(url).host} busy (429), retrying in ${Math.round(wait / 1000)}s`);
+    await sleep(wait);
+  }
   if (!res.ok && fallbackUrl) res = await fetch(fallbackUrl, { headers: UA });
   if (!res.ok) throw new Error(`download ${res.status}`);
   fs.mkdirSync(path.dirname(dest), { recursive: true });

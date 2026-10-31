@@ -43,7 +43,7 @@ const Picture: React.FC<{ scene: Scene; si: number; style: Style; motion: Motion
               <Split a={shot(0)} b={shot(1)} style={style} />
             ) : (
               scene.shots.map((sh, k) => (
-                <Sequence key={k} from={sh.from} durationInFrames={sh.durationInFrames + (k === scene.shots.length - 1 ? scene.visualExtend : 0)} name={`${scene.id}-${k + 1} ${sh.type}`}>
+                <Sequence key={k} from={sh.from} durationInFrames={sh.durationInFrames + (k === scene.shots.length - 1 ? scene.visualExtend : scene.shots[k + 1].fadeIn ?? 0)} name={`${scene.id}-${k + 1} ${sh.type}`}>
                   {shot(k)}
                 </Sequence>
               ))

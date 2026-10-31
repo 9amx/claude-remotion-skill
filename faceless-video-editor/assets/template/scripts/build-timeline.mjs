@@ -2,7 +2,7 @@
 // the single file the Remotion composition renders from.
 import path from "node:path";
 import fs from "node:fs";
-import { BUILD, FORMATS, FX, LOOKS, PUBLIC, SFX_NAMES, TRANSITIONS, fail, findPhrase, log, planShots, readJson, readProject, sceneId, timecode,
+import { BUILD, FORMATS, FX, LOOKS, PUBLIC, SFX_NAMES, TRANSITIONS, fail, findPhrase, log, planShots, probeSize, readJson, readProject, sceneId, timecode,
   userAmbiencePath, userMusicPath, userSfx, userSfxPath, userSpotPath, writeJson } from "./lib.mjs";
 
 const project = readProject();
@@ -103,6 +103,30 @@ function withItemTimes(g, voWords, shotStartMs, shotFrom, len) {
   return { ...g, at: at.map((a) => Math.min(a, Math.max(0, len - 10))) };
 }
 
+// Camera move for a still, chosen like an editor would and never the same twice
+// in a row: a photo that doesn't fit the frame (portrait in 16:9, an old archive
+// print) is shown whole as a framed print over its own blurred backdrop; a
+// panorama pans; long holds push in on a detail; the rest rotate through push,
+// pull, pans and tilts. A beat can set "move" (and "focus": [x, y] in %) itself.
+const MOVES = ["push", "pan-left", "pull", "detail", "pan-right", "tilt-up", "focus", "tilt-down"];
+const FRAME_AR = width / height;
+let lastMove = null, moveIdx = 0;
+function stillMove(shot, planned, lenSec) {
+  if (planned.move) return planned.move;
+  const size = shot.src ? probeSize(path.join(PUBLIC, shot.src)) : null;
+  const ar = size ? size[0] / size[1] : FRAME_AR;
+  const archive = /^(wikimedia|nasa|dvids)-/.test(shot.assetId ?? "");
+  let m;
+  if (ar < FRAME_AR * 0.72 || (archive && ar < FRAME_AR * 0.9)) m = "frame";
+  else if (ar > FRAME_AR * 1.35) m = lastMove === "pan-left" ? "pan-right" : "pan-left";
+  else if (lenSec > 5) m = lastMove === "detail" ? "push" : "detail";
+  else {
+    do m = MOVES[moveIdx++ % MOVES.length]; while (m === lastMove || (m === "detail" && lenSec < 3));
+  }
+  lastMove = m;
+  return m;
+}
+
 let cursorMs = 0;
 const scenes = [];
 const words = [];
@@ -136,6 +160,7 @@ for (const [i, scene] of project.scenes.entries()) {
     const shot = { ...asset, from, durationInFrames: len, zoomIn: (i + k) % 2 === 0, words: p.words };
     delete shot.cuts;
     if (shot.type === "graphic" && shot.graphic) shot.graphic = withItemTimes(shot.graphic, vo.words, p.startMs, from, len);
+    if (shot.type === "image") Object.assign(shot, { move: stillMove(shot, p, len / fps) }, p.focus ? { focus: p.focus } : {});
     if (asset.type === "video" && asset.duration) Object.assign(shot, clipWindow(asset, len / fps));
     if (p.sfx) {
       const ref = soundRef(p.sfx, `${id} beat "${p.on ?? p.kw}" sfx`);
@@ -143,6 +168,14 @@ for (const [i, scene] of project.scenes.entries()) {
     }
     return shot;
   });
+  // Story / calm: a still eases in over the shot before it (or out of it) with a
+  // short dissolve instead of a hard cut; footage-to-footage stays a cut.
+  if (["story", "calm"].includes(project.editStyle) && !split) {
+    for (let k = 1; k < shots.length; k++) {
+      const a = shots[k - 1], b = shots[k];
+      if (a.type !== "graphic" && b.type !== "graphic" && (a.type === "image" || b.type === "image")) b.fadeIn = Math.min(12, Math.round(b.durationInFrames / 4));
+    }
+  }
 
   // *word* markup (and any number) is a highlight: accent color in captions,
   // plus a punch-in zoom when the edit style or the scene asks for one.

@@ -33,52 +33,93 @@ const Kinetic: React.FC<{ style: Style; seed: number; words?: string }> = ({ sty
 };
 
 // Picture motion by edit style. "cinematic" (story, calm): real footage plays as
-// shot, no zoom on top of it; stills get one slow, eased camera move (push in,
-// pull out or a drift) so a photo reads as a shot, not a slide. "punchy" (viral,
-// explainer): a small zoom-punch on each cut, a bit more movement on stills.
+// shot, no zoom on top of it. "punchy" (viral, explainer): a small zoom-punch on
+// each cut and a little more travel on stills. Stills get the camera move
+// build-timeline chose for them (never the same twice in a row).
 export type Motion = "cinematic" | "punchy";
-const STILL_MOVES = [
-  { from: [1.04, 0, 0], to: [1.16, 0, 0] }, // push in
-  { from: [1.16, 0, 0], to: [1.04, 0, 0] }, // pull out
-  { from: [1.12, 2.5, 0], to: [1.12, -2.5, 0] }, // drift left (% of width)
-  { from: [1.12, -2.5, 0], to: [1.12, 2.5, 0] }, // drift right
-  { from: [1.12, 0, 2], to: [1.08, 0, -2] }, // tilt up
-];
+const THIRDS: [number, number][] = [[33, 38], [67, 38], [50, 45], [33, 62], [67, 62]];
+
+const Still: React.FC<{ shot: ShotT; seed: number; motion: Motion }> = ({ shot, seed, motion }) => {
+  const frame = useCurrentFrame();
+  const { width } = useVideoConfig();
+  const t = interpolate(frame, [0, shot.durationInFrames], [0, 1], { ...clamp, easing: ease.inOut });
+  const k = motion === "punchy" ? 1.35 : 1;
+  const move = shot.move ?? (["push", "pan-left", "pull", "pan-right"] as const)[seed % 4];
+  const [fx, fy] = shot.focus ?? THIRDS[seed % THIRDS.length];
+  const src = staticFile(shot.src!);
+  const look: React.CSSProperties = { filter: "saturate(1.05) contrast(1.05)" };
+  const lerp = (a: number, b: number) => interpolate(t, [0, 1], [a, b]);
+  const grow = (a: number, b: number) => 1 + (lerp(a, b) - 1) * k;
+
+  if (move === "frame") {
+    // The whole picture as a print over its own darkened, blurred copy. The blur
+    // runs on a quarter-size layer scaled up: same look, a fraction of the cost.
+    const archive = /^(wikimedia|nasa|dvids)-/.test(shot.assetId ?? "");
+    const settle = spring({ frame, fps: 30, config: springs.smooth });
+    return (
+      <AbsoluteFill style={{ overflow: "hidden", background: "#000" }}>
+        <div style={{ position: "absolute", left: 0, top: 0, width: "25%", height: "25%", transform: `scale(${4 * lerp(1.15, 1.25)})`, transformOrigin: "0 0" }}>
+          <Img src={src} style={{ width: "100%", height: "100%", objectFit: "cover", filter: "blur(6px) brightness(0.42) saturate(0.75)" }} />
+        </div>
+        <AbsoluteFill style={{ alignItems: "center", justifyContent: "center" }}>
+          <Img src={src} style={{
+            maxWidth: "80%", maxHeight: "84%", ...look,
+            border: archive ? `${width * 0.006}px solid #EFE8DA` : "none", borderRadius: archive ? 2 : width * 0.006,
+            boxShadow: `0 ${width * 0.012}px ${width * 0.04}px rgba(0,0,0,0.65)`,
+            transform: `scale(${interpolate(settle, [0, 1], [0.94, 1]) * lerp(1, 1.05)}) rotate(${lerp(seed % 2 ? -1.2 : 1.2, seed % 2 ? 0.4 : -0.4)}deg)`,
+          }} />
+        </AbsoluteFill>
+      </AbsoluteFill>
+    );
+  }
+
+  let scale = 1, x = 0, y = 0, blur = 0, origin = "50% 50%";
+  switch (move) {
+    case "push": scale = grow(1.04, 1.14); origin = `${fx}% ${fy}%`; break;
+    case "pull": scale = grow(1.16, 1.04); origin = `${fx}% ${fy}%`; break;
+    case "pan-left": scale = 1.16; x = lerp(4, -4) * k; break;
+    case "pan-right": scale = 1.16; x = lerp(-4, 4) * k; break;
+    case "tilt-up": scale = 1.16; y = lerp(-3.5, 3.5) * k; break;
+    case "tilt-down": scale = 1.16; y = lerp(3.5, -3.5) * k; break;
+    case "detail": scale = grow(1.03, 1.3); origin = `${fx}% ${fy}%`; break;
+    case "focus":
+      scale = grow(1.12, 1.04);
+      blur = interpolate(frame, [0, 14], [10, 0], { ...clamp, easing: ease.out });
+      break;
+  }
+  return (
+    <AbsoluteFill style={{ overflow: "hidden" }}>
+      <AbsoluteFill style={{ transform: `translate(${x}%, ${y}%) scale(${scale})`, transformOrigin: origin }}>
+        <Img src={src} style={{ width: "100%", height: "100%", objectFit: "cover", ...look, ...(blur > 0.05 ? { filter: `${look.filter} blur(${blur}px)` } : {}) }} />
+      </AbsoluteFill>
+    </AbsoluteFill>
+  );
+};
 
 export const Shot: React.FC<{ shot: ShotT; style: Style; seed: number; motion?: Motion }> = ({ shot, style, seed, motion = "punchy" }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const fade = shot.fadeIn ? interpolate(frame, [0, shot.fadeIn], [0, 1], { ...clamp, easing: ease.inOut }) : 1;
   // Graphics have their own motion; no Ken Burns or cut punch on top of a chart.
   if (shot.type === "graphic" && shot.graphic) return <Graphic graphic={shot.graphic} style={style} />;
   if (shot.type !== "video" && shot.type !== "image" || !shot.src) return <Kinetic style={style} seed={seed} words={shot.words} />;
-  const t = interpolate(frame, [0, shot.durationInFrames], [0, 1], { ...clamp, easing: ease.inOut });
   const punch = motion === "punchy" ? interpolate(spring({ frame, fps, config: springs.punch }), [0, 1], [1.06, 1]) : 1;
-  let scale = 1, x = 0, y = 0;
   if (shot.type === "image") {
-    const m = STILL_MOVES[seed % STILL_MOVES.length];
-    const k = motion === "punchy" ? 1.4 : 1;
-    scale = 1 + (interpolate(t, [0, 1], [m.from[0], m.to[0]]) - 1) * k;
-    x = interpolate(t, [0, 1], [m.from[1], m.to[1]]) * k;
-    y = interpolate(t, [0, 1], [m.from[2], m.to[2]]) * k;
-  } else if (motion === "punchy") {
-    // Footage already moves: only a slight push so held clips don't feel parked.
-    scale = interpolate(t, [0, 1], shot.zoomIn ? [1, 1.04] : [1.04, 1]);
+    return <AbsoluteFill style={{ opacity: fade, transform: `scale(${punch})` }}><Still shot={shot} seed={seed} motion={motion} /></AbsoluteFill>;
   }
-  const media: React.CSSProperties = { width: "100%", height: "100%", objectFit: "cover" };
+  // Footage already moves: in punchy edits only a slight push so held clips don't feel parked.
+  const t = interpolate(frame, [0, shot.durationInFrames], [0, 1], { ...clamp, easing: ease.inOut });
+  const scale = motion === "punchy" ? interpolate(t, [0, 1], shot.zoomIn ? [1, 1.04] : [1.04, 1]) : 1;
   return (
-    <AbsoluteFill style={{ overflow: "hidden" }}>
-      <AbsoluteFill style={{ transform: `scale(${punch * scale}) translate(${x}%, ${y}%)` }}>
-        {shot.type === "video" ? (
-          <OffthreadVideo
-            src={staticFile(shot.src)}
-            muted
-            playbackRate={shot.playbackRate ?? 1}
-            trimBefore={shot.trimBefore || undefined}
-            style={{ ...media, filter: "saturate(1.08) contrast(1.06)" }}
-          />
-        ) : (
-          <Img src={staticFile(shot.src)} style={{ ...media, filter: "saturate(1.05) contrast(1.05)" }} />
-        )}
+    <AbsoluteFill style={{ overflow: "hidden", opacity: fade }}>
+      <AbsoluteFill style={{ transform: `scale(${punch * scale})` }}>
+        <OffthreadVideo
+          src={staticFile(shot.src)}
+          muted
+          playbackRate={shot.playbackRate ?? 1}
+          trimBefore={shot.trimBefore || undefined}
+          style={{ width: "100%", height: "100%", objectFit: "cover", filter: "saturate(1.08) contrast(1.06)" }}
+        />
       </AbsoluteFill>
     </AbsoluteFill>
   );
