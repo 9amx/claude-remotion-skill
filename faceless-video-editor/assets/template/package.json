@@ -18,7 +18,8 @@
     "thumbnail": "node scripts/thumbnail.mjs",
     "youtube": "node scripts/youtube.mjs",
     "adobe": "node scripts/adobe-stock.mjs",
-    "editor": "node scripts/editor.mjs --open"
+    "editor": "node scripts/editor.mjs --open",
+    "remote": "node scripts/remote-agent.mjs"
   },
   "dependencies": {
     "@remotion/cli": "^4.0.0",
@@ -28,7 +29,8 @@
     "react-dom": "^19.0.0",
     "remotion": "^4.0.0",
     "topojson-client": "^3.1.0",
-    "world-atlas": "^2.0.2"
+    "world-atlas": "^2.0.2",
+    "ws": "^8.18.0"
   },
   "optionalDependencies": {
     "@remotion/install-whisper-cpp": "^4.0.0"

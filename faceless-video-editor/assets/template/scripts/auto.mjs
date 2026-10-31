@@ -74,6 +74,10 @@ log("auto", `live status: ${path.join(ROOT, "build", "status.html")} (open it in
 if (!args.includes("--no-editor")) {
   spawn(process.execPath, [path.join(ROOT, "scripts", "editor.mjs")], { cwd: ROOT, stdio: "ignore", detached: true, env: process.env }).unref();
   log("auto", "editor view: http://localhost:3100  (preview, timeline, inspector - or run: npm run editor)");
+  if (!args.includes("--no-remote") && process.env.REMOTE_AGENT_TOKEN && (process.env.REMOTE_URL || process.env.REMOTE_AGENT_URL)) {
+    spawn(process.execPath, [path.join(ROOT, "scripts", "remote-agent.mjs")], { cwd: ROOT, stdio: "ignore", detached: true, env: process.env }).unref();
+    log("auto", `remote agent: connecting to ${process.env.REMOTE_URL || process.env.REMOTE_AGENT_URL}`);
+  }
 }
 const done = new Set(from ? planned.slice(0, Math.max(0, planned.indexOf(from))) : []);
 
