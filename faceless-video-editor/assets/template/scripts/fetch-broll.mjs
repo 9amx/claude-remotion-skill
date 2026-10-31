@@ -68,6 +68,10 @@ const maxWaitMs = (project.brollMaxWaitMinutes ?? 0) * 60_000;
 const trim = project.trimBroll !== false;
 // Below this share of keyword words a result is never auto-picked: 1 of 3 words ("closed shop sign" -> a shop) is not a match.
 const MIN_REL = project.brollMinRelevance ?? 0.4;
+// Search every source for every keyword and compare all results (default), or
+// stop at the first sources that give enough good matches (brollSearchAll: false,
+// fewer API calls). A source that hits its rate limit drops out for the run.
+const searchAll = project.brollSearchAll !== false;
 const UA = { "User-Agent": "faceless-video-editor/1.0 (https://github.com/9amx/claude-remotion-skill)" };
 const exhausted = new Set();
 const used = new Set();
@@ -233,18 +237,21 @@ function rank(cands, query, minSec) {
       const rel = relevance(query, c.text);
       const archive = ARCHIVE.has(c.source);
       const score = rel * 3 + (c.w && orientationOk(c.w, c.h) ? 1 : 0) + (c.kind === "video" ? 0.6 : 0) +
-        ((c.duration ?? minSec) >= minSec ? 0.4 : 0) + (archive && factual(query) ? 0.8 : 0) - i * 0.01;
+        ((c.duration ?? minSec) >= minSec ? 0.4 : 0) + (archive ? (factual(query) ? 0.8 : -0.4) : 0) - (c.ri ?? i) * 0.01;
       return { ...c, rel, score };
     })
     .sort((a, b) => b.score - a.score);
 }
 
-// All candidates for a keyword, best first. Stops querying sources once there are
-// enough relevant ones, so rate-limited APIs aren't hit needlessly.
+// All candidates for a keyword from every source, best first (with
+// brollSearchAll: false it stops once there are enough relevant ones).
 async function candidatesFor(keyword, minSec, want = 6) {
   const mode = keyword.match(/^(photo|archive):/)?.[1] ?? "auto";
   const query = keyword.replace(/^(photo|archive):/, "").trim();
-  const archive = archiveOn ? [...(KEYS.dvids ? ["dvids"] : []), "wikimedia", "nasa"] : [];
+  // DVIDS is military / government video: only for archive: keywords and lines that
+  // name something real, never for a photo: shot or a generic "office desk".
+  const dvids = KEYS.dvids && mode !== "photo" && (mode === "archive" || factual(query)) ? ["dvids"] : [];
+  const archive = archiveOn ? [...dvids, "wikimedia", "nasa"] : [];
   const photos = [...(KEYS.pexels ? ["pexelsPhoto"] : []), ...(KEYS.pixabay ? ["pixabayPhoto"] : [])];
   const order =
     mode === "archive" ? archive :
@@ -253,11 +260,12 @@ async function candidatesFor(keyword, minSec, want = 6) {
   let pool = [];
   for (const src of order) {
     try {
-      pool = pool.concat(await SOURCES[src](query, minSec));
+      // ri: the result's rank inside its own source, so no source wins just by being searched first.
+      pool = pool.concat((await SOURCES[src](query, minSec)).map((c, ri) => ({ ...c, ri })));
     } catch (e) {
       if (!(e instanceof RateLimited)) log("broll", `${src} search failed (${e.message}), trying next source`);
     }
-    if (rank(pool, query, minSec).filter((c) => c.rel >= 0.5).length >= want) break;
+    if (!searchAll && rank(pool, query, minSec).filter((c) => c.rel >= 0.5).length >= want) break;
   }
   return rank(pool, query, minSec);
 }
@@ -279,7 +287,16 @@ async function generateImage(prompt, dest) {
 
 // ---------- download + checks ----------
 async function download(url, dest, fallbackUrl) {
-  let res = await fetch(url, { headers: UA });
+  // Wikimedia's file servers answer 429 when many files are fetched at once:
+  // wait (Retry-After, else 20-40s) and try again rather than losing the shot.
+  let res;
+  for (let attempt = 0; ; attempt++) {
+    res = await fetch(url, { headers: UA });
+    if (res.status !== 429 || attempt >= 3) break;
+    const wait = (Number(res.headers.get("retry-after")) || 20 * (attempt + 1)) * 1000;
+    log("broll", `${new URL(url).host} busy (429), retrying in ${Math.round(wait / 1000)}s`);
+    await sleep(wait);
+  }
   if (!res.ok && fallbackUrl) res = await fetch(fallbackUrl, { headers: UA });
   if (!res.ok) throw new Error(`download ${res.status}`);
   fs.mkdirSync(path.dirname(dest), { recursive: true });
@@ -508,7 +525,11 @@ if (reviewArg) {
       const kw = sh.kw;
       if (!kw || scene.visual === "kinetic" || /^(file|ai):/.test(kw)) continue;
       const key = `${id}-${k + 1}`;
-      const cands = (await candidatesFor(kw, sh.sec)).slice(0, 6);
+      // The sheet shows the best 6, at most 3 from one source, so every library gets a say.
+      const all = await candidatesFor(kw, sh.sec);
+      const perSource = {};
+      const cands = all.filter((c) => (perSource[c.source] = (perSource[c.source] ?? 0) + 1) <= 3).slice(0, 6);
+      if (cands.length < 6) cands.push(...all.filter((c) => !cands.includes(c)).slice(0, 6 - cands.length));
       if (!cands.length) continue;
       // Default: review the hook, emphasis/reveal/split scenes and weak matches only.
       if (!reviewAll && !important && cands[0].rel >= 0.67) continue;

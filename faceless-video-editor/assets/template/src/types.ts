@@ -1,6 +1,7 @@
 // Shape of public/timeline.json, written by scripts/build-timeline.mjs.
 export type Word = { text: string; startMs: number; endMs: number; scene: number; hl?: boolean };
 
+export type StillMove = "push" | "pull" | "pan-left" | "pan-right" | "tilt-up" | "tilt-down" | "detail" | "focus" | "frame";
 export type Transition = "whip" | "zoom" | "glitch" | "flash" | "dip" | "fade" | "cut";
 export type Look = "normal" | "flashback" | "dramatic" | "night" | "vhs" | "dream";
 
@@ -34,9 +35,13 @@ export type Shot = {
   trimBefore?: number;
   words?: string; // what the voice says over this shot (check / sync report)
   keyword?: string;
+  assetId?: string; // source-id, e.g. "wikimedia-123" (archive prints get a paper border)
   rel?: number; // how well the search result matched the keyword (0-1)
   picked?: boolean; // chosen from a review sheet
   crossesCut?: boolean; // the clip's own internal cut is visible in this shot
+  move?: StillMove; // camera move on a still (build-timeline picks one; a beat can set it)
+  focus?: [number, number]; // where "detail" / "push" head, % of the picture
+  fadeIn?: number; // frames of crossfade from the previous shot
 };
 
 export type Scene = {
