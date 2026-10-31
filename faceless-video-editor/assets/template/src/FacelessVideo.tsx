@@ -6,6 +6,7 @@ import { useMemo } from "react";
 import { AbsoluteFill, Audio, Freeze, Sequence, interpolate, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { Background } from "./components/Background";
 import { Captions } from "./components/Captions";
+import { Callout } from "./components/Callout";
 import { ChapterCard } from "./components/ChapterCard";
 import { Badge, Camera, Dip, LookFilter, Split, TransitionIn, TransitionOut } from "./components/Edit";
 import { Emphasis } from "./components/Emphasis";
@@ -152,6 +153,11 @@ export const FacelessVideo: React.FC<Props> = ({ timeline }) => {
             </Sequence>
           )}
           {scene.badge && <Badge text={scene.badge} style={style} />}
+          {(scene.callouts ?? []).map((c, ci) => (
+            <Sequence key={`c${ci}`} from={c.from} durationInFrames={c.duration} layout="none">
+              <Callout text={c.text} style={style} duration={c.duration} index={si + ci} />
+            </Sequence>
+          ))}
           {scene.lowerThird && (
             <Sequence from={Math.round(fps * 0.3)} durationInFrames={Math.min(Math.round(fps * 4.5), scene.durationInFrames - Math.round(fps * 0.3))}>
               <LowerThird {...scene.lowerThird} style={style} duration={Math.min(Math.round(fps * 4.5), scene.durationInFrames - Math.round(fps * 0.3))} />

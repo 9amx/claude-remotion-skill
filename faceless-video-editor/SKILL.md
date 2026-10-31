@@ -146,6 +146,35 @@ on purpose:
   Files come from the Epidemic Sound connector or the user (see below).
 - `emphasis` lands when the voice says its words (or `emphasisOn`), so the text
   and the word hit together.
+- **Text pops** - on-screen words where reading helps understanding: a key term,
+  a number, a name, a short contrast ("not X - Y"). Mark them in the line with
+  `*asterisks*` (also when the script is the user's: markup never changes the
+  spoken words). With `captions.style: "none"` (the default `callouts: "auto"`)
+  every marked phrase pops over the footage on the word it repeats, and a line
+  with no markup pops its numbers; `"callouts": "on"` does it with captions too,
+  `"off"` never. A beat can carry its own: `{"on": "run out of money", "kw": [...], "text": "No cash left"}`.
+  One or two per minute of long form, at the words that carry the point - never
+  over a graphic or the emphasis (the timeline keeps them apart).
+- **Explain, don't decorate.** A line that explains (a process, a mechanism, a
+  comparison, a claim, a number, an app) with no footage that SHOWS it gets a
+  graphic (`steps`, `list`, `compare`, `statement`, `ui`, `counter`, `bars`,
+  `map`, `timeline`), never the closest-looking stock clip.
+
+**It must not look AI-made.** What gives an edit away, and the rule against it:
+- AI pictures (waxy faces, extra fingers, impossible text): none - AI-generated
+  stock is filtered out of every search, Adobe results with `isGenTech: true`
+  are skipped, `ai:` stills only for the impossible and disclosed.
+- Stock clichés (handshake, lightbulb, typing hands, chess piece, globe) for
+  abstract lines: never - a graphic or the concrete example instead.
+- Sameness: the same move, transition, text pop or SFX over and over. Stills
+  never repeat a move back to back; vary shot length with the speech (short on
+  lists, longer on a moment); 2-5 sound accents a minute, not one per cut.
+- Synthetic sound: real music and SFX (Epidemic Sound or the user's), the user's
+  own voice; the synthesized kit only as a fallback.
+- Effects for their own sake: every effect answers a moment in the words
+  (reveal, flashback, comparison). If you can't say which, delete it.
+- Uneven finish: one style per video (colors, fonts, caption look), graphics in
+  that style, consistent grade and grain, sources credited.
 
 Then run the gate: `node scripts/lint-script.mjs`. It checks the hook (warm-ups,
 length, tension), word budget vs `targetSeconds`, scene and sentence length,

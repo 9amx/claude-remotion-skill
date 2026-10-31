@@ -127,6 +127,10 @@ function stillMove(shot, planned, lenSec) {
   return m;
 }
 
+// "callouts": "auto" (default) pops *highlighted* phrases only when captions are
+// off; "on" always; "off" never (a beat's own "text" always shows).
+const calloutsOn = (project.callouts ?? "auto") === "on" || ((project.callouts ?? "auto") === "auto" && project.captions.style === "none");
+
 let cursorMs = 0;
 const scenes = [];
 const words = [];
@@ -196,10 +200,38 @@ for (const [i, scene] of project.scenes.entries()) {
     if (idx >= 0) emphasisFrom = Math.max(0, toF(vo.words[idx].startMs) - 2);
     else if (scene.emphasisOn) log("timeline", `${id}: emphasisOn "${scene.emphasisOn}" not found in the spoken words`);
   }
+  // Text pops: a beat's "text" lands with its shot; with callouts on (default
+  // when captions are off) every *highlighted* phrase in the line pops on the
+  // word it repeats. Never over a graphic, the emphasis, or another pop.
+  const callouts = [];
+  const graphicAt = (f) => shots.some((sh) => sh.type === "graphic" && f >= sh.from - 4 && f < sh.from + sh.durationInFrames);
+  const free = (f, len) => !graphicAt(f) && !(scene.emphasis && f + len > emphasisFrom && f < emphasisFrom + fps * 2.5) &&
+    !callouts.some((c) => f < c.from + c.duration + 6 && f + len > c.from - 6);
+  planned.forEach((p, k) => {
+    if (!p.text || k >= shots.length) return;
+    const len = Math.min(shots[k].durationInFrames, Math.round(fps * 3.5));
+    if (free(shots[k].from + 2, len)) callouts.push({ text: p.text, from: shots[k].from + 2, duration: len });
+  });
+  if (calloutsOn) {
+    let fromIdx = 0;
+    // A line without *markup*: its numbers ("3 years", "$48,200", "4.1%") pop instead.
+    const marked = [...scene.text.matchAll(/\*([^*]+)\*/g)].map((m) => m[1]);
+    const phrases = marked.length ? marked : [...scene.text.matchAll(/[$€£৳₹]?\d[\d,.]*\s*(%|percent|million|billion|thousand|years?|months?|days?|hours?|times|x)?/gi)].map((m) => m[0]);
+    for (const raw of phrases) {
+      const phrase = raw.replace(/[^\p{L}\p{M}\p{N}\s$€£৳₹%.,'-]/gu, "").trim();
+      const idx = findPhrase(vo.words, phrase, fromIdx);
+      if (idx < 0) continue;
+      fromIdx = idx + 1;
+      const from = Math.max(0, toF(vo.words[idx].startMs) - 3), len = Math.min(Math.round(fps * 2.4), durationInFrames - from);
+      if (len > fps && free(from, len)) callouts.push({ text: phrase, from, duration: len });
+    }
+  }
+
   scenes.push({
     id,
     startFrame,
     durationInFrames,
+    callouts,
     audio: vo.audio,
     text: scene.text,
     emphasis: scene.emphasis ?? null,
