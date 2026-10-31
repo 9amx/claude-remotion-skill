@@ -7,7 +7,7 @@
 //   --upload  after a clean run, upload to YouTube (scripts/youtube.mjs; sign in once with --auth)
 // Env:   REMOTION_BROWSER=/path/to/chrome   (only if Remotion can't download its own)
 //        REMOTION_FLAGS="--concurrency=4"     (extra flags for the render step)
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { PYTHON, ROOT, ffmpeg, fail, log, readProject, status } from "./lib.mjs";
@@ -69,6 +69,12 @@ const planned = steps.map(([n]) => n).filter((n) => (n !== "upload" || uploadAft
 status({ title: project.title ?? "Video", steps: planned, done: from ? planned.slice(0, Math.max(0, planned.indexOf(from))) : [],
   step: null, doing: "Starting", progress: null, etaSec: null, finished: false, failed: null, ...(from ? {} : { issues: [], stats: {} }) });
 log("auto", `live status: ${path.join(ROOT, "build", "status.html")} (open it in a browser)`);
+// The editor view (preview + timeline + live status) runs on its own in the
+// background and keeps running after this run; a second start just finds it.
+if (!args.includes("--no-editor")) {
+  spawn(process.execPath, [path.join(ROOT, "scripts", "editor.mjs")], { cwd: ROOT, stdio: "ignore", detached: true, env: process.env }).unref();
+  log("auto", "editor view: http://localhost:3100  (preview, timeline, inspector - or run: npm run editor)");
+}
 const done = new Set(from ? planned.slice(0, Math.max(0, planned.indexOf(from))) : []);
 
 let started = !from;

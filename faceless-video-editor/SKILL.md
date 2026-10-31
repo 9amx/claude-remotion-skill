@@ -175,6 +175,15 @@ on purpose:
   (reveal, flashback, comparison). If you can't say which, delete it.
 - Uneven finish: one style per video (colors, fonts, caption look), graphics in
   that style, consistent grade and grain, sources credited.
+- Template type (thick outlines, yellow all-caps slams, bouncing words,
+  highlighter boxes): the `documentary` and `minimal` styles set every on-screen
+  text editorially - a display face in mixed case (Fraunces / Inter Tight),
+  words rising out of a mask, subtitles without a box. Keep `bold` for Shorts;
+  long form uses `documentary` or `minimal`.
+- Decorative lines beside text (a dash before a label, a rule over a title, a
+  bar beside a text pop) are OFF. Turn them on (`"textRules": true`) only when
+  the reference screenshots show that kind of line; otherwise never add
+  ornaments the reference doesn't have - match its text style, not a template.
 
 Then run the gate: `node scripts/lint-script.mjs`. It checks the hook (warm-ups,
 length, tension), word budget vs `targetSeconds`, scene and sentence length,
@@ -315,6 +324,16 @@ If the render can't download Chrome, set `REMOTION_BROWSER=/path/to/chrome`
 (Playwright's `chrome-headless-shell` works). No stock key? Archive photos and
 `file:` assets still work; other shots fall back to an animated kinetic
 background - fine for a test, not for a real upload; tell the user.
+
+**Editor view.** `auto.mjs` also starts a local editor page,
+http://localhost:3100 (or `npm run editor`, which opens the browser): a preview
+player, a multi-track timeline (chapters, scenes, picture with thumbnails,
+text pops / emphasis / lower thirds, voice words, music, sound), an inspector
+for any clip (its words, keyword, source, match, credit), the script with the
+current word lit, the issues and the live log. Before the render the preview is
+an animatic - each shot's storyboard frame over the real voice - so the user can
+watch the edit play against the words; after the render it plays the video.
+Tell the user the address at the start of every run.
 
 **Live status page.** Every run keeps `build/status.html` up to date (it reloads
 itself every 4 s): the step now running and its progress bar, the render's time

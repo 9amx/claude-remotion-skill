@@ -2,6 +2,7 @@
 // Scene 0's emphasis is the hook: larger, lands on frame 0.
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import { clamp, ease, springs, type Style } from "../theme";
+import { Reveal } from "./Reveal";
 
 // Numbers count up from 0 ("$4,000", "24", "3.5%"), landing in ~0.9s.
 const countUp = (word: string, frame: number, fps: number) => {
@@ -27,6 +28,30 @@ export const Emphasis: React.FC<{ text: string; style: Style; hook: boolean; dur
   const exitY = interpolate(frame, [duration - 10, duration - 2], [0, -40], { ...clamp, easing: ease.in });
   const exitO = interpolate(frame, [duration - 10, duration - 2], [1, 0], clamp);
   const breathe = 1 + Math.sin(frame / 22) * 0.012;
+
+  if (style.editorial) {
+    // Mixed case in the display face, each word rising out of a mask, a thin rule
+    // drawing above it; numbers in the accent color. Calm, like a title sequence.
+    const size = Math.min((portrait ? width * 0.12 : width * 0.062) * (hook ? 1.15 : 1), (width * 0.84) / (longest * 0.48));
+    const rule = interpolate(frame, [0, 14], [0, 1], { ...clamp, easing: ease.out });
+    return (
+      <AbsoluteFill style={{ pointerEvents: "none", alignItems: "center" }}>
+        <div style={{ position: "absolute", top: portrait ? height * 0.16 : height * 0.11, width: width * 0.84, textAlign: "center", opacity: exitO, transform: `translateY(${exitY * 0.5}px)` }}>
+          {style.rules && <div style={{ width: size * 0.9 * rule, height: Math.max(2, size * 0.035), background: style.colors.primary, margin: `0 auto ${size * 0.22}px`, borderRadius: 2 }} />}
+          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", columnGap: size * 0.24 }}>
+            {words.map((w, i) => (
+              <Reveal key={i} delay={(hook ? 0 : 3) + i * 3} frames={hook ? 12 : 16}>
+                <span style={{
+                  fontFamily: style.fonts.emphasis, fontWeight: 600, fontSize: size, lineHeight: 1.08, letterSpacing: "-0.01em",
+                  color: /\d/.test(w) ? style.colors.primary : style.colors.text, textShadow: `0 ${size * 0.04}px ${size * 0.35}px rgba(0,0,0,0.7)`,
+                }}>{countUp(w, frame, fps)}</span>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </AbsoluteFill>
+    );
+  }
 
   return (
     <AbsoluteFill style={{ pointerEvents: "none", alignItems: "center" }}>

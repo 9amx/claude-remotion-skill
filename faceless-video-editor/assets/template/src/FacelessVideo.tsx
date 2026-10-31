@@ -116,7 +116,7 @@ export const FacelessVideo: React.FC<Props> = ({ timeline }) => {
   const duck = useSpeechDuck(timeline, fps, durationInFrames);
   const duckAt = (f: number) => duck[Math.min(duck.length - 1, Math.max(0, f))];
   if (!timeline) return <AbsoluteFill style={{ background: "#111", color: "#fff", fontSize: 48, padding: 80 }}>Run `npm run auto` first: public/timeline.json is missing.</AbsoluteFill>;
-  const style = getStyle(timeline.style);
+  const style = getStyle(timeline.style, timeline.textRules ?? false);
   const motion: Motion = timeline.editStyle === "viral" || timeline.editStyle === "explainer" ? "punchy" : "cinematic";
   // A title-card fallback already shows its line: no captions on top of it.
   const cardRanges = timeline.scenes.flatMap((sc) => sc.shots.filter((sh) => sh.type === "kinetic").map((sh) => [sc.startFrame + sh.from, sc.startFrame + sh.from + sh.durationInFrames]));
