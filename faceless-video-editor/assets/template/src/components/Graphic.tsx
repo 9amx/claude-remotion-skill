@@ -1,16 +1,18 @@
 // Motion-graphics shots: facts drawn from data, so they are exactly right.
 // counter (a number), bars (a comparison), map (places, countries, a route),
-// timeline (dates), quote (someone's words). A beat in project.json:
+// timeline (dates), quote (someone's words); explainers for what footage can't
+// show: list, steps (a process), compare (two sides), statement (the key line),
+// ui (a screenshot in a browser / phone frame with a highlight). A beat in project.json:
 //   { "on": "3.5 million", "graphic": { "type": "counter", "value": 3500000, "label": "...", "source": "..." } }
 // Content stays in the safe zone above the captions; every entrance is a
 // spring with a stagger, idle elements breathe.
 import { geoCircle, geoInterpolate, geoMercator, geoNaturalEarth1, geoPath, type GeoProjection } from "d3-geo";
 import { useEffect, useMemo, useState } from "react";
-import { AbsoluteFill, cancelRender, continueRender, delayRender, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Img, cancelRender, continueRender, delayRender, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { feature } from "topojson-client";
 import type { Topology } from "topojson-specification";
 import { clamp, ease, springs, type Style } from "../theme";
-import type { GraphicSpec } from "../types";
+import type { GraphicSpec, Item } from "../types";
 
 // Safe zone: above the captions (portrait ~64%, landscape subtitles ~86%).
 const useZone = () => {
@@ -321,6 +323,293 @@ const MapG: React.FC<{ g: Extract<GraphicSpec, { type: "map" }>; style: Style }>
   );
 };
 
+
+// ---------- explainers ----------
+// Each item lands on its own words: `at` holds frames from the shot's start
+// (build-timeline fills it from the items' "on" phrases, or spreads them evenly).
+const itemText = (it: Item) => (typeof it === "string" ? it : it.text);
+const itemIcon = (it: Item) => (typeof it === "string" ? undefined : it.icon);
+const atOf = (at: number[] | undefined, i: number, gap = 8) => at?.[i] ?? 4 + i * gap;
+
+// Every slot is laid out as a faint outline from the first frame (so the screen is
+// never empty while the voice gets to item 1); an item fills its slot on its words.
+const Card: React.FC<{ style: Style; active: boolean; p: number; children: React.ReactNode; css?: React.CSSProperties }> = ({ style, active, p, children, css }) => {
+  const z = useZone();
+  const ghost = useEnter(0);
+  return (
+    <div style={{
+      background: `linear-gradient(180deg, ${style.colors.bgAlt}F2, ${style.colors.bg}F2)`,
+      border: `${Math.max(2, z.unit * 0.0025)}px solid ${active ? style.colors.primary : `${style.colors.text}26`}`,
+      borderRadius: z.unit * 0.022, boxShadow: active ? `0 0 ${z.unit * 0.04}px ${style.colors.primary}55, 0 ${z.unit * 0.012}px ${z.unit * 0.04}px rgba(0,0,0,0.45)` : `0 ${z.unit * 0.01}px ${z.unit * 0.03}px rgba(0,0,0,0.4)`,
+      opacity: Math.max(0.28 * ghost, interpolate(p, [0, 0.4], [0, 1], clamp)), ...css,
+    }}>{children}</div>
+  );
+};
+
+const Bullet: React.FC<{ style: Style; label: string; size: number; active: boolean }> = ({ style, label, size, active }) => (
+  <div style={{
+    flex: "0 0 auto", width: size, height: size, borderRadius: size * 0.3, display: "flex", alignItems: "center", justifyContent: "center",
+    background: active ? style.colors.primary : `${style.colors.text}1F`, color: active ? style.colors.outline : style.colors.text,
+    fontFamily: style.fonts.emphasis, fontSize: size * 0.52, lineHeight: 1,
+  }}>{label}</div>
+);
+
+const ListG: React.FC<{ g: Extract<GraphicSpec, { type: "list" }>; style: Style }> = ({ g, style }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const z = useZone();
+  const n = g.items.length;
+  const top = z.y + (g.title ? z.unit * 0.1 : 0);
+  const area = z.h - (top - z.y);
+  const gapY = z.unit * 0.018;
+  const row = Math.min((area - gapY * (n - 1)) / n, z.unit * 0.13);
+  const w = Math.min(z.w, z.unit * 1.1);
+  const longest = Math.max(...g.items.map((it) => itemText(it).length));
+  const fontSize = Math.min(row * 0.34, (w * 0.78) / Math.max(10, longest * 0.5));
+  const current = g.items.reduce((c, _, i) => (frame >= atOf(g.at, i) ? i : c), -1);
+  return (
+    <Frame style={style} title={g.title}>
+      {g.items.map((it, i) => {
+        const p = spring({ frame: frame - atOf(g.at, i), fps, config: springs.smooth });
+        const active = i === current;
+        return (
+          <Card key={i} style={style} active={active} p={p} css={{
+            position: "absolute", left: z.x + (z.w - w) / 2, width: w, top: top + (area - (row * n + gapY * (n - 1))) / 2 + i * (row + gapY), height: row,
+            display: "flex", alignItems: "center", gap: row * 0.25, padding: `0 ${row * 0.25}px`,
+            transform: `translateY(${interpolate(p, [0, 1], [row * 0.15, 0])}px) scale(${active ? 1 + 0.02 * p : 1})`,
+            filter: i < current ? "saturate(0.6) brightness(0.8)" : "none",
+          }}>
+            <Bullet style={style} label={itemIcon(it) ?? (g.numbered === false ? "•" : String(i + 1))} size={row * 0.6} active={active} />
+            <div style={{ fontFamily: style.fonts.caption, fontWeight: style.captionWeight, fontSize, color: style.colors.text, lineHeight: 1.12, opacity: interpolate(p, [0.2, 0.7], [0, 1], clamp) }}>{itemText(it)}</div>
+          </Card>
+        );
+      })}
+    </Frame>
+  );
+};
+
+const StepsG: React.FC<{ g: Extract<GraphicSpec, { type: "steps" }>; style: Style }> = ({ g, style }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const z = useZone();
+  const n = g.items.length;
+  const top = z.y + (g.title ? z.unit * 0.1 : 0);
+  const area = z.h - (top - z.y);
+  // Landscape: a row of nodes; portrait: a column.
+  const across = !z.portrait;
+  const gap = z.unit * (across ? 0.06 : 0.035);
+  const nodeW = across ? Math.min((z.w - gap * (n - 1)) / n, z.unit * 0.42) : Math.min(z.w, z.unit * 0.9);
+  const nodeH = across ? Math.min(area * 0.62, nodeW * 0.95) : Math.min((area - gap * (n - 1)) / n, z.unit * 0.15);
+  const total = across ? nodeW * n + gap * (n - 1) : nodeH * n + gap * (n - 1);
+  const x0 = across ? z.x + (z.w - total) / 2 : z.x + (z.w - nodeW) / 2;
+  const y0 = across ? top + (area - nodeH) / 2 : top + (area - total) / 2;
+  const longest = Math.max(...g.items.map((it) => itemText(it).length));
+  const fontSize = across ? Math.min(nodeW * 0.13, (nodeW * 0.85 * 3) / Math.max(12, longest * 0.55)) : Math.min(nodeH * 0.32, (nodeW * 0.7) / Math.max(10, longest * 0.5));
+  const current = g.items.reduce((c, _, i) => (frame >= atOf(g.at, i, 12) ? i : c), -1);
+  const pos = (i: number) => (across ? { x: x0 + i * (nodeW + gap), y: y0 } : { x: x0, y: y0 + i * (nodeH + gap) });
+  return (
+    <Frame style={style} title={g.title}>
+      {g.items.slice(1).map((_, k) => {
+        const i = k + 1;
+        const a = pos(i - 1), b = pos(i);
+        const p = interpolate(frame, [atOf(g.at, i, 12) - 6, atOf(g.at, i, 12) + 4], [0, 1], { ...clamp, easing: ease.out });
+        const thick = Math.max(3, z.unit * 0.005);
+        const style2: React.CSSProperties = across
+          ? { left: a.x + nodeW + gap * 0.15, top: a.y + nodeH / 2 - thick / 2, width: gap * 0.7 * p, height: thick }
+          : { left: a.x + nodeW / 2 - thick / 2, top: a.y + nodeH + gap * 0.15, width: thick, height: gap * 0.7 * p };
+        return (
+          <div key={`c${i}`} style={{ position: "absolute", ...style2, background: style.colors.primary, borderRadius: thick }}>
+            <div style={{
+              position: "absolute", [across ? "right" : "bottom"]: -thick * 2, [across ? "top" : "left"]: -thick * 1.5, opacity: p,
+              width: 0, height: 0, borderStyle: "solid",
+              borderWidth: across ? `${thick * 2}px 0 ${thick * 2}px ${thick * 3}px` : `${thick * 3}px ${thick * 2}px 0 ${thick * 2}px`,
+              borderColor: across ? `transparent transparent transparent ${style.colors.primary}` : `${style.colors.primary} transparent transparent transparent`,
+            }} />
+          </div>
+        );
+      })}
+      {g.items.map((it, i) => {
+        const p = spring({ frame: frame - atOf(g.at, i, 12), fps, config: springs.smooth });
+        const active = i === current;
+        const { x, y } = pos(i);
+        return (
+          <Card key={i} style={style} active={active} p={p} css={{
+            position: "absolute", left: x, top: y, width: nodeW, height: nodeH, display: "flex",
+            flexDirection: across ? "column" : "row", alignItems: "center", justifyContent: across ? "center" : "flex-start",
+            gap: z.unit * 0.02, padding: z.unit * 0.02, textAlign: across ? "center" : "left",
+            transform: `scale(${interpolate(p, [0, 1], [0.94, active ? 1.04 : 1])})`,
+          }}>
+            <Bullet style={style} label={itemIcon(it) ?? String(i + 1)} size={across ? nodeW * 0.24 : nodeH * 0.55} active={active || i < current} />
+            <div style={{ fontFamily: style.fonts.caption, fontWeight: style.captionWeight, fontSize, color: style.colors.text, lineHeight: 1.12, opacity: interpolate(p, [0.2, 0.7], [0, 1], clamp) }}>{itemText(it)}</div>
+          </Card>
+        );
+      })}
+    </Frame>
+  );
+};
+
+const CompareG: React.FC<{ g: Extract<GraphicSpec, { type: "compare" }>; style: Style }> = ({ g, style }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const z = useZone();
+  const top = z.y + (g.title ? z.unit * 0.1 : 0);
+  const area = z.h - (top - z.y);
+  const gap = z.unit * 0.04;
+  const colW = (z.w - gap) / 2;
+  const rows = Math.max(g.left.items.length, g.right.items.length);
+  const head = Math.min(z.unit * 0.1, area * 0.2);
+  const row = Math.min((area - head - z.unit * 0.03) / rows, z.unit * 0.1);
+  const longest = Math.max(...[...g.left.items, ...g.right.items].map((it) => itemText(it).length), g.left.label.length, g.right.label.length);
+  const fontSize = Math.min(row * 0.36, (colW * 0.8) / Math.max(10, longest * 0.5));
+  const toneColor = (t?: string) => (t === "good" ? "#34D399" : t === "bad" ? "#F87171" : style.colors.primary);
+  const sides = [g.left, g.right];
+  let k = 0;
+  return (
+    <Frame style={style} title={g.title}>
+      {sides.map((side, si) => {
+        const x = z.x + si * (colW + gap);
+        const hp = spring({ frame: frame - atOf(g.at, k, 8) + 4, fps, config: springs.snappy });
+        const color = toneColor(side.tone);
+        return (
+          <div key={si}>
+            <div style={{
+              position: "absolute", left: x, top, width: colW, height: head, borderRadius: z.unit * 0.02, background: `${color}26`,
+              border: `2px solid ${color}`, display: "flex", alignItems: "center", justifyContent: "center",
+              fontFamily: style.fonts.emphasis, fontSize: head * 0.45, color, opacity: hp, transform: `translateY(${interpolate(hp, [0, 1], [-head * 0.4, 0])}px)`,
+            }}>{side.label}</div>
+            {side.items.map((it, i) => {
+              const idx = k++;
+              const p = spring({ frame: frame - atOf(g.at, idx, 8), fps, config: springs.smooth });
+              return (
+                <div key={i} style={{
+                  position: "absolute", left: x + z.unit * 0.01, width: colW - z.unit * 0.02, top: top + head + z.unit * 0.03 + i * row, height: row,
+                  display: "flex", alignItems: "center", gap: row * 0.22, opacity: interpolate(p, [0, 0.4], [0, 1], clamp),
+                  transform: `translateX(${interpolate(p, [0, 1], [(si ? 1 : -1) * colW * 0.08, 0])}px)`,
+                }}>
+                  <div style={{ flex: "0 0 auto", width: row * 0.42, height: row * 0.42, borderRadius: "50%", background: color, color: style.colors.outline,
+                    display: "flex", alignItems: "center", justifyContent: "center", fontSize: row * 0.28, fontFamily: style.fonts.emphasis }}>
+                    {itemIcon(it) ?? (side.tone === "bad" ? "✕" : "✓")}
+                  </div>
+                  <div style={{ fontFamily: style.fonts.caption, fontWeight: style.captionWeight, fontSize, color: style.colors.text, lineHeight: 1.1 }}>{itemText(it)}</div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+    </Frame>
+  );
+};
+
+const StatementG: React.FC<{ g: Extract<GraphicSpec, { type: "statement" }>; style: Style }> = ({ g, style }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const z = useZone();
+  const words = g.text.split(/\s+/);
+  const hl = new Set((g.highlight ?? "").toLowerCase().split(/\s+/).filter(Boolean).map((w) => w.replace(/[^\p{L}\p{N}]/gu, "")));
+  const fontSize = Math.min(z.unit * 0.1, Math.sqrt((z.w * z.h * 0.42) / (g.text.length * 0.55)));
+  const kick = useEnter(0, springs.snappy);
+  const last = 6 + words.length * 3;
+  return (
+    <Frame style={style}>
+      <AbsoluteFill style={{ top: z.y, height: z.h, left: z.x, width: z.w, justifyContent: "center", alignItems: "center", flexDirection: "column" }}>
+        {g.kicker ? (
+          <div style={{
+            fontFamily: style.fonts.caption, fontWeight: 800, fontSize: fontSize * 0.32, letterSpacing: "0.12em", textTransform: "uppercase",
+            color: style.colors.primary, marginBottom: fontSize * 0.3, opacity: kick, transform: `translateY(${interpolate(kick, [0, 1], [fontSize * 0.3, 0])}px)`,
+          }}>{g.kicker}</div>
+        ) : null}
+        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", columnGap: fontSize * 0.26, maxWidth: z.w }}>
+          {words.map((w, i) => {
+            const p = spring({ frame: frame - 4 - i * 3, fps, config: springs.snappy });
+            const isHl = hl.has(w.toLowerCase().replace(/[^\p{L}\p{N}]/gu, ""));
+            const under = interpolate(frame, [last, last + 12], [0, 1], { ...clamp, easing: ease.out });
+            return (
+              <span key={i} style={{
+                position: "relative", display: "inline-block", fontFamily: style.fonts.emphasis, fontSize, lineHeight: 1.15,
+                color: isHl ? style.colors.primary : style.colors.text, opacity: p,
+                transform: `translateY(${interpolate(p, [0, 1], [fontSize * 0.45, 0])}px)`,
+              }}>
+                {w}
+                {isHl ? <span style={{ position: "absolute", left: 0, bottom: fontSize * 0.02, height: fontSize * 0.08, width: `${under * 100}%`, background: style.colors.primary, borderRadius: fontSize }} /> : null}
+              </span>
+            );
+          })}
+        </div>
+      </AbsoluteFill>
+    </Frame>
+  );
+};
+
+const UiG: React.FC<{ g: Extract<GraphicSpec, { type: "ui" }>; style: Style }> = ({ g, style }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const z = useZone();
+  const phone = g.device === "phone";
+  const enter = useEnter(0);
+  const bar = z.unit * (phone ? 0.04 : 0.05);
+  const h = z.h * 0.98;
+  const w = phone ? Math.min(z.w, h * 0.5) : Math.min(z.w, (h - bar) * 1.6);
+  const x = z.x + (z.w - w) / 2, y = z.y + (z.h - h) / 2;
+  const radius = z.unit * (phone ? 0.05 : 0.018);
+  const hlAt = atOf(g.at, 0, 0) || Math.round(fps * 0.6);
+  const hp = interpolate(frame, [hlAt, hlAt + 14], [0, 1], { ...clamp, easing: ease.out });
+  const screenH = h - (phone ? 0 : bar);
+  // Slow push toward the highlighted area once it is drawn.
+  const [hx, hy, hw, hh] = g.highlight ?? [0, 0, 100, 100];
+  const push = g.highlight ? interpolate(frame, [hlAt, hlAt + fps * 2], [1, 1.12], { ...clamp, easing: ease.inOut }) : 1 + frame * 0.0006;
+  const origin = `${hx + hw / 2}% ${hy + hh / 2}%`;
+  return (
+    <Frame style={style}>
+      <div style={{
+        position: "absolute", left: x, top: y, width: w, height: h, borderRadius: radius, overflow: "hidden",
+        background: "#0E0E14", border: `${Math.max(2, z.unit * 0.003)}px solid ${style.colors.text}33`,
+        boxShadow: `0 ${z.unit * 0.03}px ${z.unit * 0.08}px rgba(0,0,0,0.6)`,
+        opacity: enter, transform: `translateY(${interpolate(enter, [0, 1], [z.unit * 0.06, 0])}px) scale(${interpolate(enter, [0, 1], [0.94, 1])})`,
+      }}>
+        {!phone && (
+          <div style={{ height: bar, display: "flex", alignItems: "center", gap: bar * 0.18, padding: `0 ${bar * 0.35}px`, background: "#1B1B24" }}>
+            {["#FF5F57", "#FEBC2E", "#28C840"].map((c) => <div key={c} style={{ width: bar * 0.24, height: bar * 0.24, borderRadius: "50%", background: c }} />)}
+            <div style={{
+              marginLeft: bar * 0.3, flex: 1, height: bar * 0.56, borderRadius: bar, background: "#2A2A36", color: "#B8B8C8",
+              display: "flex", alignItems: "center", padding: `0 ${bar * 0.35}px`, fontFamily: style.fonts.caption, fontWeight: 600, fontSize: bar * 0.3,
+            }}>{g.url ?? ""}</div>
+          </div>
+        )}
+        <div style={{ position: "relative", width: "100%", height: screenH, overflow: "hidden" }}>
+          <div style={{ position: "absolute", inset: 0, transform: `scale(${push})`, transformOrigin: origin }}>
+            <Img src={staticFile(g.image)} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
+            {g.highlight ? (
+              <>
+                {/* Spotlight: everything but the highlighted area dims. */}
+                <div style={{
+                  position: "absolute", left: `${hx}%`, top: `${hy}%`, width: `${hw}%`, height: `${hh}%`, borderRadius: z.unit * 0.012,
+                  boxShadow: `0 0 0 ${z.unit * 2}px rgba(0,0,0,${0.55 * hp})`,
+                }} />
+                <svg style={{ position: "absolute", left: `${hx}%`, top: `${hy}%`, width: `${hw}%`, height: `${hh}%`, overflow: "visible" }} viewBox="0 0 100 100" preserveAspectRatio="none">
+                  <rect x={0} y={0} width={100} height={100} rx={3} fill="none" stroke={style.colors.primary} strokeWidth={Math.max(2, z.unit * 0.004)}
+                    vectorEffect="non-scaling-stroke" pathLength={1} strokeDasharray="1" strokeDashoffset={1 - hp} />
+                </svg>
+              </>
+            ) : null}
+          </div>
+        </div>
+      </div>
+      {g.caption ? (
+        <div style={{
+          position: "absolute", left: z.x, width: z.w, top: y + h - z.unit * 0.09, display: "flex", justifyContent: "center", opacity: hp,
+          transform: `translateY(${interpolate(hp, [0, 1], [z.unit * 0.02, 0])}px)`,
+        }}>
+          <div style={{
+            background: style.colors.primary, color: style.colors.outline, borderRadius: z.unit, padding: `${z.unit * 0.012}px ${z.unit * 0.03}px`,
+            fontFamily: style.fonts.caption, fontWeight: 800, fontSize: z.unit * 0.034, boxShadow: `0 ${z.unit * 0.01}px ${z.unit * 0.03}px rgba(0,0,0,0.5)`,
+          }}>{g.caption}</div>
+        </div>
+      ) : null}
+    </Frame>
+  );
+};
+
 export const Graphic: React.FC<{ graphic: GraphicSpec; style: Style }> = ({ graphic, style }) => {
   switch (graphic.type) {
     case "counter": return <Counter g={graphic} style={style} />;
@@ -328,6 +617,11 @@ export const Graphic: React.FC<{ graphic: GraphicSpec; style: Style }> = ({ grap
     case "timeline": return <TimelineG g={graphic} style={style} />;
     case "quote": return <Quote g={graphic} style={style} />;
     case "map": return <MapG g={graphic} style={style} />;
+    case "list": return <ListG g={graphic} style={style} />;
+    case "steps": return <StepsG g={graphic} style={style} />;
+    case "compare": return <CompareG g={graphic} style={style} />;
+    case "statement": return <StatementG g={graphic} style={style} />;
+    case "ui": return <UiG g={graphic} style={style} />;
     default: return null;
   }
 };

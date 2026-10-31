@@ -10,7 +10,8 @@ import { fileURLToPath } from "node:url";
 // hosts the network only reaches through the proxy fail with ENOTFOUND. Re-run
 // this script once with it set; child scripts inherit it.
 if ((process.env.HTTPS_PROXY || process.env.https_proxy) && !process.env.NODE_USE_ENV_PROXY) {
-  const r = spawnSync(process.execPath, [...process.execArgv, ...process.argv.slice(1)], { stdio: "inherit", env: { ...process.env, NODE_USE_ENV_PROXY: "1" } });
+  const NODE_OPTIONS = `${process.env.NODE_OPTIONS ?? ""} --disable-warning=UNDICI-EHPA`.trim(); // "proxy agent is experimental", in every child too
+  const r = spawnSync(process.execPath, [...process.execArgv, ...process.argv.slice(1)], { stdio: "inherit", env: { ...process.env, NODE_USE_ENV_PROXY: "1", NODE_OPTIONS } });
   process.exit(r.status ?? 1);
 }
 
@@ -22,6 +23,9 @@ export const BUILD = path.join(ROOT, "build");
 // which newer Node versions refuse to spawn without a shell.
 export const REMOTION = [process.execPath, path.join(ROOT, "node_modules", "@remotion", "cli", "remotion-cli.js")];
 export const remotionCmd = (args) => [REMOTION[0], [REMOTION[1], ...args]];
+// Remotion's CLI gets the environment WITHOUT NODE_USE_ENV_PROXY: through a proxy
+// that blocks remotion.media its background check throws and kills the render.
+export const remotionEnv = () => { const e = { ...process.env }; delete e.NODE_USE_ENV_PROXY; return e; };
 // "python3" on macOS/Linux, usually "python" (or the "py" launcher) on Windows.
 export const PYTHON = ["python3", "python", "py"].find((c) => spawnSync(c, ["--version"], { encoding: "utf8" }).status === 0) ?? "python3";
 
@@ -136,7 +140,7 @@ export const sceneId = (i) => `s${String(i + 1).padStart(3, "0")}`;
 // to the first word they share with the line (in order), else spread evenly.
 export const brollEntries = (scene) =>
   (scene.broll ?? []).map((e) => (typeof e === "string" ? { kw: [e] } : { ...e, kw: [].concat(e.kw ?? []).filter(Boolean) }));
-export const GRAPHIC_TYPES = ["counter", "bars", "timeline", "quote", "map"];
+export const GRAPHIC_TYPES = ["counter", "bars", "timeline", "quote", "map", "list", "steps", "compare", "statement", "ui"];
 export const entryKeywords = (scene) => brollEntries(scene).flatMap((e) => e.kw);
 
 export const normWord = (w) => String(w).toLowerCase().replace(/[^\p{L}\p{M}\p{N}]/gu, "");
@@ -176,9 +180,15 @@ function autoAnchor(words, kw, from, minMs) {
 const REL_STOP = new Set(["the", "and", "with", "for", "from", "into", "over", "close", "shot", "video", "footage", "photo", "image"]);
 export const BLOCK = /green ?screen|chroma|mock-?up|template|alpha channel|lower third|placeholder/i;
 const wordsOf = (q) => q.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 2 && !REL_STOP.has(w));
+// Looks a real-footage edit never wants unless the keyword asks for them: a
+// cartoon or a Christmas scene that shares one word with "team celebrating office".
+const OFF_LOOK = /\b(cartoon|animated|animation|3d|render|illustration|vector|clip ?art|drawing|anime|christmas|xmas|santa|halloween|easter|valentine)\b/i;
 export const relevance = (query, text) => {
   const words = wordsOf(query), t = text.toLowerCase();
-  return words.length ? words.filter((w) => t.includes(w)).length / words.length : 0;
+  if (!words.length) return 0;
+  const off = OFF_LOOK.exec(t);
+  if (off && !query.toLowerCase().includes(off[1].toLowerCase().slice(0, 4))) return 0;
+  return words.filter((w) => t.includes(w)).length / words.length;
 };
 
 // Adobe Stock clips licensed through the Adobe connector and added with

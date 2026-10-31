@@ -12,7 +12,16 @@ export type GraphicSpec =
   | { type: "bars"; data: [string, number][]; unit?: string; highlight?: number; title?: string; source?: string }
   | { type: "timeline"; events: [string, string][]; highlight?: number; title?: string; source?: string }
   | { type: "quote"; text: string; by?: string; source?: string }
-  | { type: "map"; places: MapPlace[]; countries?: string[]; route?: boolean; title?: string; source?: string };
+  | { type: "map"; places: MapPlace[]; countries?: string[]; route?: boolean; title?: string; source?: string }
+  // Explainers: each item appears on its own words ("on"); build-timeline turns
+  // that into `at` (frames from the shot's start) for every item.
+  | { type: "list"; items: Item[]; title?: string; numbered?: boolean; at?: number[] }
+  | { type: "steps"; items: Item[]; title?: string; at?: number[] }
+  | { type: "compare"; left: Side; right: Side; title?: string; at?: number[] }
+  | { type: "statement"; text: string; highlight?: string; kicker?: string }
+  | { type: "ui"; image: string; device?: "browser" | "phone"; url?: string; highlight?: [number, number, number, number]; on?: string; caption?: string; at?: number[] };
+export type Item = string | { text: string; on?: string; icon?: string };
+export type Side = { label: string; items: Item[]; tone?: "good" | "bad" };
 
 export type Shot = {
   type: "video" | "image" | "kinetic" | "graphic";

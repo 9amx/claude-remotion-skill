@@ -95,6 +95,13 @@ so it is exactly right, and it counts as a pattern interrupt:
 { "on": "from Dhaka", "graphic": { "type": "map", "places": ["Dhaka", "Tokyo"], "route": true } }
 { "on": "In 1977", "graphic": { "type": "timeline", "events": [["1977", "Launch"], ["1979", "Jupiter"]], "highlight": 1 } }
 { "on": "Sagan wrote", "graphic": { "type": "quote", "text": "Look again at that dot.", "by": "Carl Sagan, Pale Blue Dot (1994)" } }
+{ "on": "three reasons", "graphic": { "type": "list", "title": "Why startups fail", "items": [
+  { "text": "No market need", "on": "nobody needs" }, { "text": "Ran out of cash", "on": "out of money" }, { "text": "Wrong team", "on": "the wrong team" }] } }
+{ "on": "Here's how", "graphic": { "type": "steps", "items": [{ "text": "Sign up", "on": "sign up" }, { "text": "Connect bank", "on": "connect" }, { "text": "Get paid", "on": "paid" }] } }
+{ "on": "renting", "graphic": { "type": "compare", "left": { "label": "Rent", "tone": "bad", "items": ["No equity"] },
+  "right": { "label": "Buy", "tone": "good", "items": ["You own it"] } } }
+{ "on": "The real problem", "graphic": { "type": "statement", "kicker": "The real problem", "text": "Nobody trusts the numbers", "highlight": "trusts" } }
+{ "on": "the dashboard", "graphic": { "type": "ui", "image": "screens/dashboard.png", "url": "app.example.com", "highlight": [8, 20, 40, 30], "on": "this button", "caption": "One click" } }
 ```
 
 - **counter**: `value` is a number (3000000, not "3 million"); `prefix`, `suffix`,
@@ -107,6 +114,18 @@ so it is exactly right, and it counts as a pattern interrupt:
   through the places in order. The map frames what you name.
 - **timeline**: 2-6 `[date, what]` rows, `highlight`.
 - **quote**: `text`, `by` (who, where, when).
+- **list**: 2-6 `items` (strings, or `{ "text", "on", "icon" }`), `numbered` (default true).
+  Each item slides in on its `on` words; the newest one is lit, earlier ones dim.
+- **steps**: 2-5 `items` for a process; nodes appear on their words and an arrow
+  draws from the previous one (a row in landscape, a column in 9:16).
+- **compare**: `left` / `right`, each `{ "label", "items", "tone": "good" | "bad" }`;
+  items appear left column first, then right, each on its `on` words.
+- **statement**: the key line in a few words (max ~14), `highlight` (the word(s)
+  to underline in the accent color), `kicker` (small label above).
+- **ui**: `image` (a screenshot in `public/`, e.g. `screens/app.png`), `device`
+  `browser` (default, with `url`) or `phone`, `highlight` `[x, y, w, h]` in % of
+  the screenshot - the box draws itself on the `on` words, the rest dims, the
+  camera pushes in - and a `caption` pill. For apps, websites, dashboards, settings.
 - Every type takes `title`; counter, bars and map should carry a `source`.
 - Use the real figure and say it the same way in the line. Don't round in one place and not the other.
 - Don't put `emphasis` on a scene with a graphic: both use the top of the frame.
@@ -114,7 +133,7 @@ so it is exactly right, and it counts as a pattern interrupt:
 ## No random footage
 
 A search result is used automatically only if its tags / title share words with
-the keyword (`brollMinRelevance`, default 0.25: at least one of four words). If
+the keyword (`brollMinRelevance`, default 0.4: at least 2 of 4 words, or 1 of 2; cartoons, 3D renders and holiday scenes never match unless the keyword asks). If
 the main keyword has none, the beat's other keywords are tried; if none has a
 relevant result the shot becomes the kinetic background, and the run prints the
 words it couldn't illustrate. A review pick always wins. `out/check/sync.txt`

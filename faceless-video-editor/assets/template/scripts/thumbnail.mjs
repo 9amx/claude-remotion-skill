@@ -7,7 +7,7 @@
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { BUILD, PUBLIC, ROOT, ffmpeg, fail, log, readJson, readProject, remotionCmd, stripMarkup, writeJson } from "./lib.mjs";
+import { BUILD, PUBLIC, ROOT, ffmpeg, fail, log, readJson, readProject, remotionCmd, remotionEnv, stripMarkup, writeJson } from "./lib.mjs";
 
 const project = readProject();
 const cfg = project.thumbnail ?? {};
@@ -51,7 +51,7 @@ const flags = [
 ];
 const render = (quality) => {
   const r = spawnSync(...remotionCmd(["still", "src/index.ts", "Thumbnail", out, `--props=${propsFile}`,
-    "--image-format=jpeg", `--jpeg-quality=${quality}`, "--overwrite", ...flags]), { stdio: "inherit", cwd: ROOT });
+    "--image-format=jpeg", `--jpeg-quality=${quality}`, "--overwrite", ...flags]), { stdio: "inherit", cwd: ROOT, env: remotionEnv() });
   if (r.status !== 0) fail("thumbnail render failed");
 };
 // YouTube rejects thumbnails over 2 MB.
