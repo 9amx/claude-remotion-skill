@@ -53,6 +53,7 @@ export type Scene = {
   emphasis: string | null;
   emphasisFrom: number; // frame (relative to the scene) the emphasis lands on
   lowerThird: { title: string; subtitle?: string } | null;
+  callouts?: { text: string; from: number; duration: number }[]; // text pops on their words
   badge: string | null;
   transition: Transition; // how this scene enters
   exit: Transition; // = the next scene's transition

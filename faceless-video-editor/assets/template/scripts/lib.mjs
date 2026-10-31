@@ -182,7 +182,8 @@ export const BLOCK = /green ?screen|chroma|mock-?up|template|alpha channel|lower
 const wordsOf = (q) => q.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 2 && !REL_STOP.has(w));
 // Looks a real-footage edit never wants unless the keyword asks for them: a
 // cartoon or a Christmas scene that shares one word with "team celebrating office".
-const OFF_LOOK = /\b(cartoon|animated|animation|3d|render|illustration|vector|clip ?art|drawing|anime|christmas|xmas|santa|halloween|easter|valentine)\b/i;
+// AI-generated pictures are out too: they are what makes an edit "look AI".
+const OFF_LOOK = /\b(cartoon|animated|animation|3d|render|illustration|vector|clip ?art|drawing|anime|christmas|xmas|santa|halloween|easter|valentine|ai[- ]generated|generative|midjourney|stable diffusion|dall-?e|ai art)\b/i;
 export const relevance = (query, text) => {
   const words = wordsOf(query), t = text.toLowerCase();
   if (!words.length) return 0;
@@ -263,7 +264,7 @@ export function planShots(scene, vo, maxShotSeconds) {
     for (let j = 0; j < cuts.length - 1; j++) {
       shots.push({ kw: b.e.graphic ? null : b.e.kw[j % b.e.kw.length], alts: b.e.kw, entry: b.k, sub: j, on: b.e.on, startMs: cuts[j], endMs: cuts[j + 1],
         words: spoken(cuts[j], cuts[j + 1]), ...(b.e.graphic ? { graphic: b.e.graphic } : {}), ...(j === 0 && b.e.sfx ? { sfx: b.e.sfx } : {}),
-        ...(b.e.move ? { move: b.e.move } : {}), ...(b.e.focus ? { focus: b.e.focus } : {}),
+        ...(b.e.move ? { move: b.e.move } : {}), ...(b.e.focus ? { focus: b.e.focus } : {}), ...(j === 0 && b.e.text ? { text: b.e.text } : {}),
         ...(b.e.credit ? { credit: b.e.credit } : {}) });
     }
   });
