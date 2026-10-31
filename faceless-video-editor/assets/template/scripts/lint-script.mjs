@@ -82,6 +82,13 @@ const TENSION = /\d|\?|\b(you|your|never|nobody|no one|secret|mistake|wrong|actu
 if (!indic && !TENSION.test(firstSentence)) warnings.push("hook has no tension signal (a number, 'you', a contrast, a question, a stake). Flat hooks lose the swipe test.");
 if (shorts && !hookScene.emphasis) warnings.push("scene 1 has no emphasis: Shorts need readable hook text on frame 0 (muted autoplay).");
 if (hookScene.emphasis && words(hookScene.emphasis).length > 5) warnings.push("hook emphasis over 5 words - it has to be readable in under a second.");
+// Long form opens on picture and voice: count the text elements in the first ~10 s.
+if (!shorts) {
+  const early = p.scenes.filter((s, i) => starts[i] < 10);
+  const items = early.reduce((n, s) => n + (s.emphasis ? 1 : 0) + (s.badge ? 1 : 0) + (s.lowerThird ? 1 : 0) +
+    brollEntries(s).filter((e) => e.text || ["statement", "quote", "list"].includes(e.graphic?.type)).length, 0);
+  if (items > 1) warnings.push(`the first 10 s carry ${items} text elements (titles, labels, text pops, text graphics) - long form opens on picture and voice; keep at most one short title, and only if the reference does.`);
+}
 if (hookScene.visual === "kinetic" && shorts) warnings.push("hook scene uses the kinetic fallback - give it the most striking footage you have.");
 
 // ---------- budget & scene sizes ----------

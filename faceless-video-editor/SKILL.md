@@ -60,7 +60,13 @@ Read `references/script-formula.md` before writing. Non-negotiables:
 1. **Hook in the first sentence, under ~14 words** - pick an archetype from
    `references/editing-playbook.md` (curiosity gap, bold claim, stakes, question,
    in medias res...). Never a warm-up ("In this video", "Did you know", greetings).
-   Scene 1 always has an `emphasis` (2-4 words) - it is on screen on frame 0.
+   Shorts: scene 1 has an `emphasis` (2-4 words) on frame 0 (muted autoplay).
+   **Long form: the opening is picture and voice, not text.** Look at how the
+   reference opens and match it: if its first 10 s have no on-screen words, yours
+   have none; if it shows one short title, show one (max 3 words). Never stack
+   text in the hook (title + text pop + label + subtitles all at once reads as a
+   template). The build keeps automatic text pops out of the first 10 s of long
+   form (`hookTextFreeSeconds`), and lint warns when the hook carries more.
 2. **Word budget = length x 2.5 words/sec** (at `rate: "+8%"`). 30s ~ 75 words,
    45s ~ 110, 60s ~ 150. Over budget means cut, not speed up.
 3. **One scene = one idea = 1-2 sentences** (2-8s of speech). Shorts: 5-9 scenes.

@@ -265,7 +265,9 @@ for (const [i, scene] of project.scenes.entries()) {
     const len = Math.min(shots[k].durationInFrames, Math.round(fps * 3.5));
     if (free(shots[k].from + 2, len)) callouts.push({ text: p.text, from: shots[k].from + 2, duration: len });
   });
-  if (calloutsOn) {
+  // Long form: no automatic text pops in the opening (picture + voice carry the hook).
+  const quietUntil = project.format === "shorts" ? 0 : (project.hookTextFreeSeconds ?? 10) * fps;
+  if (calloutsOn && startFrame >= quietUntil - durationInFrames) {
     let fromIdx = 0;
     // A line without *markup*: its numbers ("3 years", "$48,200", "4.1%") pop instead.
     const marked = [...scene.text.matchAll(/\*([^*]+)\*/g)].map((m) => m[1]);
@@ -276,7 +278,7 @@ for (const [i, scene] of project.scenes.entries()) {
       if (idx < 0) continue;
       fromIdx = idx + 1;
       const from = Math.max(0, toF(vo.words[idx].startMs) - 3), len = Math.min(Math.round(fps * 2.4), durationInFrames - from);
-      if (len > fps && free(from, len)) callouts.push({ text: phrase, from, duration: len });
+      if (len > fps && free(from, len) && startFrame + from >= quietUntil) callouts.push({ text: phrase, from, duration: len });
     }
   }
   callouts.forEach((c, n) => (c.text = textEdit(`${id}:callout:${n}`, c.text)));
