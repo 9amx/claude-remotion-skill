@@ -174,7 +174,11 @@ on purpose:
 - Effects for their own sake: every effect answers a moment in the words
   (reveal, flashback, comparison). If you can't say which, delete it.
 - Uneven finish: one style per video (colors, fonts, caption look), graphics in
-  that style, consistent grade and grain, sources credited.
+  that style, consistent grade and grain, sources credited. The timeline
+  measures every clip and evens out exposure, contrast and white balance
+  (`colorMatch`, on by default) so a warm Pixabay clip next to a cold Coverr clip
+  doesn't jump; downloads that are too small for the frame, heavily compressed
+  or out of focus are rejected and the next candidate is tried (`qualityGate`).
 - Template type (thick outlines, yellow all-caps slams, bouncing words,
   highlighter boxes): the `documentary` and `minimal` styles set every on-screen
   text editorially - a display face in mixed case (Fraunces / Inter Tight),
@@ -333,7 +337,13 @@ for any clip (its words, keyword, source, match, credit), the script with the
 current word lit, the issues and the live log. Before the render the preview is
 an animatic - each shot's storyboard frame over the real voice - so the user can
 watch the edit play against the words; after the render it plays the video.
-Tell the user the address at the start of every run.
+Tell the user the address at the start of every run. The user can also edit
+there: select a shot -> "Show alternatives" (the shot's review sheet, every
+library) or type a new keyword and Search, click a candidate to swap it in
+(written to `build/picks.json`, the timeline and storyboard rebuild), and
+"Approve & render" runs `auto.mjs --from=broll`. After the user has edited in
+the Studio, read `build/picks.json` and `project.json` again before changing
+anything - their choices win.
 
 **Live status page.** Every run keeps `build/status.html` up to date (it reloads
 itself every 4 s): the step now running and its progress bar, the render's time

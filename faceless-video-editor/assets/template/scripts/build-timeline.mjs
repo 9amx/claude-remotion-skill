@@ -2,7 +2,7 @@
 // the single file the Remotion composition renders from.
 import path from "node:path";
 import fs from "node:fs";
-import { BUILD, FORMATS, FX, LOOKS, PUBLIC, SFX_NAMES, TRANSITIONS, fail, findPhrase, log, planShots, probeSize, readJson, readProject, sceneId, timecode,
+import { BUILD, FORMATS, FX, LOOKS, PUBLIC, SFX_NAMES, TRANSITIONS, fail, findPhrase, log, planShots, probeSize, ffmpegRaw, readJson, readProject, sceneId, timecode,
   userAmbiencePath, userMusicPath, userSfx, userSfxPath, userSpotPath, writeJson } from "./lib.mjs";
 
 const project = readProject();
@@ -131,6 +131,47 @@ function stillMove(shot, planned, lenSec) {
 // off; "on" always; "off" never (a beat's own "text" always shows).
 const calloutsOn = (project.callouts ?? "auto") === "on" || ((project.callouts ?? "auto") === "auto" && project.captions.style === "none");
 
+// Color match: footage from different libraries arrives warm, cold, flat or dark.
+// Measure each clip where the edit plays it (3 small frames) and pull it toward a
+// common exposure, contrast and neutral white balance, so cuts don't jump; the
+// style's grade then sits on one consistent base. Cached per file + window.
+const ccFile = path.join(BUILD, "colorstats.json");
+const ccCache = readJson(ccFile, {});
+const colorMatch = project.colorMatch !== false;
+function clipStats(src, startSec, lenSec, image) {
+  const key = `${src}|${image ? 0 : startSec.toFixed(2)}|${image ? 0 : lenSec.toFixed(1)}`;
+  if (ccCache[key]) return ccCache[key];
+  const file = path.join(PUBLIC, src);
+  const times = image ? [null] : [0.2, 0.5, 0.8].map((f) => startSec + lenSec * f);
+  let n = 0, R = 0, G = 0, B = 0, L = 0, L2 = 0;
+  for (const tm of times) {
+    const buf = ffmpegRaw([...(tm != null ? ["-ss", tm.toFixed(2)] : []), "-i", file, "-frames:v", "1", "-vf", "scale=64:-2", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]);
+    if (!buf?.length) continue;
+    for (let i = 0; i < buf.length; i += 3) {
+      const r = buf[i], g = buf[i + 1], b = buf[i + 2], l = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      R += r; G += g; B += b; L += l; L2 += l * l; n++;
+    }
+  }
+  if (!n) return null;
+  const mean = L / n;
+  const stats = { r: R / n, g: G / n, b: B / n, l: mean, sd: Math.sqrt(Math.max(0, L2 / n - mean * mean)) };
+  ccCache[key] = stats;
+  return stats;
+}
+const clampN = (v, a, b) => Math.min(b, Math.max(a, v));
+function matchColor(stats) {
+  if (!stats) return null;
+  const gray = (stats.r + stats.g + stats.b) / 3;
+  // Gentle: 40% of a gray-world white balance, exposure toward ~42% mean, contrast
+  // toward a common spread - enough to stop cuts jumping, not enough to erase a mood.
+  const wb = (c) => clampN(Math.pow(gray / Math.max(1, c), 0.4), 0.93, 1.08);
+  return {
+    r: +wb(stats.r).toFixed(3), g: +wb(stats.g).toFixed(3), b: +wb(stats.b).toFixed(3),
+    bright: +clampN(Math.pow(107 / Math.max(1, stats.l), 0.5), 0.88, 1.2).toFixed(3),
+    contrast: +clampN(Math.pow(55 / Math.max(1, stats.sd), 0.5), 0.88, 1.2).toFixed(3),
+  };
+}
+
 let cursorMs = 0;
 const scenes = [];
 const words = [];
@@ -165,6 +206,10 @@ for (const [i, scene] of project.scenes.entries()) {
     delete shot.cuts;
     if (shot.type === "graphic" && shot.graphic) shot.graphic = withItemTimes(shot.graphic, vo.words, p.startMs, from, len);
     if (shot.type === "image") Object.assign(shot, { move: stillMove(shot, p, len / fps) }, p.focus ? { focus: p.focus } : {});
+    if (colorMatch && (shot.type === "video" || shot.type === "image") && shot.src && !/^adobe-/.test(shot.assetId ?? "")) {
+      const cc = matchColor(clipStats(shot.src, (shot.trimBefore ?? 0) / fps, (len / fps) * (shot.playbackRate ?? 1), shot.type === "image"));
+      if (cc) shot.cc = cc;
+    }
     if (asset.type === "video" && asset.duration) Object.assign(shot, clipWindow(asset, len / fps));
     if (p.sfx) {
       const ref = soundRef(p.sfx, `${id} beat "${p.on ?? p.kw}" sfx`);
@@ -335,6 +380,7 @@ const timeline = {
   scenes,
   words,
 };
+writeJson(ccFile, ccCache);
 writeJson(path.join(PUBLIC, "timeline.json"), timeline);
 if (chapters.length > 1) {
   const yt = chapters.map((ch) => `${timecode(ch.startFrame / fps)} ${ch.title}`).join("\n");

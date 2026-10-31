@@ -42,6 +42,7 @@ export type Shot = {
   move?: StillMove; // camera move on a still (build-timeline picks one; a beat can set it)
   focus?: [number, number]; // where "detail" / "push" head, % of the picture
   fadeIn?: number; // frames of crossfade from the previous shot
+  cc?: { r: number; g: number; b: number; bright: number; contrast: number }; // color match to the rest of the edit
 };
 
 export type Scene = {
