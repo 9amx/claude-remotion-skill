@@ -192,7 +192,7 @@ export const FacelessVideo: React.FC<Props> = ({ timeline }) => {
             const t = scene.transition;
             return (
               <Sequence key={`s-${scene.id}`} layout="none">
-                {si > 0 && t !== "cut" && <Sfx timeline={timeline} name={t === "glitch" ? "glitch" : "whoosh"} i={si} at={scene.startFrame} volume={t === "fade" || t === "dip" ? 0.6 : 0.9} />}
+                {si > 0 && t !== "cut" && <Sfx timeline={timeline} name={t === "glitch" ? "glitch" : "whoosh"} i={si} at={scene.startFrame} volume={t === "fade" || t === "dip" ? 0.9 : 1} />}
                 {si > 0 && scene.emphasis && <Sfx timeline={timeline} name="pop" i={si} at={scene.startFrame + (scene.emphasisFrom ?? 0) + 3} volume={0.35} />}
                 {scene.fx.includes("freeze") && <Sfx timeline={timeline} name="scratch" i={si} at={scene.startFrame} volume={0.5} />}
               </Sequence>
