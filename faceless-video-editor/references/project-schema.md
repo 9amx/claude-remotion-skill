@@ -37,6 +37,8 @@
   "brollSources": ["pexels", "pixabay"], // search order; sources without a key are skipped. "coverr" joins
                                      // (last) whenever COVERR_API_KEY is set; DVIDS runs with the archive sources
   "brollMinRelevance": 0.4,          // auto-pick only results sharing this share of keyword words (0 = anything goes)
+  "colorMatch": true,                // even out exposure, contrast and white balance across clips from different libraries
+  "qualityGate": true,               // skip footage that is too small for the frame, heavily compressed or out of focus
   "textRules": false,                // decorative lines beside on-screen text - only when the reference uses them
   "callouts": "auto",               // text pops on *highlighted* phrases: auto (only when captions are off) | on | off
   "brollSearchAll": true,            // search every source for every shot and compare all results (false: stop early, fewer API calls)

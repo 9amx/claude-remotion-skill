@@ -47,7 +47,7 @@
 // stable across runs. Writes build/broll.json and build/credits.txt (attribution for CC images).
 import fs from "node:fs";
 import path from "node:path";
-import { BLOCK, BUILD, FORMATS, GRAPHIC_TYPES, PUBLIC, ROOT, adobeAsset, ffmpeg, ffmpegRaw, fail, log, parseFileRef, planShots, probeDuration, readJson, readProject,
+import { BLOCK, BUILD, FORMATS, GRAPHIC_TYPES, PUBLIC, ROOT, adobeAsset, ffmpeg, ffmpegRaw, fail, log, parseFileRef, planShots, probeDuration, probeSize, readJson, readProject,
   relevance, sceneId, sleep, status, writeJson } from "./lib.mjs";
 
 const args = process.argv.slice(2);
@@ -55,6 +55,8 @@ const reviewArg = args.find((a) => a.startsWith("--review"));
 const reviewAll = reviewArg !== "--review=key";
 // Long form: review one chapter at a time (--chapter=2); earlier sheets and picks stay.
 const chapterArg = Number(args.find((a) => a.startsWith("--chapter="))?.slice(10)) || null;
+// --review --shot=s004-2: just that shot's sheet (the editor's "find alternatives").
+const shotArg = args.find((a) => a.startsWith("--shot="))?.slice(7) ?? null;
 const project = readProject();
 const fmt = FORMATS[project.format];
 const KEYS = { pexels: process.env.PEXELS_API_KEY, pixabay: process.env.PIXABAY_API_KEY, coverr: process.env.COVERR_API_KEY,
@@ -231,14 +233,16 @@ const SOURCES = {
 const factual = (q) => /\b(1[5-9]\d\d|20\d\d)\b/.test(q) || /\s[A-Z][a-z]/.test(q);
 
 function rank(cands, query, minSec) {
+  // Too small to fill the frame (known size, over 1.6x upscale) never makes the list.
+  const upscale = (c) => (c.w && c.h && c.w > 50 ? Math.max(fmt.width / c.w, fmt.height / c.h) : 1);
   return cands
-    .filter((c) => !used.has(c.id) && !BLOCK.test(c.text))
+    .filter((c) => !used.has(c.id) && !BLOCK.test(c.text) && (project.qualityGate === false || upscale(c) <= 1.6))
     .map((c, i) => {
       const rel = relevance(query, c.text);
       const archive = ARCHIVE.has(c.source);
       const score = rel * 3 + (c.w && orientationOk(c.w, c.h) ? 1 : 0) + (c.kind === "video" ? 0.6 : 0) +
         ((c.duration ?? minSec) >= minSec ? 0.4 : 0) + (archive ? (factual(query) ? 0.8 : -0.4) : 0) - (c.ri ?? i) * 0.01;
-      return { ...c, rel, score };
+      return { ...c, rel, score: score - (upscale(c) > 1.15 ? 0.5 : 0) };
     })
     .sort((a, b) => b.score - a.score);
 }
@@ -368,6 +372,34 @@ function frameProblem(file, duration) {
   if (!n) return "unreadable";
   if (luma / n < 20) return "nearly black";
   if (green > 0.12) return "green screen";
+  return qualityProblem(file, duration, times);
+}
+
+// Quality gate: footage that would look cheap in a 1080p edit. Too small to fill
+// the frame without visible upscaling, starved of bitrate (blocky), or out of
+// focus in every sampled frame (sharpness = variance of a Laplacian on a 320px
+// gray frame; deliberately soft portraits score ~150, unusable blur under 40).
+function qualityProblem(file, duration, times) {
+  if (project.qualityGate === false) return null;
+  const size = probeSize(file);
+  if (size && Math.max(fmt.width / size[0], fmt.height / size[1]) > 1.6) return `low resolution (${size[0]}x${size[1]})`;
+  if (duration && size) {
+    const bpp = (fs.statSync(file).size * 8) / (duration * size[0] * size[1] * 30);
+    if (bpp < 0.012) return "heavily compressed";
+  }
+  let sharpest = 0;
+  for (const t of times) {
+    const buf = ffmpegRaw([...(duration ? ["-ss", t.toFixed(2)] : []), "-i", file, "-frames:v", "1", "-vf", "scale=320:-2,format=gray", "-f", "rawvideo", "-pix_fmt", "gray", "-"]);
+    if (!buf?.length) continue;
+    const w = 320, h = Math.floor(buf.length / w);
+    let sum = 0, sum2 = 0, k = 0;
+    for (let y = 1; y < h - 1; y += 2) for (let x = 1; x < w - 1; x += 2) {
+      const v = 4 * buf[y * w + x] - buf[y * w + x - 1] - buf[y * w + x + 1] - buf[(y - 1) * w + x] - buf[(y + 1) * w + x];
+      sum += v; sum2 += v * v; k++;
+    }
+    if (k) sharpest = Math.max(sharpest, sum2 / k - (sum / k) ** 2);
+  }
+  if (sharpest && sharpest < 40) return "out of focus";
   return null;
 }
 
@@ -513,18 +545,21 @@ const shotsOf = (scene, i) => {
 // ---------- review mode: contact sheets of candidates ----------
 if (reviewArg) {
   const dir = path.join(BUILD, "review");
-  const out = chapterArg ? readJson(path.join(BUILD, "review.json"), {}) : {};
-  if (!chapterArg) fs.rmSync(dir, { recursive: true, force: true });
+  const keep = chapterArg || shotArg;
+  const out = keep ? readJson(path.join(BUILD, "review.json"), {}) : {};
+  if (!keep) fs.rmSync(dir, { recursive: true, force: true });
   fs.mkdirSync(dir, { recursive: true });
   let sheets = 0;
   for (const [i, scene] of project.scenes.entries()) {
     if (chapterArg && scene.chapter !== chapterArg - 1) continue;
+    if (shotArg && !shotArg.startsWith(`${sceneId(i)}-`)) continue;
     const { id, shots } = shotsOf(scene, i);
     const important = i === 0 || scene.emphasis || [].concat(scene.fx ?? []).includes("reveal") || scene.layout === "split";
     for (const [k, sh] of shots.entries()) {
       const kw = sh.kw;
       if (!kw || scene.visual === "kinetic" || /^(file|ai):/.test(kw)) continue;
       const key = `${id}-${k + 1}`;
+      if (shotArg && key !== shotArg) continue;
       // The sheet shows the best 6, at most 3 from one source, so every library gets a say.
       const all = await candidatesFor(kw, sh.sec);
       const perSource = {};
@@ -532,7 +567,7 @@ if (reviewArg) {
       if (cands.length < 6) cands.push(...all.filter((c) => !cands.includes(c)).slice(0, 6 - cands.length));
       if (!cands.length) continue;
       // Default: review the hook, emphasis/reveal/split scenes and weak matches only.
-      if (!reviewAll && !important && cands[0].rel >= 0.67) continue;
+      if (!shotArg && !reviewAll && !important && cands[0].rel >= 0.67) continue;
       // Normalize every thumbnail to the same 320x320 tile, then lay them out 3x2.
       for (const [n, c] of cands.entries()) {
         const raw = path.join(dir, `${key}-raw${n + 1}`), tile = path.join(dir, `${key}-t${n + 1}.jpg`);

@@ -37,6 +37,20 @@ const Kinetic: React.FC<{ style: Style; seed: number; words?: string }> = ({ sty
 // each cut and a little more travel on stills. Stills get the camera move
 // build-timeline chose for them (never the same twice in a row).
 export type Motion = "cinematic" | "punchy";
+
+// Color match (build-timeline measured the clip): per-channel white balance as an
+// SVG color matrix, then exposure and contrast, so clips from different
+// libraries cut together like one shoot.
+const ccId = (shot: ShotT, seed: number) => `cc-${seed}-${shot.from}`;
+const CcFilter: React.FC<{ shot: ShotT; seed: number }> = ({ shot, seed }) => shot.cc ? (
+  <svg width="0" height="0" style={{ position: "absolute" }}>
+    <filter id={ccId(shot, seed)} colorInterpolationFilters="sRGB">
+      <feColorMatrix type="matrix" values={`${shot.cc.r} 0 0 0 0  0 ${shot.cc.g} 0 0 0  0 0 ${shot.cc.b} 0 0  0 0 0 1 0`} />
+    </filter>
+  </svg>
+) : null;
+const ccCss = (shot: ShotT, seed: number, base: string) =>
+  shot.cc ? `url(#${ccId(shot, seed)}) brightness(${shot.cc.bright}) contrast(${shot.cc.contrast}) ${base}` : base;
 const THIRDS: [number, number][] = [[33, 38], [67, 38], [50, 45], [33, 62], [67, 62]];
 
 const Still: React.FC<{ shot: ShotT; seed: number; motion: Motion }> = ({ shot, seed, motion }) => {
@@ -47,7 +61,7 @@ const Still: React.FC<{ shot: ShotT; seed: number; motion: Motion }> = ({ shot, 
   const move = shot.move ?? (["push", "pan-left", "pull", "pan-right"] as const)[seed % 4];
   const [fx, fy] = shot.focus ?? THIRDS[seed % THIRDS.length];
   const src = staticFile(shot.src!);
-  const look: React.CSSProperties = { filter: "saturate(1.05) contrast(1.05)" };
+  const look: React.CSSProperties = { filter: ccCss(shot, seed, "saturate(1.05) contrast(1.05)") };
   const lerp = (a: number, b: number) => interpolate(t, [0, 1], [a, b]);
   const grow = (a: number, b: number) => 1 + (lerp(a, b) - 1) * k;
 
@@ -105,20 +119,21 @@ export const Shot: React.FC<{ shot: ShotT; style: Style; seed: number; motion?: 
   if (shot.type !== "video" && shot.type !== "image" || !shot.src) return <Kinetic style={style} seed={seed} words={shot.words} />;
   const punch = motion === "punchy" ? interpolate(spring({ frame, fps, config: springs.punch }), [0, 1], [1.06, 1]) : 1;
   if (shot.type === "image") {
-    return <AbsoluteFill style={{ opacity: fade, transform: `scale(${punch})` }}><Still shot={shot} seed={seed} motion={motion} /></AbsoluteFill>;
+    return <AbsoluteFill style={{ opacity: fade, transform: `scale(${punch})` }}><CcFilter shot={shot} seed={seed} /><Still shot={shot} seed={seed} motion={motion} /></AbsoluteFill>;
   }
   // Footage already moves: in punchy edits only a slight push so held clips don't feel parked.
   const t = interpolate(frame, [0, shot.durationInFrames], [0, 1], { ...clamp, easing: ease.inOut });
   const scale = motion === "punchy" ? interpolate(t, [0, 1], shot.zoomIn ? [1, 1.04] : [1.04, 1]) : 1;
   return (
     <AbsoluteFill style={{ overflow: "hidden", opacity: fade }}>
+      <CcFilter shot={shot} seed={seed} />
       <AbsoluteFill style={{ transform: `scale(${punch * scale})` }}>
         <OffthreadVideo
           src={staticFile(shot.src)}
           muted
           playbackRate={shot.playbackRate ?? 1}
           trimBefore={shot.trimBefore || undefined}
-          style={{ width: "100%", height: "100%", objectFit: "cover", filter: "saturate(1.08) contrast(1.06)" }}
+          style={{ width: "100%", height: "100%", objectFit: "cover", filter: ccCss(shot, seed, "saturate(1.08) contrast(1.06)") }}
         />
       </AbsoluteFill>
     </AbsoluteFill>
