@@ -11,7 +11,7 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { BUILD, PUBLIC, ROOT, log } from "./lib.mjs";
+import { BUILD, PUBLIC, ROOT, ffmpeg, log } from "./lib.mjs";
 
 const args = process.argv.slice(2);
 const port = Number(args.find((a) => a.startsWith("--port="))?.slice(7)) || 3100;
@@ -56,8 +56,26 @@ function serveFile(req, res, rel) {
   }
 }
 
+// Audio waveform as a PNG (for the audio tracks), drawn once per file and cached.
+function wave(res, rel, w, color) {
+  const file = path.resolve(ROOT, rel);
+  if (!file.startsWith(ROOT + path.sep) || !fs.existsSync(file)) { res.writeHead(404).end(); return; }
+  const dir = path.join(BUILD, "editor-cache");
+  fs.mkdirSync(dir, { recursive: true });
+  const out = path.join(dir, `${Buffer.from(rel).toString("base64url").slice(-80)}-${w}-${Math.round(mtime(file))}.png`);
+  if (!fs.existsSync(out)) {
+    ffmpeg(["-i", file, "-filter_complex", `aformat=channel_layouts=mono,showwavespic=s=${w}x96:colors=${color}:scale=sqrt`, "-frames:v", "1", out]);
+  }
+  if (!fs.existsSync(out)) { res.writeHead(404).end(); return; }
+  res.writeHead(200, { "Content-Type": "image/png", "Cache-Control": "max-age=3600" }).end(fs.readFileSync(out));
+}
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, "http://localhost");
+  if (url.pathname === "/api/wave") {
+    wave(res, url.searchParams.get("src") ?? "", Math.min(4000, Math.max(100, Number(url.searchParams.get("w")) || 1200)), (url.searchParams.get("c") || "#9fe2bf").replace(/[^#0-9a-fA-F]/g, ""));
+    return;
+  }
   if (url.pathname === "/" || url.pathname === "/index.html") {
     res.writeHead(200, { "Content-Type": TYPES[".html"], "Cache-Control": "no-cache" }).end(fs.readFileSync(page));
   } else if (url.pathname === "/api/state") {
