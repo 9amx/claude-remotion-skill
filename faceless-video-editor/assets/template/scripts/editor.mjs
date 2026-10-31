@@ -43,6 +43,34 @@ const body = (req) => new Promise((resolve) => { let b = ""; req.on("data", (c) 
 const sendJson = (res, code, data) => res.writeHead(code, { "Content-Type": TYPES[".json"], "Cache-Control": "no-cache" }).end(JSON.stringify(data));
 const validShot = (k) => /^s\d{3}-\d+$/.test(String(k ?? ""));
 
+// Undo: every edit first saves project.json, picks.json and edits.json.
+const HIST = path.join(BUILD, "history");
+const EDITABLE = [["project.json", ROOT], ["picks.json", BUILD], ["edits.json", BUILD]];
+function snapshot(label) {
+  const dir = path.join(HIST, `${Date.now()}`);
+  fs.mkdirSync(dir, { recursive: true });
+  for (const [name, base] of EDITABLE) if (fs.existsSync(path.join(base, name))) fs.copyFileSync(path.join(base, name), path.join(dir, name));
+  fs.writeFileSync(path.join(dir, "label.txt"), label);
+  const all = fs.readdirSync(HIST).sort();
+  for (const old of all.slice(0, Math.max(0, all.length - 50))) fs.rmSync(path.join(HIST, old), { recursive: true, force: true });
+}
+function undo() {
+  const all = fs.existsSync(HIST) ? fs.readdirSync(HIST).sort() : [];
+  const last = all.pop();
+  if (!last) return null;
+  const dir = path.join(HIST, last);
+  for (const [name, base] of EDITABLE) {
+    const saved = path.join(dir, name), live = path.join(base, name);
+    if (fs.existsSync(saved)) fs.copyFileSync(saved, live); else fs.rmSync(live, { force: true });
+  }
+  const label = fs.existsSync(path.join(dir, "label.txt")) ? fs.readFileSync(path.join(dir, "label.txt"), "utf8") : "edit";
+  fs.rmSync(dir, { recursive: true, force: true });
+  return label;
+}
+const editsFile = path.join(BUILD, "edits.json");
+const readEdits = () => ({ cuts: {}, text: {}, ...(readJson(editsFile) ?? {}) });
+const REBUILD = [["scripts/build-timeline.mjs"], ["scripts/storyboard.mjs"]];
+
 async function candidates(shot) {
   await runNow(["scripts/fetch-broll.mjs", "--review", `--shot=${shot}`]);
   return readJson(path.join(BUILD, "review.json"))?.[shot] ?? null;
@@ -81,6 +109,8 @@ function state() {
     video, videoTime: video ? mtime(path.join(ROOT, video)) : 0,
     tiles, tilesTime: mtime(tilesDir),
     picks: readJson(path.join(BUILD, "picks.json")) ?? {},
+    edits: readJson(path.join(BUILD, "edits.json")) ?? {},
+    undo: fs.existsSync(HIST) ? fs.readdirSync(HIST).length : 0,
     job,
   };
 }
@@ -139,6 +169,7 @@ const server = http.createServer((req, res) => {
       if (!validShot(b.shot) || !(Number(b.n) >= 1)) return sendJson(res, 400, { error: "bad pick" });
       if (job?.running) return sendJson(res, 409, { error: `busy: ${job.name}` });
       const file = path.join(BUILD, "picks.json");
+      snapshot(`swap ${b.shot}`);
       const picks = readJson(file) ?? {};
       picks[b.shot] = Number(b.n);
       fs.writeFileSync(file, JSON.stringify(picks, null, 2));
@@ -150,9 +181,39 @@ const server = http.createServer((req, res) => {
       const kw = String(b.keyword ?? "").trim().slice(0, 120);
       if (!validShot(b.shot) || !kw || !b.old) return sendJson(res, 400, { error: "bad keyword" });
       if (job?.running) return sendJson(res, 409, { error: `busy: ${job.name}` });
+      snapshot(`keyword ${b.shot}`);
       if (!replaceKeyword(b.shot, String(b.old), kw)) return sendJson(res, 404, { error: "that keyword is not in this scene's beats" });
       sendJson(res, 200, { review: await candidates(b.shot) });
     });
+  } else if (req.method === "POST" && url.pathname === "/api/cut") {
+    body(req).then((b) => {
+      const d = Math.round(Number(b.delta));
+      if (!validShot(b.shot) || !Number.isFinite(d) || !d) return sendJson(res, 400, { error: "bad cut" });
+      if (job?.running) return sendJson(res, 409, { error: `busy: ${job.name}` });
+      snapshot(`move cut ${b.shot}`);
+      const e = readEdits();
+      e.cuts[b.shot] = Math.max(-150, Math.min(150, (Number(e.cuts[b.shot]) || 0) + d));
+      fs.writeFileSync(editsFile, JSON.stringify(e, null, 2));
+      runSteps(`Moving cut ${b.shot}`, REBUILD);
+      sendJson(res, 200, { ok: true });
+    });
+  } else if (req.method === "POST" && url.pathname === "/api/text") {
+    body(req).then((b) => {
+      if (!/^s\d{3}:(emphasis|badge|lowerThird|callout:\d+)$/.test(String(b.key ?? "")) || typeof b.text !== "string") return sendJson(res, 400, { error: "bad text edit" });
+      if (job?.running) return sendJson(res, 409, { error: `busy: ${job.name}` });
+      snapshot(`text ${b.key}`);
+      const e = readEdits();
+      e.text[b.key] = b.text.trim().slice(0, 120);
+      fs.writeFileSync(editsFile, JSON.stringify(e, null, 2));
+      runSteps(`Updating text`, REBUILD);
+      sendJson(res, 200, { ok: true });
+    });
+  } else if (req.method === "POST" && url.pathname === "/api/undo") {
+    if (job?.running) return sendJson(res, 409, { error: `busy: ${job.name}` });
+    const label = undo();
+    if (!label) return sendJson(res, 404, { error: "nothing to undo" });
+    runSteps(`Undo ${label}`, [["scripts/fetch-broll.mjs"], ...REBUILD]);
+    sendJson(res, 200, { undone: label });
   } else if (req.method === "POST" && url.pathname === "/api/approve") {
     // The render runs on its own: closing the editor doesn't stop it.
     const ok = runSteps("Render", [["scripts/auto.mjs", "--from=broll", "--no-editor"]], true);

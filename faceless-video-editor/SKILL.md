@@ -357,9 +357,12 @@ Tell the user the address at the start of every run. The user can also edit
 there: select a shot -> "Show alternatives" (the shot's review sheet, every
 library) or type a new keyword and Search, click a candidate to swap it in
 (written to `build/picks.json`, the timeline and storyboard rebuild), and
-"Approve & render" runs `auto.mjs --from=broll`. After the user has edited in
-the Studio, read `build/picks.json` and `project.json` again before changing
-anything - their choices win.
+"Approve & render" runs `auto.mjs --from=broll`. Cuts can be moved by
+dragging a clip's left edge, and a title / text pop / label / name tag can be
+reworded or removed in the inspector (both kept in `build/edits.json`; a moved
+cut is never re-snapped to the beat); Ctrl+Z undoes any Studio edit. After the
+user has edited in the Studio, read `build/picks.json`, `build/edits.json` and
+`project.json` again before changing anything - their choices win.
 
 **Live status page.** Every run keeps `build/status.html` up to date (it reloads
 itself every 4 s): the step now running and its progress bar, the render's time

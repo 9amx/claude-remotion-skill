@@ -172,6 +172,12 @@ function matchColor(stats) {
   };
 }
 
+// Edits made in the Studio (build/edits.json): moved cuts { "s002-3": +6 } (frames,
+// the shot starts later / the shot before ends later) and text overrides
+// { "s001:emphasis": "...", "s001:callout:0": "...", "s001:badge": "", ... } ("" removes).
+const edits = readJson(path.join(BUILD, "edits.json"), { cuts: {}, text: {} });
+const textEdit = (key, value) => (edits.text && key in edits.text ? (edits.text[key] === "" ? null : edits.text[key]) : value);
+
 let cursorMs = 0;
 const scenes = [];
 const words = [];
@@ -196,13 +202,14 @@ for (const [i, scene] of project.scenes.entries()) {
     if (assets.length) log("timeline", `${id}: B-roll was fetched for a different shot plan - re-run the broll step (using what fits for now)`);
     assets = planned.map((_, k) => assets[k] ?? { type: "kinetic" });
   }
+  const cutShift = (k) => (k > 0 && !split ? Number(edits.cuts?.[`${id}-${k + 1}`] ?? 0) : 0);
   const shots = planned.map((p, k) => {
     const asset = assets[k];
-    const from = split ? 0 : toF(p.startMs);
+    const from = split ? 0 : Math.max(0, toF(p.startMs) + cutShift(k));
     // The last shot also covers the breath before the next scene.
-    const end = split || k === planned.length - 1 ? durationInFrames : toF(planned[k + 1].startMs);
+    const end = split || k === planned.length - 1 ? durationInFrames : toF(planned[k + 1].startMs) + cutShift(k + 1);
     const len = Math.max(1, end - from);
-    const shot = { ...asset, from, durationInFrames: len, zoomIn: (i + k) % 2 === 0, words: p.words };
+    const shot = { ...asset, from, durationInFrames: len, zoomIn: (i + k) % 2 === 0, words: p.words, ...(cutShift(k) ? { userCut: true } : {}) };
     delete shot.cuts;
     if (shot.type === "graphic" && shot.graphic) shot.graphic = withItemTimes(shot.graphic, vo.words, p.startMs, from, len);
     if (shot.type === "image") Object.assign(shot, { move: stillMove(shot, p, len / fps) }, p.focus ? { focus: p.focus } : {});
@@ -272,6 +279,8 @@ for (const [i, scene] of project.scenes.entries()) {
       if (len > fps && free(from, len)) callouts.push({ text: phrase, from, duration: len });
     }
   }
+  callouts.forEach((c, n) => (c.text = textEdit(`${id}:callout:${n}`, c.text)));
+  for (let n = callouts.length - 1; n >= 0; n--) if (!callouts[n].text) callouts.splice(n, 1);
 
   scenes.push({
     id,
@@ -280,10 +289,10 @@ for (const [i, scene] of project.scenes.entries()) {
     callouts,
     audio: vo.audio,
     text: scene.text,
-    emphasis: scene.emphasis ?? null,
+    emphasis: textEdit(`${id}:emphasis`, scene.emphasis ?? null),
     emphasisFrom,
-    lowerThird: scene.lowerThird ?? null,
-    badge: scene.badge ?? null,
+    lowerThird: (() => { const t = textEdit(`${id}:lowerThird`, scene.lowerThird?.title ?? null); return t ? { ...(scene.lowerThird ?? {}), title: t } : null; })(),
+    badge: textEdit(`${id}:badge`, scene.badge ?? null),
     transition: transitionFor(scene, i),
     look: scene.look ?? "normal",
     fx,
@@ -392,6 +401,7 @@ for (const sc of scenes) {
   for (let k = 1; k < sc.shots.length; k++) {
     const sh = sc.shots[k], prev = sc.shots[k - 1];
     if (!beatFrames.length || sc.layout === "split") break;
+    if (sh.userCut) continue; // a cut placed by hand in the Studio stays where it was put
     const cut = sc.startFrame + sh.from, b = nearestBeat(cut);
     if (b == null || b === cut || b - cut > 3 || cut - b > 5) continue;
     const d = b - cut;
