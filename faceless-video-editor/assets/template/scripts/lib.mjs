@@ -91,6 +91,9 @@ export const EDIT_STYLES = {
   calm: { shot: [3.8, 6], transition: "fade", punchIns: false, hookShake: false, sfx: 0.4, captions: "karaoke", style: "documentary" },
 };
 
+// Tempo of the synthesized beds (gen-audio.mjs), so cuts can land on their beats.
+export const MOOD_BPM = { calm: 84, tense: 100, upbeat: 118 };
+
 export const TRANSITIONS = ["whip", "zoom", "glitch", "flash", "dip", "fade", "cut"];
 export const LOOKS = ["normal", "flashback", "dramatic", "night", "vhs", "dream"];
 export const FX = ["shake", "freeze", "reveal", "punch"];

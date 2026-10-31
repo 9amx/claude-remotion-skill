@@ -94,6 +94,7 @@ export type Timeline = {
   spots?: Spot[];
   ambience?: AmbienceSegment[];
   musicGapBoost?: number; // music rises by this factor when nobody is speaking
+  swells?: number[]; // frames where the music lifts for a moment (chapter starts, reveals)
   editStyle: string;
   textRules?: boolean; // decorative lines beside on-screen text (only when the reference has them)
   reveals: number[]; // absolute frames where a reveal lands

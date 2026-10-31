@@ -2,7 +2,7 @@
 // the single file the Remotion composition renders from.
 import path from "node:path";
 import fs from "node:fs";
-import { BUILD, FORMATS, FX, LOOKS, PUBLIC, SFX_NAMES, TRANSITIONS, fail, findPhrase, log, planShots, probeSize, ffmpegRaw, readJson, readProject, sceneId, timecode,
+import { BUILD, FORMATS, FX, LOOKS, MOOD_BPM, PUBLIC, SFX_NAMES, TRANSITIONS, fail, findPhrase, log, planShots, probeDuration, probeSize, ffmpegRaw, readJson, readProject, sceneId, timecode,
   userAmbiencePath, userMusicPath, userSfx, userSfxPath, userSpotPath, writeJson } from "./lib.mjs";
 
 const project = readProject();
@@ -335,6 +335,74 @@ if (project.music.file) {
   }
 }
 
+// ---------- music: beats and swells ----------
+// Cuts inside a scene land on the music's beat when one is within a few frames
+// (never more than 3 frames after, 5 before the planned cut, so the picture still
+// arrives with its word). Beats: the synthesized beds' known tempo, or detected
+// from the user's track (onset envelope -> tempo by autocorrelation -> phase).
+const beatsFile = path.join(BUILD, "beats.json");
+const beatCache = readJson(beatsFile, {});
+function trackBeats(file) {
+  const abs = path.join(PUBLIC, file), key = `${file}|${Math.round(fs.statSync(abs).mtimeMs)}`;
+  if (beatCache[key]) return beatCache[key];
+  const sr = 11025, hop = 128; // ~86 envelope frames per second
+  const pcm = ffmpegRaw(["-i", abs, "-t", "240", "-ac", "1", "-ar", String(sr), "-f", "s16le", "-"]);
+  if (!pcm?.length) return null;
+  const samples = new Int16Array(pcm.buffer, pcm.byteOffset, Math.floor(pcm.length / 2));
+  const env = [];
+  for (let i = 0; i + hop <= samples.length; i += hop) { let e = 0; for (let j = i; j < i + hop; j++) e += samples[j] * samples[j]; env.push(Math.log1p(e / hop)); }
+  const onset = env.map((v, i) => Math.max(0, v - (env[i - 1] ?? v)));
+  const fr = sr / hop;
+  const at = (x) => { const i = Math.floor(x), f = x - i; return (onset[i] ?? 0) * (1 - f) + (onset[i + 1] ?? 0) * f; };
+  // Tempo: the lag whose onsets line up best (comb over 4 multiples, so the
+  // true beat beats its half / double).
+  let best = { score: -1, lag: 0, bpm: 0 };
+  for (let bpm = 70; bpm <= 180; bpm += 0.25) {
+    const lag = (60 / bpm) * fr; let sc = 0;
+    for (let i = 0; i < onset.length - lag * 4; i++) { if (!onset[i]) continue; sc += onset[i] * (at(i + lag) + 0.5 * at(i + 2 * lag) + 0.25 * at(i + 4 * lag)); }
+    if (sc > best.score) best = { score: sc, lag, bpm };
+  }
+  let phase = 0, top = -1;
+  for (let p = 0; p < best.lag; p += 0.5) { let sc = 0; for (let x = p; x < onset.length; x += best.lag) sc += at(x); if (sc > top) { top = sc; phase = p; } }
+  return (beatCache[key] = { bpm: best.bpm, phase: phase / fr, duration: probeDuration(abs) ?? env.length / fr });
+}
+const XF_FRAMES = Math.round(fps * 1.5); // music crossfade in the composition
+const beatFrames = [];
+if (project.music.beatSync !== false) {
+  musicSegments.forEach((seg, i) => {
+    const start = (i > 0 ? seg.from - XF_FRAMES : seg.from) / fps, end = (seg.from + seg.durationInFrames) / fps;
+    const g = seg.file ? trackBeats(seg.file) : seg.mood ? { bpm: MOOD_BPM[seg.mood] ?? MOOD_BPM.calm, phase: 0, duration: Infinity } : null;
+    if (!g) return;
+    const period = 60 / g.bpm, loopLen = Number.isFinite(g.duration) && g.duration > 1 ? g.duration : end - start + 1;
+    // A user track loops at its own length, so its beat grid restarts with it.
+    for (let loopStart = start; loopStart < end; loopStart += loopLen) {
+      for (let tb = g.phase; tb < loopLen; tb += period) {
+        const at = loopStart + tb;
+        if (at >= end) break;
+        if (at >= seg.from / fps) beatFrames.push(Math.round(at * fps));
+      }
+    }
+  });
+  beatFrames.sort((a, b) => a - b);
+}
+const nearestBeat = (f) => { let lo = 0, hi = beatFrames.length - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (beatFrames[m] < f) lo = m + 1; else hi = m; }
+  return [beatFrames[lo - 1], beatFrames[lo]].filter((b) => b != null).sort((a, b) => Math.abs(a - f) - Math.abs(b - f))[0]; };
+let snapped = 0;
+for (const sc of scenes) {
+  for (let k = 1; k < sc.shots.length; k++) {
+    const sh = sc.shots[k], prev = sc.shots[k - 1];
+    if (!beatFrames.length || sc.layout === "split") break;
+    const cut = sc.startFrame + sh.from, b = nearestBeat(cut);
+    if (b == null || b === cut || b - cut > 3 || cut - b > 5) continue;
+    const d = b - cut;
+    if (prev.durationInFrames + d < fps * 0.6 || sh.durationInFrames - d < fps * 0.6) continue;
+    prev.durationInFrames += d; sh.from += d; sh.durationInFrames -= d; snapped++;
+  }
+}
+if (beatFrames.length) log("timeline", `music: ${snapped} cut(s) moved onto the beat (within 3-5 frames of their word)`);
+// Swells: the music lifts for a moment at each new chapter and on reveals.
+const swells = [...chapters.slice(1).map((c) => c.startFrame), ...reveals].sort((a, b) => a - b);
+
 // Ambience: a room-tone / location bed under the voice (scene.ambience, a file in
 // public/; "none" stops it). Scenes in a row with the same file share one loop.
 const ambience = [];
@@ -371,6 +439,7 @@ const timeline = {
   spots: spots.map(({ file, slot, at, volume, scene }) => ({ src: slot ? sfxFiles[slot][0] : userSpotPath(file), file: slot ? undefined : file, at, volume, scene })),
   ambience,
   musicGapBoost: project.music.gapBoost ?? 1.7,
+  swells,
   editStyle: project.editStyle,
   textRules: project.textRules === true,
   reveals,
@@ -381,6 +450,7 @@ const timeline = {
   words,
 };
 writeJson(ccFile, ccCache);
+writeJson(beatsFile, beatCache);
 writeJson(path.join(PUBLIC, "timeline.json"), timeline);
 if (chapters.length > 1) {
   const yt = chapters.map((ch) => `${timecode(ch.startFrame / fps)} ${ch.title}`).join("\n");
