@@ -12,7 +12,7 @@
 // (kit replacements), beat sounds and ambience beds named in project.json, music.
 import fs from "node:fs";
 import path from "node:path";
-import { PUBLIC, ffmpeg, fail, log, readJson, userMusicPath, userSfx, userSfxPath } from "./lib.mjs";
+import { MOOD_BPM, PUBLIC, ffmpeg, fail, log, readJson, userMusicPath, userSfx, userSfxPath } from "./lib.mjs";
 
 const SR = 44100;
 const OUT = path.join(PUBLIC, "audio");
@@ -208,9 +208,9 @@ if (!moods.length) {
 
 const MOODS = {
   // chords as MIDI note sets, 2 bars each
-  calm: { bpm: 84, chords: [[57, 60, 64], [53, 57, 60], [48, 52, 55], [55, 59, 62]], kick: false, hat: false, pluck: "arp" },
-  tense: { bpm: 100, chords: [[50, 53, 57], [50, 53, 58], [46, 50, 53], [45, 49, 52]], kick: true, hat: false, pluck: "pulse" },
-  upbeat: { bpm: 118, chords: [[60, 64, 67], [55, 59, 62], [57, 60, 64], [53, 57, 60]], kick: true, hat: true, pluck: "arp" },
+  calm: { bpm: MOOD_BPM.calm, chords: [[57, 60, 64], [53, 57, 60], [48, 52, 55], [55, 59, 62]], kick: false, hat: false, pluck: "arp" },
+  tense: { bpm: MOOD_BPM.tense, chords: [[50, 53, 57], [50, 53, 58], [46, 50, 53], [45, 49, 52]], kick: true, hat: false, pluck: "pulse" },
+  upbeat: { bpm: MOOD_BPM.upbeat, chords: [[60, 64, 67], [55, 59, 62], [57, 60, 64], [53, 57, 60]], kick: true, hat: true, pluck: "arp" },
 };
 
 for (const name of moods) {

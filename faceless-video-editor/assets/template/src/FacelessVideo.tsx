@@ -129,6 +129,9 @@ export const FacelessVideo: React.FC<Props> = ({ timeline }) => {
   // Music drops out from the riser's start (its peak sits on the reveal).
   const riserLen = Math.max(8, Math.round((((timeline.sfxPeaks?.[riserSrc] ?? 1200)) / 1000) * fps));
   // Music drops out under a riser and comes back on the reveal's hit.
+  // Chapter starts and reveals: the music lifts ~40% for a beat, then settles.
+  const swell = (f: number) =>
+    (timeline.swells ?? []).reduce((m, s) => m * interpolate(f, [s - 6, s + 4, s + fps * 1.6, s + fps * 2.8], [1, 1.4, 1.4, 1], clamp), 1);
   const revealDuck = (f: number) =>
     (timeline.reveals ?? []).reduce((m, r) => m * interpolate(f, [r - riserLen, r - riserLen + 8, r, r + 10], [1, 0.12, 0.12, 1], clamp), 1);
 
@@ -237,6 +240,7 @@ export const FacelessVideo: React.FC<Props> = ({ timeline }) => {
                 interpolate(f, [0, i > 0 ? XF : 12], [0, 1], clamp) *
                 (i < timeline.music.segments.length - 1 ? interpolate(f, [len - XF, len], [1, 0], clamp) : 1) *
                 revealDuck(from + f) *
+                swell(from + f) *
                 duckAt(from + f) *
                 // Outro swell on top of the gap lift (together ~2.2x).
                 interpolate(from + f, [lastWordEnd, lastWordEnd + 10], [1, 1.3], clamp) *

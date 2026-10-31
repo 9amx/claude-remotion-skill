@@ -26,7 +26,7 @@
     "tightenPauses": true,           // file only: jump-cut pauses longer than maxPauseMs
     "maxPauseMs": 400
   },
-  "music": { "mood": "tense", "file": null, "volume": 0.12, "gapBoost": 1.7 },  // file: own track in public/; volume under the voice, x gapBoost in pauses
+  "music": { "mood": "tense", "file": null, "volume": 0.12, "gapBoost": 1.7, "beatSync": true },  // file: own track in public/; volume under the voice, x gapBoost in pauses
   "captions": {
     "style": "pop",                  // pop | karaoke | boxed | subtitle | none (default from editStyle; subtitle for long form)
     "maxWords": 3,                   // words per caption page (1-4; subtitle default 8)

@@ -250,7 +250,23 @@ is available in this session, or the user supplies files, use real sound:
    Beat sounds are peak-normalized and start on the beat's cut; ambience is
    loudness-normalized, loops under the scene (scenes in a row with the same file
    share one loop) and ducks under the voice like the music.
-3. The `audio` step normalizes everything (SFX peaks to -1 dB, music to -14 LUFS)
+3. **Sound plan** - after the timeline step run `node scripts/sound-plan.mjs`.
+   It reads what every scene and beat shows and writes `build/sound-plan.json`:
+   an ambience bed per scene where the place has a sound (city traffic, rain,
+   office tone, ocean, crowd...) and a spot sound on beats that make one (camera
+   shutter, door, cash register, phone notification...), at most one spot every
+   ~8 s, none on graphics. For each entry search the Epidemic Sound connector
+   with its `search` phrase, download the best short match into
+   `public/sfx/amb/` or `public/sfx/spot/`, put the path in `file`, then
+   `node scripts/sound-plan.mjs --apply` (writes scene `ambience` / beat `sfx`)
+   and `node scripts/auto.mjs --from=timeline`. Drop entries that don't fit the
+   moment - silence under a serious line is a choice too.
+4. **Music sync** is automatic: cuts inside a scene move onto the music's beat
+   when one is within 3 frames after / 5 before the planned cut (the picture still
+   lands with its word); the synthesized beds have a known tempo, an own track's
+   tempo is detected. The music lifts for a moment at every new chapter and on
+   reveals. `"music": {"beatSync": false}` turns the snapping off.
+5. The `audio` step normalizes everything (SFX peaks to -1 dB, music to -14 LUFS)
    so `sfxLevel` and `music.volume` behave the same with any source, and
    measures where each SFX peaks. Nothing in `public/sfx/` or `public/music/` is
    ever overwritten.
@@ -341,9 +357,12 @@ Tell the user the address at the start of every run. The user can also edit
 there: select a shot -> "Show alternatives" (the shot's review sheet, every
 library) or type a new keyword and Search, click a candidate to swap it in
 (written to `build/picks.json`, the timeline and storyboard rebuild), and
-"Approve & render" runs `auto.mjs --from=broll`. After the user has edited in
-the Studio, read `build/picks.json` and `project.json` again before changing
-anything - their choices win.
+"Approve & render" runs `auto.mjs --from=broll`. Cuts can be moved by
+dragging a clip's left edge, and a title / text pop / label / name tag can be
+reworded or removed in the inspector (both kept in `build/edits.json`; a moved
+cut is never re-snapped to the beat); Ctrl+Z undoes any Studio edit. After the
+user has edited in the Studio, read `build/picks.json`, `build/edits.json` and
+`project.json` again before changing anything - their choices win.
 
 **Live status page.** Every run keeps `build/status.html` up to date (it reloads
 itself every 4 s): the step now running and its progress bar, the render's time

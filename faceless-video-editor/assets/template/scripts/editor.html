@@ -182,6 +182,16 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:14px; h
 .tip .im { aspect-ratio:16/9; background:#0b0c10 center top / 100% auto no-repeat }
 .tip .tx { padding:8px 10px } .tip .tx b { font:600 11px "JetBrains Mono", monospace; color:var(--a2) } .tip .tx div { color:#dfe3ee; font-size:11.5px; margin-top:3px }
 
+/* ---------- trim / text edit ---------- */
+.trim { position:absolute; left:0; top:0; bottom:0; width:8px; cursor:ew-resize; z-index:2; opacity:0; transition:opacity .15s;
+  background:linear-gradient(90deg, rgba(255,255,255,.85) 0 2px, rgba(255,255,255,.18) 2px, transparent) }
+.clip:hover .trim { opacity:1 }
+.ghost-cut { position:absolute; top:0; bottom:0; width:2px; background:#fde047; box-shadow:0 0 14px #fde047; z-index:9; pointer-events:none; display:none }
+.ghost-cut b { position:absolute; top:28px; left:6px; padding:2px 6px; border-radius:6px; background:#fde047; color:#111; font:700 10px "JetBrains Mono", monospace; white-space:nowrap }
+.txtedit textarea { width:100%; min-height:64px; resize:vertical; background:var(--inset); border:1px solid var(--stroke2); border-radius:9px; padding:9px 10px; color:#fff; font:inherit; outline:none }
+.txtedit textarea:focus { border-color:var(--a1); box-shadow:0 0 0 3px rgba(124,92,255,.18) }
+.row2 { display:flex; gap:8px; margin-top:8px }
+
 /* ---------- replace shot ---------- */
 .swap { margin-top:6px }
 .kwrow { display:flex; gap:6px; margin-bottom:10px }
@@ -272,6 +282,7 @@ kbd { font:600 11px "JetBrains Mono", monospace; padding:2px 7px; border-radius:
       <button data-pg="deliver"><svg width="14" height="14"><use href="#i-send"/></svg>Deliver</button></nav>
     <div class="title"><b id="ptitle">Loading project…</b><span id="psub">&nbsp;</span></div>
     <div class="status"><div class="ring" id="ring"></div><div class="txt"><b id="stTitle">Connecting…</b><span id="stSub">&nbsp;</span></div><span class="dot" id="dot"></span></div>
+    <button class="icon-btn" id="undoBtn" title="Undo last edit (Ctrl+Z)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/></svg></button>
     <button class="btn primary approve" id="approveBtn" title="Render the whole video with the current picks"><svg width="14" height="14"><use href="#i-send"/></svg>Approve &amp; render</button>
     <button class="icon-btn" id="keysBtn" title="Shortcuts (?)"><svg width="16" height="16"><use href="#i-key"/></svg></button>
   </header>
@@ -345,6 +356,7 @@ kbd { font:600 11px "JetBrains Mono", monospace; padding:2px 7px; border-radius:
   <div class="row">Play / pause<span><kbd>Space</kbd></span></div><div class="row">Step one frame<span><kbd>←</kbd><kbd>→</kbd></span></div>
   <div class="row">Jump 5 seconds<span><kbd>Shift</kbd><kbd>←</kbd><kbd>→</kbd></span></div><div class="row">Start / end<span><kbd>Home</kbd><kbd>End</kbd></span></div>
   <div class="row">Zoom timeline<span><kbd>+</kbd><kbd>−</kbd> or <kbd>Ctrl</kbd>+wheel</span></div><div class="row">Next / previous shot<span><kbd>↓</kbd><kbd>↑</kbd></span></div>
+  <div class="row">Undo last edit<span><kbd>Ctrl</kbd><kbd>Z</kbd></span></div><div class="row">Move a cut<span>drag a clip's left edge</span></div>
   <div class="row">Loop · Safe areas · Follow<span><kbd>L</kbd><kbd>S</kbd><kbd>F</kbd></span></div><div class="row">Pages<span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd></span></div></div></div>
 
 <script>
@@ -384,10 +396,10 @@ function build(tl) {
       const c = { tr: sh.type === "graphic" ? "gfx" : "pic", cc: COL[sh.type], s: a, e: b, name, n, sh, sc, kind: sh.type, id: `${sc.id}-${k + 1}` };
       clips.push(c); shots.push(c);
     });
-    if (sc.emphasis) clips.push({ tr: "text", cc: "var(--c-text)", s: s0 + (sc.emphasisFrom || 0) / fps, e: s0 + sc.durationInFrames / fps, name: sc.emphasis, info: { Title: sc.emphasis } });
-    for (const c of sc.callouts || []) clips.push({ tr: "text", cc: "var(--c-text)", s: s0 + c.from / fps, e: s0 + (c.from + c.duration) / fps, name: c.text, info: { "Text pop": c.text } });
-    if (sc.lowerThird) clips.push({ tr: "text", cc: "var(--c-text)", s: s0 + 0.3, e: s0 + Math.min(4.8, sc.durationInFrames / fps), name: sc.lowerThird.title, info: { "Lower third": sc.lowerThird.title } });
-    if (sc.badge) clips.push({ tr: "text", cc: "var(--c-text)", s: s0, e: s0 + sc.durationInFrames / fps, name: sc.badge, info: { Label: sc.badge } });
+    if (sc.emphasis) clips.push({ tr: "text", cc: "var(--c-text)", s: s0 + (sc.emphasisFrom || 0) / fps, e: s0 + sc.durationInFrames / fps, name: sc.emphasis, tkey: `${sc.id}:emphasis`, tkind: "Title", info: { Title: sc.emphasis } });
+    (sc.callouts || []).forEach((c, ci) => clips.push({ tr: "text", cc: "var(--c-text)", s: s0 + c.from / fps, e: s0 + (c.from + c.duration) / fps, name: c.text, tkey: `${sc.id}:callout:${ci}`, tkind: "Text pop", info: { "Text pop": c.text } }));
+    if (sc.lowerThird) clips.push({ tr: "text", cc: "var(--c-text)", s: s0 + 0.3, e: s0 + Math.min(4.8, sc.durationInFrames / fps), name: sc.lowerThird.title, tkey: `${sc.id}:lowerThird`, tkind: "Name tag", info: { "Lower third": sc.lowerThird.title } });
+    if (sc.badge) clips.push({ tr: "text", cc: "var(--c-text)", s: s0, e: s0 + sc.durationInFrames / fps, name: sc.badge, tkey: `${sc.id}:badge`, tkind: "Label", info: { Label: sc.badge } });
     if (si > 0 && sc.transition && sc.transition !== "cut") clips.push({ tr: "a3", cc: "#94a3b8", s: s0 - 0.15, e: s0 + 0.3, name: sc.transition, info: { Transition: sc.transition } });
   });
   let page = [];
@@ -419,13 +431,14 @@ function drawTimeline() {
     const items = clips.map((c, i) => [c, i]).filter(([c]) => c.tr === tr.k).map(([c, i], j) => {
       const w = Math.max(3, (c.e - c.s) * pps - 2);
       let inner = `<span class="nm">${w > 30 ? esc(c.name) : ""}</span>`;
+      if (c.n && Number(c.id.split("-")[1]) > 1 && c.sc?.layout !== "split") inner += `<div class="trim" data-trim="${i}" title="Drag to move this cut"></div>`;
       if (c.n && (c.kind === "video" || c.kind === "image") && has(c.n)) inner += `<div class="strip" style="background-image:url('${tile(c.n)}')"></div>`;
       if (c.wave && w > 30) inner += `<div class="wv" style="background-image:url('/api/wave?src=${encodeURIComponent(c.wave)}&w=${Math.min(4000, Math.round(w))}&c=${tr.k === "a1" ? "%2386efac" : "%235eead4"}')"></div>`;
       return `<div class="clip${c.kind === "kinetic" ? " miss" : ""}${c.word ? " word" : ""}${sel === i ? " sel" : ""}" data-i="${i}" style="--cc:${c.cc};left:${c.s * pps}px;width:${w}px;animation-delay:${Math.min(j * 14, 600)}ms">${inner}</div>`;
     }).join("");
     return `<div class="lane${tr.audio ? " audio" : ""}${hidden.has(tr.k) || muted.has(tr.k) ? " off" : ""}" style="width:${W}px">${items}</div>`;
   }).join("");
-  $("tracks").innerHTML = r + lanes + `<div class="hover-line" id="hl"></div><div class="ph-line" id="phl"><b id="phTc"></b></div>`;
+  $("tracks").innerHTML = r + lanes + `<div class="ghost-cut" id="ghost"><b id="ghostTx"></b></div><div class="hover-line" id="hl"></div><div class="ph-line" id="phl"><b id="phTc"></b></div>`;
   $("tracks").style.width = W + "px";
   placeHead(false); updateNavView();
 }
@@ -555,9 +568,17 @@ function select(i, doSeek = true) {
       <button class="btn" id="altGo" style="width:100%;justify-content:center">Show alternatives for this shot</button><div id="cands" style="margin-top:10px"></div></div>`;
   }
   if (sh?.graphic) h += `<div class="h">Graphic data</div><div class="log" style="background:var(--inset);border:1px solid var(--stroke);border-radius:9px;padding:9px">${esc(JSON.stringify(Object.fromEntries(Object.entries(sh.graphic).filter(([x]) => x !== "at")), null, 2))}</div>`;
+  if (c.tkey) h += `<div class="h">Edit ${esc(c.tkind)}</div><div class="txtedit"><textarea id="txtIn">${esc(c.name)}</textarea>
+    <div class="row2"><button class="btn primary" id="txtSave">Save text</button><button class="btn" id="txtDel">Remove</button></div></div>`;
   if (c.info) h += `<div class="h">Details</div><div class="kv">${Object.entries(c.info).map(([k, v]) => `<b>${esc(k)}</b><span>${esc(v)}</span>`).join("")}</div>`;
   if (sh?.type === "video" && sh.src) h += `<div class="h">Source clip</div><video src="/files/public/${esc(sh.src)}#t=${((sh.trimBefore || 0) / fps).toFixed(2)}" muted autoplay loop playsinline style="width:100%;border-radius:10px;box-shadow:0 0 0 1px var(--stroke)"></video>`;
   $("insp").innerHTML = h;
+  if ($("txtSave")) {
+    const saveText = async (text) => { try { await post("/api/text", { key: c.tkey, text }); toast(text ? `${c.tkind} updated` : `${c.tkind} removed`); } catch (e) { toast(e.message, true); } };
+    $("txtSave").onclick = () => saveText($("txtIn").value.trim());
+    $("txtDel").onclick = () => saveText("");
+    $("txtIn").onkeydown = (e) => e.stopPropagation();
+  }
   if ($("altGo")) {
     $("altGo").onclick = () => loadCands(c, null);
     $("kwGo").onclick = () => loadCands(c, $("kwIn").value.trim());
@@ -588,6 +609,8 @@ async function loadCands(c, keyword) {
     });
   } catch (e) { box.innerHTML = `<div class="busy" style="color:var(--bad)">${esc(e.message)}</div>`; }
 }
+async function doUndo() { try { const r = await post("/api/undo", {}); toast(`Undone: ${r.undone}`); } catch (e) { toast(e.message, true); } }
+$("undoBtn").onclick = doUndo;
 $("approveBtn").onclick = async () => {
   if (!confirm("Render the whole video now with the current shots?")) return;
   try { await post("/api/approve", {}); toast("Render started - follow it on the Deliver page"); setPage("deliver"); } catch (e) { toast(e.message, true); }
@@ -604,6 +627,24 @@ $("zoom").oninput = (e) => { pps = Number(e.target.value); drawTimeline(); place
 $("tabs").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) showTab(b.dataset.p); });
 $("heads").addEventListener("click", (e) => { const b = e.target.closest("[data-tg]"); if (!b) return; const k = b.dataset.tg, tr = TRACKS.find((x) => x.k === k); const set = tr.audio ? muted : hidden; set.has(k) ? set.delete(k) : set.add(k); drawTimeline(); if (tr.audio) setPlaying(playing); });
 $("tracks").addEventListener("pointerdown", (e) => {
+  const tr = e.target.closest("[data-trim]");
+  if (tr) {
+    // Drag a cut: the shot starts earlier/later, the one before ends with it.
+    e.preventDefault(); e.stopPropagation();
+    const c = clips[Number(tr.dataset.trim)], g = $("ghost"), x0 = e.clientX;
+    let frames = 0;
+    g.style.display = "block"; g.style.left = c.s * pps + "px";
+    const move = (ev) => { frames = Math.round(((ev.clientX - x0) / pps) * fps); g.style.left = (c.s + frames / fps) * pps + "px"; $("ghostTx").textContent = `${frames > 0 ? "+" : ""}${frames} f`; };
+    const up = async () => {
+      removeEventListener("pointermove", move); removeEventListener("pointerup", up); g.style.display = "none";
+      const minF = Math.round(fps * 0.5), prev = shots[shots.indexOf(c) - 1];
+      frames = Math.max(-Math.round(((prev ? c.s - prev.s : 0)) * fps) + minF, Math.min(Math.round((c.e - c.s) * fps) - minF, frames));
+      if (!frames) return;
+      try { await post("/api/cut", { shot: c.id, delta: frames }); toast(`Cut before shot #${c.n} moved ${frames > 0 ? "later" : "earlier"} by ${Math.abs(frames)} frames`); } catch (err) { toast(err.message, true); }
+    };
+    addEventListener("pointermove", move); addEventListener("pointerup", up);
+    return;
+  }
   const el = e.target.closest("[data-i]"); if (el) { select(Number(el.dataset.i)); return; }
   const scrub = (ev) => { const r = $("tracks").getBoundingClientRect(); seek((ev.clientX - r.left) / pps); };
   scrub(e); const up = () => { removeEventListener("pointermove", scrub); removeEventListener("pointerup", up); }; addEventListener("pointermove", scrub); addEventListener("pointerup", up);
@@ -646,8 +687,9 @@ function setPage(pg) {
 $("nav").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) setPage(b.dataset.pg); });
 $("keysBtn").onclick = () => $("keys").classList.add("on"); $("keys").onclick = () => $("keys").classList.remove("on");
 document.addEventListener("keydown", (e) => {
-  if (e.target.tagName === "INPUT") return;
+  if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
   const k = e.key;
+  if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === "z") { e.preventDefault(); doUndo(); return; }
   if (e.code === "Space") { e.preventDefault(); setPlaying(!playing); }
   else if (k === "ArrowLeft") seek(t - (e.shiftKey ? 5 : 1 / fps)); else if (k === "ArrowRight") seek(t + (e.shiftKey ? 5 : 1 / fps));
   else if (k === "ArrowDown" || k === "ArrowUp") { e.preventDefault(); const cur = shotAt(t), i = shots.indexOf(cur) + (k === "ArrowDown" ? 1 : -1); if (shots[i]) select(clips.indexOf(shots[i])); }
@@ -674,6 +716,7 @@ function showStatus(st) {
   $("hudRec").style.display = run && st.step === "render" && !playing ? "" : "none";
   if (S?.job?.running) { $("stTitle").textContent = S.job.name; $("dot").className = "dot run"; }
   $("approveBtn").disabled = !!(S?.job?.running || run);
+  $("undoBtn").disabled = !S?.undo; $("undoBtn").style.opacity = S?.undo ? 1 : 0.4;
   document.title = `${run ? pct + "% · " : ""}${st.title || "Faceless Studio"}`;
   const issues = st.issues || [];
   $("issueN").style.display = issues.length ? "" : "none"; $("issueN").textContent = issues.length;
