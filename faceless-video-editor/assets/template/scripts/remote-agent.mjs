@@ -1,11 +1,13 @@
 // Remote Agent for Faceless Studio Cloud
 // Connects this local video project to your remote Faceless Studio website via an
-// outgoing WebSocket, acting as a secure reverse proxy to editor.mjs (port 3100).
+// outgoing WebSocket, acting as a secure reverse proxy to editor.mjs (port 3100),
+// and watches for finished renders to automatically upload to Cloudflare R2.
 // Usage:
 //   node scripts/remote-agent.mjs [--check] [--url=wss://studio.domain.com] [--token=...]
 //   npm run remote
 
 import http from "node:http";
+import https from "node:https";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -17,6 +19,10 @@ const cwdRoot = process.cwd();
 const ROOT = (fs.existsSync(path.join(cwdRoot, "project.json")) || fs.existsSync(path.join(cwdRoot, "package.json")))
   ? cwdRoot
   : scriptRoot;
+
+const BUILD = path.join(ROOT, "build");
+const OUT = path.join(ROOT, "out");
+const PUBLIC = path.join(ROOT, "public");
 
 const args = process.argv.slice(2);
 
@@ -81,6 +87,22 @@ const PROJECT_TITLE = projectInfo.title;
 function log(sub, msg) {
   const t = new Date().toTimeString().slice(0, 8);
   console.log(`\x1b[90m${t}\x1b[0m [\x1b[35mremote-agent\x1b[0m] ${sub ? `\x1b[36m${sub}\x1b[0m: ` : ""}${msg}`);
+}
+
+function getWsUrl(raw) {
+  let u = (raw || "").trim();
+  if (u.startsWith("http://")) u = "ws://" + u.slice(7);
+  else if (u.startsWith("https://")) u = "wss://" + u.slice(8);
+  else if (!u.startsWith("ws://") && !u.startsWith("wss://")) u = "wss://" + u;
+  return u.replace(/\/+$/, "");
+}
+
+function getHttpUrl(raw) {
+  let u = (raw || "").trim();
+  if (u.startsWith("ws://")) u = "http://" + u.slice(5);
+  else if (u.startsWith("wss://")) u = "https://" + u.slice(6);
+  else if (!u.startsWith("http://") && !u.startsWith("https://")) u = "https://" + u;
+  return u.replace(/\/+$/, "");
 }
 
 // ---------- --check diagnostic mode ----------
@@ -235,14 +257,6 @@ async function runCheck() {
   }
 }
 
-function getWsUrl(raw) {
-  let u = raw.trim();
-  if (u.startsWith("http://")) u = "ws://" + u.slice(7);
-  else if (u.startsWith("https://")) u = "wss://" + u.slice(8);
-  else if (!u.startsWith("ws://") && !u.startsWith("wss://")) u = "wss://" + u;
-  return u.replace(/\/+$/, "");
-}
-
 // If invoked with --check, run diagnostics and exit
 if (isCheckMode) {
   runCheck();
@@ -250,7 +264,7 @@ if (isCheckMode) {
   startAgent();
 }
 
-// ---------- Main Remote Agent Implementation ----------
+// ---------- Main Remote Agent & Uploader Implementation ----------
 function startAgent() {
   if (!WebSocket) {
     console.error("\x1b[31m[remote-agent error]\x1b[0m 'ws' package is not installed.");
@@ -266,6 +280,8 @@ function startAgent() {
   }
 
   const wsUrl = getWsUrl(REMOTE_URL);
+  const httpUrl = getHttpUrl(REMOTE_URL);
+
   log("info", `Project "${PROJECT_TITLE}" (ID: ${PROJECT_ID})`);
   log("info", `Target relay: ${wsUrl}/agent`);
   log("info", `Local editor: http://127.0.0.1:${LOCAL_PORT}`);
@@ -274,7 +290,18 @@ function startAgent() {
   let reconnectAttempts = 0;
   let heartbeatTimer = null;
   let isClosing = false;
+  let isUploading = false;
   const activeRequests = new Map(); // id -> http.ClientRequest
+
+  // Read recorded uploaded timestamp to avoid re-uploading on restart
+  const uploadRecordFile = path.join(BUILD, ".cloud-uploaded.json");
+  let lastUploadedMtime = 0;
+  try {
+    if (fs.existsSync(uploadRecordFile)) {
+      const rec = JSON.parse(fs.readFileSync(uploadRecordFile, "utf8"));
+      lastUploadedMtime = Number(rec.mtime) || 0;
+    }
+  } catch {}
 
   function connect() {
     if (isClosing) return;
@@ -313,10 +340,7 @@ function startAgent() {
     });
 
     ws.on("message", (data, isBinary) => {
-      if (isBinary) {
-        // Reserved for future binary uploads from server if needed
-        return;
-      }
+      if (isBinary) return;
       try {
         const text = data.toString("utf8");
         const msg = JSON.parse(text);
@@ -337,7 +361,6 @@ function startAgent() {
 
     ws.on("error", (err) => {
       log("error", `WebSocket error: ${err.message}`);
-      // close event will trigger reconnect
     });
   }
 
@@ -345,7 +368,6 @@ function startAgent() {
     clearInterval(heartbeatTimer);
     if (isClosing) return;
     reconnectAttempts++;
-    // Exponential backoff with jitter: 1s, 2s, 4s, 8s, up to max 30s
     const base = Math.min(30000, 1000 * Math.pow(1.8, Math.min(reconnectAttempts - 1, 6)));
     const jitter = Math.random() * 800;
     const delay = Math.round(base + jitter);
@@ -354,10 +376,7 @@ function startAgent() {
   }
 
   function handleServerMessage(msg) {
-    if (msg.type === "pong") {
-      // Heartbeat acknowledged
-      return;
-    }
+    if (msg.type === "pong") return;
     if (msg.type === "registered") {
       log("ready", `Project "${PROJECT_ID}" is live on Faceless Studio Cloud!`);
       return;
@@ -392,7 +411,6 @@ function startAgent() {
     const { id, method, path: reqPath, headers = {}, body } = reqMsg;
 
     const outgoingHeaders = { ...headers };
-    // Always route to localhost editor
     outgoingHeaders.host = `127.0.0.1:${LOCAL_PORT}`;
     delete outgoingHeaders["connection"];
     delete outgoingHeaders["upgrade"];
@@ -407,7 +425,6 @@ function startAgent() {
     };
 
     const localReq = http.request(reqOptions, (localRes) => {
-      // Forward status and headers back to relay
       sendWsText({
         type: "res_start",
         id,
@@ -416,7 +433,6 @@ function startAgent() {
         headers: localRes.headers,
       });
 
-      // Stream binary response data in chunks up to 1 MB
       localRes.on("data", (chunk) => {
         sendBinaryChunk(id, chunk);
       });
@@ -446,7 +462,6 @@ function startAgent() {
 
     activeRequests.set(id, localReq);
 
-    // Write body if provided
     if (body) {
       if (typeof body === "string") {
         localReq.write(body);
@@ -459,15 +474,12 @@ function startAgent() {
     localReq.end();
   }
 
-  // Sends a text JSON message to the relay
   function sendWsText(obj) {
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify(obj));
     }
   }
 
-  // Sends a binary chunk with 2-byte id length header
-  // [uint16BE id_len][id_len bytes ASCII id][raw chunk bytes]
   function sendBinaryChunk(id, chunkBuffer) {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     const idBuf = Buffer.from(id, "utf8");
@@ -480,11 +492,266 @@ function startAgent() {
     ws.send(frame, { binary: true });
   }
 
+  // ---------- Video Upload & Status Watcher ----------
+  // Watches build/status.json. When finished becomes true and out/final.mp4 is new,
+  // it performs an R2 multipart upload of 16 MB chunks in parallel with retries.
+
+  function checkRenderStatus() {
+    if (isUploading) return;
+
+    try {
+      const statusFile = path.join(BUILD, "status.json");
+      if (!fs.existsSync(statusFile)) return;
+
+      const statusData = JSON.parse(fs.readFileSync(statusFile, "utf8"));
+      if (statusData.finished !== true) return;
+
+      // Find the output video file (final.mp4, video.mp4, or preview.mp4)
+      const candidateFiles = ["final.mp4", "video.mp4", "preview.mp4"].map((f) => path.join(OUT, f));
+      const targetVideo = candidateFiles.find((f) => fs.existsSync(f));
+      if (!targetVideo) return;
+
+      const stat = fs.statSync(targetVideo);
+      if (stat.mtimeMs > lastUploadedMtime) {
+        log("watch", `New finished render detected (${path.basename(targetVideo)} - ${(stat.size / (1024 * 1024)).toFixed(1)} MB)`);
+        uploadRenderedVideo(targetVideo, stat, statusData);
+      }
+    } catch (err) {
+      // Ignore read errors while auto.mjs is writing
+    }
+  }
+
+  // Check every 3 seconds for finished renders
+  const statusWatcherTimer = setInterval(checkRenderStatus, 3000);
+
+  async function uploadRenderedVideo(videoPath, stat, statusData) {
+    isUploading = true;
+    const fileSize = stat.size;
+    const filename = path.basename(videoPath);
+    const thumbnailPath = path.join(OUT, "thumbnail.jpg");
+    const creditsPath = path.join(BUILD, "credits.txt");
+    const timelinePath = path.join(PUBLIC, "timeline.json");
+
+    const hasThumbnail = fs.existsSync(thumbnailPath);
+    const hasCredits = fs.existsSync(creditsPath);
+
+    log("upload", `Initiating Cloudflare R2 multipart upload for "${PROJECT_TITLE}" (${(fileSize / (1024 * 1024)).toFixed(1)} MB)...`);
+
+    try {
+      // 1. Request presigned multipart URLs from server
+      const initRes = await fetch(`${httpUrl}/api/uploads/init`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${AGENT_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          filename,
+          fileSize,
+          projectId: PROJECT_ID,
+          hasThumbnail,
+          hasCredits,
+        }),
+      });
+
+      if (!initRes.ok) {
+        const errJson = await initRes.json().catch(() => ({}));
+        throw new Error(errJson.error || `Server returned ${initRes.status}`);
+      }
+
+      const initData = await initRes.json();
+      const {
+        uploadId,
+        videoKey,
+        partSize,
+        parts,
+        thumbnailKey,
+        thumbnailUrl,
+        creditsKey,
+        creditsUrl,
+      } = initData;
+
+      log("upload", `Upload initialized. Total parts: ${parts.length} (16 MB each). Upload ID: ${uploadId.slice(0, 16)}...`);
+
+      // 2. Upload thumbnail and credits if present
+      if (hasThumbnail && thumbnailUrl) {
+        try {
+          const thumbBytes = fs.readFileSync(thumbnailPath);
+          await uploadWithRetry(thumbnailUrl, thumbBytes, "image/jpeg");
+          log("upload", "Thumbnail uploaded to R2");
+        } catch (e) {
+          log("warn", `Thumbnail upload failed: ${e.message}`);
+        }
+      }
+
+      if (hasCredits && creditsUrl) {
+        try {
+          const creditsBytes = fs.readFileSync(creditsPath);
+          await uploadWithRetry(creditsUrl, creditsBytes, "text/plain; charset=utf-8");
+          log("upload", "Credits uploaded to R2");
+        } catch (e) {
+          log("warn", `Credits upload failed: ${e.message}`);
+        }
+      }
+
+      // 3. Upload parts in parallel (4 concurrent workers) with exponential backoff retries
+      const completedParts = [];
+      let nextIndex = 0;
+      let finishedParts = 0;
+      const CONCURRENCY = 4;
+
+      async function worker() {
+        while (nextIndex < parts.length) {
+          const current = parts[nextIndex++];
+          const partNum = current.partNumber;
+          const start = (partNum - 1) * partSize;
+          const end = Math.min(fileSize, partNum * partSize);
+          const sliceBytes = end - start;
+
+          const sliceBuffer = Buffer.allocUnsafe(sliceBytes);
+          const fd = fs.openSync(videoPath, "r");
+          fs.readSync(fd, sliceBuffer, 0, sliceBytes, start);
+          fs.closeSync(fd);
+
+          // Upload with up to 5 retries on network drops
+          const etag = await uploadPartWithRetry(current.url, sliceBuffer, partNum, 5);
+          completedParts.push({ PartNumber: partNum, ETag: etag });
+
+          finishedParts++;
+          const pct = Math.round((finishedParts / parts.length) * 100);
+          log("upload", `Uploaded part ${finishedParts}/${parts.length} (${pct}%)`);
+
+          // Notify dashboard via WebSocket
+          sendWsText({
+            type: "upload_progress",
+            projectId: PROJECT_ID,
+            progress: pct,
+          });
+        }
+      }
+
+      // Run 4 workers in parallel
+      const workers = Array.from({ length: Math.min(CONCURRENCY, parts.length) }, () => worker());
+      await Promise.all(workers);
+
+      // 4. Extract timeline metadata (duration, width, height)
+      let duration = 0;
+      let width = 1080;
+      let height = 1920;
+      let timelineRaw = null;
+
+      if (fs.existsSync(timelinePath)) {
+        try {
+          timelineRaw = fs.readFileSync(timelinePath, "utf8");
+          const tl = JSON.parse(timelineRaw);
+          const fps = tl.fps || 30;
+          if (tl.totalFrames) duration = Number((tl.totalFrames / fps).toFixed(2));
+          if (tl.width) width = Number(tl.width);
+          if (tl.height) height = Number(tl.height);
+        } catch {}
+      }
+
+      // 5. Complete multipart upload on the server
+      log("upload", "All parts uploaded! Finalizing video registration...");
+      const completeRes = await fetch(`${httpUrl}/api/uploads/complete`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${AGENT_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          uploadId,
+          key: videoKey,
+          parts: completedParts,
+          title: PROJECT_TITLE,
+          duration,
+          size: fileSize,
+          width,
+          height,
+          projectName: PROJECT_ID,
+          r2ThumbnailKey: thumbnailKey,
+          r2CreditsKey: creditsKey,
+          timelineJson: timelineRaw,
+        }),
+      });
+
+      if (!completeRes.ok) {
+        const errJson = await completeRes.json().catch(() => ({}));
+        throw new Error(errJson.error || "Failed to complete upload");
+      }
+
+      // Record successful upload
+      lastUploadedMtime = stat.mtimeMs;
+      fs.mkdirSync(BUILD, { recursive: true });
+      fs.writeFileSync(
+        uploadRecordFile,
+        JSON.stringify({ mtime: stat.mtimeMs, key: videoKey, at: Date.now() }, null, 2)
+      );
+
+      log("upload", `✓ Successfully uploaded & registered "${PROJECT_TITLE}" on Faceless Studio Cloud!`);
+    } catch (err) {
+      log("upload-error", `Upload failed: ${err.message}. Will retry on next check.`);
+    } finally {
+      isUploading = false;
+    }
+  }
+
+  // Upload small file with retry
+  async function uploadWithRetry(presignedUrl, dataBuffer, contentType, maxRetries = 3) {
+    let attempt = 0;
+    while (attempt < maxRetries) {
+      try {
+        const res = await fetch(presignedUrl, {
+          method: "PUT",
+          headers: { "Content-Type": contentType },
+          body: dataBuffer,
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return;
+      } catch (e) {
+        attempt++;
+        if (attempt >= maxRetries) throw e;
+        await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
+      }
+    }
+  }
+
+  // Upload single 16 MB part with retries & backoff (resumes after network drop)
+  async function uploadPartWithRetry(partUrl, buffer, partNum, maxRetries = 5) {
+    let attempt = 0;
+    while (attempt < maxRetries) {
+      try {
+        const res = await fetch(partUrl, {
+          method: "PUT",
+          body: buffer,
+        });
+
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+
+        const rawEtag = res.headers.get("etag") || "";
+        // Cloudflare R2 returns quoted ETag: '"hash"'
+        const etag = rawEtag.replace(/^"+|"+$/g, "");
+        return etag || `etag_part_${partNum}`;
+      } catch (err) {
+        attempt++;
+        const backoff = Math.min(30000, 1500 * Math.pow(2, attempt - 1));
+        log("upload-retry", `Part ${partNum} failed (attempt ${attempt}/${maxRetries}): ${err.message}. Retrying in ${(backoff / 1000).toFixed(1)}s...`);
+        if (attempt >= maxRetries) {
+          throw new Error(`Part ${partNum} permanently failed after ${maxRetries} retries: ${err.message}`);
+        }
+        await new Promise((r) => setTimeout(r, backoff));
+      }
+    }
+  }
+
   // Graceful shutdown
   const shutdown = () => {
     isClosing = true;
     log("info", "Shutting down remote agent...");
     clearInterval(heartbeatTimer);
+    clearInterval(statusWatcherTimer);
     abortAllActiveRequests();
     if (ws) {
       ws.close(1000, "Agent shutting down");
