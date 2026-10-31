@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Editor</title>
+<style>
+:root {
+  --bg:#0c0e13; --panel:#141821; --panel2:#1a1f2b; --line:#272d3a; --text:#e7e9ef; --muted:#8a93a6;
+  --accent:#f2b544; --video:#2f6fdb; --still:#14a38b; --graphic:#8b5cf6; --missing:#d9475a; --textc:#d97706; --voice:#3b4a66; --music:#2d6a4f; --sfx:#e11d74;
+}
+* { box-sizing:border-box }
+html, body { margin:0; height:100%; background:var(--bg); color:var(--text); font:13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+body { display:grid; grid-template-rows:auto auto 1fr auto; height:100vh; overflow:hidden; }
+header { display:flex; align-items:center; gap:14px; padding:8px 14px; border-bottom:1px solid var(--line); background:var(--panel); }
+header h1 { font-size:15px; margin:0; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:34vw }
+.pill { padding:3px 10px; border-radius:99px; background:var(--panel2); border:1px solid var(--line); color:var(--muted); white-space:nowrap }
+.pill.run { color:var(--text); border-color:var(--accent) } .pill.ok { color:#34d399; border-color:#1f4d3d } .pill.bad { color:#f87171; border-color:#5a2424 }
+.prog { flex:1; height:6px; background:var(--line); border-radius:99px; overflow:hidden; min-width:80px } .prog i { display:block; height:100%; background:var(--accent); width:0 }
+.steps { display:flex; gap:6px; padding:6px 14px; border-bottom:1px solid var(--line); overflow-x:auto; background:var(--panel) }
+.steps span { padding:2px 9px; border-radius:99px; border:1px solid var(--line); color:var(--muted); white-space:nowrap; font-size:12px }
+.steps span.done { color:#34d399; border-color:#1f4d3d } .steps span.now { color:var(--text); border-color:var(--accent); background:#2a2312 } .steps span.fail { color:#f87171; border-color:#5a2424 }
+main { display:grid; grid-template-columns:minmax(0,1fr) 340px; min-height:0; }
+.stage { display:flex; flex-direction:column; min-height:0; padding:10px; gap:8px }
+.screen { position:relative; flex:1; min-height:0; background:#000; border-radius:8px; overflow:hidden; display:flex; align-items:center; justify-content:center }
+.screen video, .screen .frame { max-width:100%; max-height:100%; aspect-ratio:var(--ar,16/9); width:100%; object-fit:contain; }
+.frame { position:relative; overflow:hidden; background:#000 }
+.frame img { position:absolute; left:0; top:0; width:100%; height:auto; }
+.badge { position:absolute; left:10px; top:10px; padding:3px 8px; border-radius:6px; background:rgba(0,0,0,.65); font-size:12px; color:#fff }
+.subs { position:absolute; left:0; right:0; bottom:6%; text-align:center; pointer-events:none }
+.subs span { background:rgba(0,0,0,.6); padding:3px 10px; border-radius:6px; font-size:clamp(12px,1.6vw,20px); font-weight:700 }
+.controls { display:flex; align-items:center; gap:8px }
+button, select { background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:5px 10px; font:inherit; cursor:pointer }
+button:hover { border-color:#3a4252 } button.primary { background:var(--accent); color:#111; border-color:var(--accent); font-weight:700; min-width:64px }
+.time { font-variant-numeric:tabular-nums; color:var(--muted); min-width:120px }
+aside { border-left:1px solid var(--line); background:var(--panel); display:flex; flex-direction:column; min-height:0 }
+.tabs { display:flex; border-bottom:1px solid var(--line) } .tabs button { flex:1; border:0; border-radius:0; background:transparent; color:var(--muted); padding:8px }
+.tabs button.on { color:var(--text); box-shadow:inset 0 -2px 0 var(--accent) }
+.pane { flex:1; overflow:auto; padding:12px; display:none } .pane.on { display:block }
+.kv { display:grid; grid-template-columns:96px 1fr; gap:4px 10px; margin-bottom:10px } .kv b { color:var(--muted); font-weight:500 }
+.pane img.big { width:100%; border-radius:6px; border:1px solid var(--line); margin-bottom:10px }
+.empty { color:var(--muted) }
+.words span { cursor:pointer; padding:1px 2px; border-radius:3px } .words span:hover { background:var(--panel2) } .words span.cur { background:var(--accent); color:#111 }
+.words .scn { display:block; color:var(--muted); font-size:11px; margin:10px 0 2px }
+.issues li { margin-bottom:6px; color:#fcd9a0 } .log { font:11.5px/1.6 ui-monospace, Consolas, monospace; color:#b8c0d0; white-space:pre-wrap }
+footer { border-top:1px solid var(--line); background:var(--panel); display:flex; flex-direction:column; height:clamp(220px,34vh,360px) }
+.tlbar { display:flex; align-items:center; gap:10px; padding:5px 10px; border-bottom:1px solid var(--line); color:var(--muted) }
+.legend { display:flex; gap:10px; flex-wrap:wrap; margin-left:auto } .legend i { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:4px; vertical-align:-1px }
+.tl { flex:1; display:grid; grid-template-columns:86px 1fr; min-height:0 }
+.heads { border-right:1px solid var(--line) } .heads div { height:var(--row); display:flex; align-items:center; padding-left:10px; color:var(--muted); font-size:12px; border-bottom:1px solid #1d222d }
+.heads .ruler-h { height:22px }
+.scroll { overflow-x:auto; overflow-y:hidden; position:relative }
+.lane { position:relative; height:var(--row); border-bottom:1px solid #1d222d }
+.ruler { position:relative; height:22px; border-bottom:1px solid var(--line); cursor:pointer }
+.tick { position:absolute; top:0; height:100%; border-left:1px solid #2b3240; color:var(--muted); font-size:10px; padding-left:3px; padding-top:4px }
+.clip { position:absolute; top:3px; bottom:3px; border-radius:4px; overflow:hidden; cursor:pointer; font-size:11px; color:#fff; padding:2px 5px; white-space:nowrap; text-overflow:ellipsis;
+  border:1px solid rgba(255,255,255,.12); background-size:cover; background-position:center top }
+.clip.sel { outline:2px solid #fff; outline-offset:-1px; z-index:2 }
+.clip .lbl { position:relative; text-shadow:0 1px 2px #000; background:rgba(0,0,0,.45); padding:0 3px; border-radius:3px }
+.clip.video { background-color:var(--video) } .clip.image { background-color:var(--still) } .clip.graphic { background-color:var(--graphic) } .clip.kinetic { background-color:var(--missing) }
+.clip.text { background:var(--textc) } .clip.word { background:var(--voice); padding:2px 3px } .clip.music { background:var(--music) } .clip.chapter { background:#334155 } .clip.scene { background:#252b38; color:#cbd5e1 }
+.mark { position:absolute; top:4px; bottom:4px; width:3px; border-radius:2px; background:var(--sfx); cursor:pointer }
+.mark.tr { background:#94a3b8 } .mark.rv { background:var(--accent) }
+.playhead { position:absolute; top:0; bottom:0; width:2px; background:#ff3b5c; pointer-events:none; z-index:5 }
+.playhead::before { content:""; position:absolute; top:0; left:-5px; border:6px solid transparent; border-top-color:#ff3b5c }
+.notice { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--muted); text-align:center; padding:20px }
+@media (max-width: 900px) { main { grid-template-columns:1fr } aside { display:none } }
+</style>
+</head>
+<body style="--row:30px">
+<header>
+  <h1 id="title">Editor</h1>
+  <span id="state" class="pill">connecting…</span>
+  <div class="prog"><i id="bar"></i></div>
+  <span id="eta" class="pill" style="display:none"></span>
+  <span id="mode" class="pill"></span>
+</header>
+<div class="steps" id="steps"></div>
+<main>
+  <section class="stage">
+    <div class="screen" id="screen">
+      <video id="video" playsinline preload="auto" style="display:none"></video>
+      <div class="frame" id="frame" style="display:none"><img id="frameImg" alt=""><div class="badge" id="frameBadge"></div><div class="subs"><span id="subs"></span></div></div>
+      <div class="notice" id="notice">Waiting for the timeline… it appears after the "Timeline" step.</div>
+    </div>
+    <div class="controls">
+      <button id="back">⏮ 5s</button>
+      <button class="primary" id="play">▶ Play</button>
+      <button id="fwd">5s ⏭</button>
+      <span class="time" id="time">0:00.0 / 0:00</span>
+      <select id="speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="1.5">1.5×</option><option value="2">2×</option></select>
+      <span class="empty" id="where" style="margin-left:auto"></span>
+    </div>
+  </section>
+  <aside>
+    <div class="tabs"><button class="on" data-p="insp">Inspector</button><button data-p="script">Script</button><button data-p="issues">Issues</button><button data-p="log">Log</button></div>
+    <div class="pane on" id="insp"><div class="empty">Click a clip on the timeline to see what it is, the words it covers and where it came from.</div></div>
+    <div class="pane" id="script"><div class="words" id="words"></div></div>
+    <div class="pane" id="issues"><ul class="issues" id="issueList"></ul></div>
+    <div class="pane" id="log"><div class="log" id="logText"></div></div>
+  </aside>
+</main>
+<footer>
+  <div class="tlbar">
+    <span>Zoom</span><input type="range" id="zoom" min="8" max="240" value="40">
+    <div class="legend"><span><i style="background:var(--video)"></i>footage</span><span><i style="background:var(--still)"></i>still</span><span><i style="background:var(--graphic)"></i>graphic</span>
+      <span><i style="background:var(--missing)"></i>no footage</span><span><i style="background:var(--textc)"></i>text</span><span><i style="background:var(--sfx)"></i>sound</span></div>
+  </div>
+  <div class="tl">
+    <div class="heads" id="heads"></div>
+    <div class="scroll" id="scroll"><div id="tracks" style="position:relative"></div></div>
+  </div>
+</footer>
+<script>
+const $ = (id) => document.getElementById(id);
+const fmt = (s) => { s = Math.max(0, s); const m = Math.floor(s / 60); return `${m}:${(s % 60).toFixed(1).padStart(4, "0")}`; };
+const fmt0 = (s) => { const m = Math.floor(s / 60); return `${m}:${String(Math.floor(s % 60)).padStart(2, "0")}`; };
+const esc = (v) => String(v ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const NAMES = { lint: "Script check", voice: "Voice", broll: "Footage", timeline: "Timeline", storyboard: "Storyboard", audio: "Music & SFX", render: "Render", master: "Loudness", check: "Final check", thumbnail: "Thumbnail", upload: "Upload" };
+const TRACKS = [["chapter", "Chapters"], ["scene", "Scenes"], ["video", "Picture"], ["text", "Text"], ["voice", "Voice"], ["music", "Music"], ["sfx", "Sound"]];
+
+let S = null, T = null, sig = "", videoSig = "", tilesSig = "";
+let clips = [], shots = [], dur = 0, pps = 40, t = 0, playing = false, last = 0, selected = null;
+const video = $("video"), audio = new Audio();
+
+// ---------- data -> clips ----------
+function build(tl) {
+  T = tl; const fps = tl.fps; dur = tl.durationInFrames / fps;
+  clips = []; shots = []; let n = 0;
+  for (const ch of tl.chapters) clips.push({ track: "chapter", kind: "chapter", start: ch.startFrame / fps, end: (ch.startFrame + ch.durationInFrames) / fps, label: ch.title || "Chapter", info: { Chapter: ch.title, Mood: ch.mood } });
+  tl.scenes.forEach((sc, si) => {
+    const s0 = sc.startFrame / fps;
+    clips.push({ track: "scene", kind: "scene", start: s0, end: s0 + sc.durationInFrames / fps, label: sc.id, info: { Scene: sc.id, Line: sc.text.replace(/\*/g, ""), Transition: sc.transition, Look: sc.look, Effects: (sc.fx || []).join(", ") || "-" }, scene: sc });
+    sc.shots.forEach((sh, k) => {
+      n++;
+      const a = s0 + sh.from / fps, b = a + sh.durationInFrames / fps;
+      const g = sh.graphic;
+      const label = sh.type === "graphic" ? `${g.type}${g.title ? ": " + g.title : g.text ? ": " + g.text : ""}` : sh.type === "kinetic" ? "NO FOOTAGE" : (sh.keyword || sh.src || "").replace(/^(photo|archive|file):/, "");
+      const c = { track: "video", kind: sh.type, start: a, end: b, label, n, sh, sc, info: {
+        Shot: `${sc.id}-${k + 1}  (#${n})`, Type: sh.type === "image" ? `still (${sh.move || "move"})` : sh.type, Words: sh.words || "",
+        ...(sh.keyword ? { Keyword: sh.keyword } : {}), ...(sh.query && sh.query !== sh.keyword ? { "Found by": sh.query } : {}),
+        ...(sh.assetId ? { Source: sh.assetId } : {}), ...(sh.rel != null ? { Match: sh.picked ? `picked (${sh.rel})` : sh.rel } : {}),
+        ...(g ? { Graphic: JSON.stringify(Object.fromEntries(Object.entries(g).filter(([k2]) => k2 !== "at")), null, 1) } : {}), ...(sh.credit ? { Credit: sh.credit } : {}) } };
+      clips.push(c); shots.push(c);
+    });
+    if (sc.emphasis) clips.push({ track: "text", kind: "text", start: s0 + (sc.emphasisFrom || 0) / fps, end: s0 + Math.min(sc.durationInFrames, (sc.emphasisFrom || 0) + fps * 2.5) / fps, label: sc.emphasis, info: { Emphasis: sc.emphasis } });
+    for (const c of sc.callouts || []) clips.push({ track: "text", kind: "text", start: s0 + c.from / fps, end: s0 + (c.from + c.duration) / fps, label: c.text, info: { "Text pop": c.text } });
+    if (sc.lowerThird) clips.push({ track: "text", kind: "text", start: s0 + 0.3, end: s0 + Math.min(4.8, sc.durationInFrames / fps), label: sc.lowerThird.title, info: { "Lower third": sc.lowerThird.title, Subtitle: sc.lowerThird.subtitle || "-" } });
+    if (sc.badge) clips.push({ track: "text", kind: "text", start: s0, end: s0 + sc.durationInFrames / fps, label: sc.badge, info: { Badge: sc.badge } });
+    if (sc.transition && sc.transition !== "cut" && si > 0) clips.push({ track: "sfx", kind: "tr", at: s0, label: sc.transition, info: { Transition: sc.transition } });
+  });
+  for (const w of tl.words) clips.push({ track: "voice", kind: "word", start: w.startMs / 1000, end: w.endMs / 1000, label: w.text, info: { Word: w.text, At: fmt(w.startMs / 1000) } });
+  for (const m of tl.music?.segments || []) clips.push({ track: "music", kind: "music", start: m.from / fps, end: (m.from + m.durationInFrames) / fps, label: `${m.mood || "music"} · ${(m.file || m.src || "").split("/").pop()}`, info: { Music: m.file || m.src, Mood: m.mood || "-" } });
+  for (const s of tl.spots || []) clips.push({ track: "sfx", kind: "sfx", at: s.at / fps, label: s.file || s.src, info: { Sound: s.file || s.src } });
+  for (const r of tl.reveals || []) clips.push({ track: "sfx", kind: "rv", at: r / fps, label: "reveal", info: { Reveal: fmt(r / fps) } });
+  document.documentElement.style.setProperty("--ar", `${tl.width}/${tl.height}`);
+  drawTracks(); drawWords(); seek(Math.min(t, dur));
+}
+
+function drawTracks() {
+  const W = Math.max(dur * pps, $("scroll").clientWidth);
+  $("heads").innerHTML = `<div class="ruler-h"></div>` + TRACKS.map(([, n]) => `<div>${n}</div>`).join("");
+  const step = pps > 120 ? 1 : pps > 50 ? 2 : pps > 25 ? 5 : pps > 12 ? 10 : 30;
+  let ruler = `<div class="ruler" id="ruler" style="width:${W}px">`;
+  for (let s = 0; s <= dur; s += step) ruler += `<div class="tick" style="left:${s * pps}px">${fmt0(s)}</div>`;
+  ruler += "</div>";
+  const lanes = TRACKS.map(([k]) => {
+    const items = clips.map((c, i) => [c, i]).filter(([c]) => c.track === k).map(([c, i]) => {
+      if (c.at != null) return `<div class="mark ${c.kind === "tr" ? "tr" : c.kind === "rv" ? "rv" : ""}" data-i="${i}" title="${esc(c.label)}" style="left:${c.at * pps - 1}px"></div>`;
+      const w = Math.max(2, (c.end - c.start) * pps - 1);
+      const thumb = c.track === "video" && S?.tiles >= c.n && c.kind !== "graphic" && c.kind !== "kinetic" ? `background-image:url('/files/build/storyboard/tiles/${String(c.n).padStart(4, "0")}.jpg?${tilesSig}')` : "";
+      const showLbl = c.kind !== "word" || pps >= 60;
+      return `<div class="clip ${c.kind}${selected === i ? " sel" : ""}" data-i="${i}" title="${esc(c.label)}" style="left:${c.start * pps}px;width:${w}px;${thumb}">${showLbl ? `<span class="lbl">${esc(c.label)}</span>` : ""}</div>`;
+    }).join("");
+    return `<div class="lane" data-track="${k}" style="width:${W}px">${items}</div>`;
+  }).join("");
+  $("tracks").innerHTML = ruler + lanes + `<div class="playhead" id="ph"></div>`;
+  $("tracks").style.width = W + "px";
+  placeHead();
+}
+
+function drawWords() {
+  let html = "", lastScene = -1;
+  T.words.forEach((w, i) => {
+    if (w.scene !== lastScene) { lastScene = w.scene; html += `<span class="scn">${esc(T.scenes[w.scene]?.id || "")} · ${fmt0(w.startMs / 1000)}</span>`; }
+    html += `<span data-w="${i}">${esc(w.text)}</span> `;
+  });
+  $("words").innerHTML = html;
+}
+
+// ---------- playback ----------
+const useVideo = () => !!S?.video;
+function sceneAt(x) { return T?.scenes.find((s) => x >= s.startFrame / T.fps && x < (s.startFrame + s.durationInFrames) / T.fps); }
+function shotAt(x) { for (let i = shots.length - 1; i >= 0; i--) if (x >= shots[i].start && x < shots[i].end + 0.001) return shots[i]; return null; }
+
+function seek(x) {
+  t = Math.max(0, Math.min(x, dur || 0));
+  if (useVideo() && Math.abs(video.currentTime - t) > 0.05) video.currentTime = t;
+  if (!useVideo()) syncAudio(true);
+  paint();
+}
+function syncAudio(force) {
+  const sc = sceneAt(t);
+  if (!playing || !sc || !sc.audio) { audio.pause(); return; }
+  const url = `/files/public/${sc.audio}`;
+  const want = t - sc.startFrame / T.fps;
+  if (!audio.src.endsWith(url)) { audio.src = url; audio.currentTime = want; audio.play().catch(() => {}); return; }
+  if (force || Math.abs(audio.currentTime - want) > 0.25) audio.currentTime = want;
+  if (audio.paused && want < (audio.duration || 1e9)) audio.play().catch(() => {});
+}
+function setPlaying(p) {
+  playing = p; $("play").textContent = p ? "❚❚ Pause" : "▶ Play";
+  const rate = Number($("speed").value);
+  if (useVideo()) { video.playbackRate = rate; p ? video.play().catch(() => {}) : video.pause(); }
+  else { audio.playbackRate = rate; last = performance.now(); syncAudio(true); }
+}
+function tick(now) {
+  if (playing) {
+    if (useVideo()) t = video.currentTime;
+    else { t += ((now - last) / 1000) * Number($("speed").value); syncAudio(false); }
+    last = now;
+    if (t >= dur) { t = dur; setPlaying(false); }
+    paint(true);
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+let lastShot = null, lastWord = -1;
+function paint(follow) {
+  $("time").textContent = `${fmt(t)} / ${fmt0(dur)}`;
+  placeHead(follow);
+  const sh = shotAt(t), sc = sceneAt(t);
+  $("where").textContent = sc ? `${sc.id}${sh ? ` · shot #${sh.n} (${sh.kind === "image" ? "still" : sh.kind})` : ""}` : "";
+  if (!useVideo() && T) {
+    if (sh !== lastShot) {
+      lastShot = sh;
+      if (sh && S?.tiles >= sh.n) $("frameImg").src = `/files/build/storyboard/tiles/${String(sh.n).padStart(4, "0")}.jpg?${tilesSig}`;
+      $("frameBadge").textContent = sh ? `#${sh.n} ${sh.label}` : "";
+    }
+    const w = T.words.findIndex((x) => t * 1000 >= x.startMs && t * 1000 < x.endMs + 120);
+    if (w !== lastWord) {
+      lastWord = w;
+      const line = w >= 0 ? T.words.filter((x) => x.scene === T.words[w].scene && Math.abs(x.startMs - T.words[w].startMs) < 2200).map((x) => x.text).join(" ") : "";
+      $("subs").textContent = line; $("subs").style.display = line ? "" : "none";
+    }
+  }
+  const wi = T ? T.words.findIndex((x) => t * 1000 >= x.startMs && t * 1000 < x.endMs + 120) : -1;
+  document.querySelectorAll(".words span.cur").forEach((e) => e.classList.remove("cur"));
+  if (wi >= 0) { const e = document.querySelector(`.words span[data-w="${wi}"]`); if (e) { e.classList.add("cur"); if (playing && $("script").classList.contains("on")) e.scrollIntoView({ block: "nearest" }); } }
+}
+function placeHead(follow) {
+  const ph = $("ph"); if (!ph) return;
+  const x = t * pps; ph.style.left = x + "px";
+  const sc = $("scroll");
+  if (follow && (x < sc.scrollLeft || x > sc.scrollLeft + sc.clientWidth - 40)) sc.scrollLeft = x - 80;
+}
+
+// ---------- interaction ----------
+$("play").onclick = () => setPlaying(!playing);
+$("back").onclick = () => seek(t - 5);
+$("fwd").onclick = () => seek(t + 5);
+$("speed").onchange = () => setPlaying(playing);
+$("zoom").oninput = (e) => { pps = Number(e.target.value); drawTracks(); };
+$("tracks").addEventListener("click", (e) => {
+  const rect = $("tracks").getBoundingClientRect();
+  const x = (e.clientX - rect.left) / pps;
+  const el = e.target.closest("[data-i]");
+  if (el) { select(Number(el.dataset.i)); const c = clips[selected]; seek(c.at ?? c.start); } else seek(x);
+});
+$("words").addEventListener("click", (e) => { const w = e.target.closest("[data-w]"); if (w) seek(T.words[Number(w.dataset.w)].startMs / 1000); });
+document.querySelectorAll(".tabs button").forEach((b) => b.onclick = () => {
+  document.querySelectorAll(".tabs button, .pane").forEach((x) => x.classList.remove("on"));
+  b.classList.add("on"); $(b.dataset.p).classList.add("on");
+});
+document.addEventListener("keydown", (e) => {
+  if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+  if (e.code === "Space") { e.preventDefault(); setPlaying(!playing); }
+  else if (e.key === "ArrowLeft") seek(t - (e.shiftKey ? 5 : 1));
+  else if (e.key === "ArrowRight") seek(t + (e.shiftKey ? 5 : 1));
+  else if (e.key === "+" || e.key === "=") { $("zoom").value = pps = Math.min(240, pps * 1.25); drawTracks(); }
+  else if (e.key === "-") { $("zoom").value = pps = Math.max(8, pps / 1.25); drawTracks(); }
+});
+function select(i) {
+  selected = i; const c = clips[i];
+  document.querySelectorAll(".clip.sel").forEach((e) => e.classList.remove("sel"));
+  document.querySelector(`.clip[data-i="${i}"]`)?.classList.add("sel");
+  const img = c.track === "video" && S?.tiles >= c.n ? `<img class="big" src="/files/build/storyboard/tiles/${String(c.n).padStart(4, "0")}.jpg?${tilesSig}">` : "";
+  const time = c.at != null ? fmt(c.at) : `${fmt(c.start)} – ${fmt(c.end)} (${(c.end - c.start).toFixed(1)}s)`;
+  $("insp").innerHTML = img + `<div class="kv"><b>Time</b><span>${time}</span>` +
+    Object.entries(c.info || {}).map(([k, v]) => `<b>${esc(k)}</b><span style="white-space:pre-wrap">${esc(v)}</span>`).join("") + `</div>`;
+  document.querySelector('.tabs button[data-p="insp"]').click();
+}
+
+// ---------- live state ----------
+function showStatus(st) {
+  const steps = st.steps || [], done = new Set(st.done || []);
+  $("steps").innerHTML = steps.map((k) => `<span class="${st.failed && st.step === k ? "fail" : done.has(k) ? "done" : st.step === k ? "now" : ""}">${done.has(k) ? "✓ " : st.step === k ? "● " : ""}${esc(NAMES[k] || k)}</span>`).join("");
+  const run = !st.finished && !st.failed && st.step;
+  $("state").className = `pill ${st.failed ? "bad" : st.finished ? "ok" : run ? "run" : ""}`;
+  $("state").textContent = st.failed ? `Stopped: ${st.failed}`.slice(0, 90) : st.finished ? "Finished" : run ? (st.doing || NAMES[st.step]) : (st.doing || "Idle");
+  const pct = st.progress != null && run ? Math.round(st.progress * 100) : null;
+  $("bar").style.width = `${pct ?? (st.finished ? 100 : 0)}%`;
+  $("eta").style.display = st.etaSec != null && run ? "" : "none";
+  if (st.etaSec != null) $("eta").textContent = `~${st.etaSec >= 3600 ? `${Math.floor(st.etaSec / 3600)}h ${Math.round((st.etaSec % 3600) / 60)}m` : `${Math.max(1, Math.round(st.etaSec / 60))} min`} left`;
+  document.title = `${pct != null ? pct + "% · " : ""}${st.title || "Editor"}`;
+  $("issueList").innerHTML = (st.issues || []).map((x) => `<li>${esc(x)}</li>`).join("") || `<li class="empty" style="color:var(--muted)">Nothing to fix right now.</li>`;
+  document.querySelector('.tabs button[data-p="issues"]').textContent = `Issues${(st.issues || []).length ? ` (${st.issues.length})` : ""}`;
+  $("logText").textContent = (st.log || []).slice(-80).reverse().map((l) => l.replace(/\x1b\[[0-9;]*m/g, "")).join("\n");
+}
+async function poll() {
+  try {
+    const r = await fetch("/api/state", { cache: "no-store" }); S = await r.json();
+    $("title").textContent = S.status.title || S.project || "Editor";
+    showStatus(S.status || {});
+    const tl = S.timeline;
+    const vs = `${S.video}|${S.videoTime}`;
+    if (vs !== videoSig) {
+      videoSig = vs; const keep = t;
+      if (S.video) { video.src = `/files/${S.video}?v=${S.videoTime}`; video.currentTime = keep; }
+    }
+    if (`${S.tiles}|${S.tilesTime}` !== tilesSig) { tilesSig = `${S.tiles}|${S.tilesTime}`; lastShot = null; if (T) drawTracks(); }
+    $("mode").textContent = S.video ? `Preview: rendered ${S.video.split("/").pop()}` : tl ? "Preview: animatic (storyboard + voice)" : "No timeline yet";
+    video.style.display = S.video ? "" : "none";
+    $("frame").style.display = !S.video && tl ? "" : "none";
+    $("notice").style.display = tl ? "none" : "";
+    if (tl) {
+      const s = `${tl.durationInFrames}|${tl.scenes.length}|${JSON.stringify(tl.scenes).length}|${tl.words.length}`;
+      if (s !== sig) { sig = s; build(tl); }
+    }
+  } catch { $("state").textContent = "editor server stopped"; $("state").className = "pill bad"; }
+  setTimeout(poll, 2500);
+}
+poll();
+window.addEventListener("resize", () => T && drawTracks());
+</script>
+</body>
+</html>

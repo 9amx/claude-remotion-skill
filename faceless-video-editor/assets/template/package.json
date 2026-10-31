@@ -17,7 +17,8 @@
     "check": "node scripts/check.mjs",
     "thumbnail": "node scripts/thumbnail.mjs",
     "youtube": "node scripts/youtube.mjs",
-    "adobe": "node scripts/adobe-stock.mjs"
+    "adobe": "node scripts/adobe-stock.mjs",
+    "editor": "node scripts/editor.mjs --open"
   },
   "dependencies": {
     "@remotion/cli": "^4.0.0",

@@ -316,6 +316,16 @@ If the render can't download Chrome, set `REMOTION_BROWSER=/path/to/chrome`
 `file:` assets still work; other shots fall back to an animated kinetic
 background - fine for a test, not for a real upload; tell the user.
 
+**Editor view.** `auto.mjs` also starts a local editor page,
+http://localhost:3100 (or `npm run editor`, which opens the browser): a preview
+player, a multi-track timeline (chapters, scenes, picture with thumbnails,
+text pops / emphasis / lower thirds, voice words, music, sound), an inspector
+for any clip (its words, keyword, source, match, credit), the script with the
+current word lit, the issues and the live log. Before the render the preview is
+an animatic - each shot's storyboard frame over the real voice - so the user can
+watch the edit play against the words; after the render it plays the video.
+Tell the user the address at the start of every run.
+
 **Live status page.** Every run keeps `build/status.html` up to date (it reloads
 itself every 4 s): the step now running and its progress bar, the render's time
 left, which steps are done, shots with footage / graphics / still missing, what
