@@ -23,7 +23,7 @@ never on rendering.
 
 Set these before the first preview and check them in the preview:
 
-1. **SFX must be clearly audible.** Beat sounds on what the words and picture name (gun cock, burst, magazine, casing, impact, radio, dog, blast, typewriter), a sound on every graphic, `"sfxLevel": 1`. Aim for about 4-6 sounds a minute in long form. Measure the rendered audio around each sound: if it peaks no higher than the voice beside it, raise it.
+1. **SFX means transition sounds only, clearly audible.** Every transition gets its sound (several whoosh variants in `public/sfx/`, `"sfxLevel": 1`). Do NOT add beat sounds for what is on screen (dog, gunshot, radio, typewriter), sounds on graphics, or place ambience unless the owner asks for them; skip the sound-plan step. Measure the rendered audio around a transition: if it peaks no higher than the voice beside it, raise it.
 2. **Image motion must look edited and varied.** The timeline never repeats one of the last five moves; moves include push, pull, pans, tilts, diagonals, reveal, parallax, snap, slam, handheld, tilt-rotate. The framed print is only for pictures that truly can't fill the frame (portrait), and it has four entrances. A beat can set `"move"` and `"focus"`.
 3. **Narration captions off:** `"captions": {"style": "none"}`, `"callouts": "off"`.
 4. **Weapon names on screen** when the voice says them: `"calloutStyle": "subtitle"` and `"text": "Heckler & Koch MP7"` on the beat. For other niches, do the same for the key proper names only if the owner asks.
