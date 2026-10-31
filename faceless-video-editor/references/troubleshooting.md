@@ -1,5 +1,17 @@
 # Troubleshooting
 
+**Windows: whisper.cpp install dies silently ("unsettled top-level await")**
+The Windows binary for whisper.cpp 1.7.5 is gone from GitHub (404). Unpack a release zip (`whisper-blas-bin-x64.zip`, v1.9.2 works) into `.whisper/build/bin/` and put `ggml-medium.en.bin` in `.whisper/`, then re-run. A 17 minute recording takes about 20 minutes on 12 cores: run it in the background without a time limit.
+
+**Storyboard tiles all gray, "Fontconfig error"**
+ffmpeg on Windows has no fontconfig, so drawtext needs `fontfile` (handled by `DRAWTEXT_FONT`). The pipeline's storyboard pages can also drop tiles when pixel formats change; read `build/storyboard/tiles/` directly if a page looks short.
+
+**Review sheet thumbnails gray for Wikimedia**
+Wikimedia rejects non-standard thumbnail widths (400): use 330px, not 320px (already fixed in fetch-broll).
+
+**Night-vision stills or clips rejected as "green screen"**
+The frame check can't tell night vision from chroma key. Save the picture to `public/stills/` and use `file:stills/name.jpg` with a `credit`.
+
 **Render: "Downloading Chrome Headless Shell" fails / ENOTFOUND**
 Remotion couldn't download its browser. Point it at any Chrome:
 `REMOTION_BROWSER=/path/to/chrome-headless-shell npm run auto -- --from=render`.

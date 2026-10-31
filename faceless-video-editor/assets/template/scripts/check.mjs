@@ -8,6 +8,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { PUBLIC, ROOT, ffmpeg, fail, log, readJson, status, timecode } from "./lib.mjs";
+const DRAWTEXT_FONT = process.platform === "win32" ? "fontfile='C\\\\:/Windows/Fonts/arial.ttf':" : "";
 
 const t = readJson(path.join(PUBLIC, "timeline.json"), null);
 if (!t) fail("No public/timeline.json - build the timeline first.");
@@ -99,7 +100,7 @@ samples.forEach((s, i) => {
   s.file = path.join(dir, "frames", `${String(i + 1).padStart(4, "0")}.jpg`);
   const scale = `scale=${t.width > t.height ? 480 : 270}:-2`;
   const grab = (vf) => ffmpeg(["-ss", s.at.toFixed(3), "-i", video, "-frames:v", "1", "-q:v", "4", "-vf", vf, s.file], { capture: true }).status === 0 && fs.existsSync(s.file);
-  if (!(labels && grab(`${scale},drawtext=text='${i + 1}':x=8:y=8:fontsize=26:fontcolor=white:box=1:boxcolor=black@0.65:boxborderw=6`))) {
+  if (!(labels && grab(`${scale},drawtext=${DRAWTEXT_FONT}text='${i + 1}':x=8:y=8:fontsize=26:fontcolor=white:box=1:boxcolor=black@0.65:boxborderw=6`))) {
     labels = false;
     grab(scale);
   }

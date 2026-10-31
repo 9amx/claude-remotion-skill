@@ -1,7 +1,7 @@
 // Shape of public/timeline.json, written by scripts/build-timeline.mjs.
 export type Word = { text: string; startMs: number; endMs: number; scene: number; hl?: boolean };
 
-export type StillMove = "push" | "pull" | "pan-left" | "pan-right" | "tilt-up" | "tilt-down" | "detail" | "focus" | "frame";
+export type StillMove = "push" | "pull" | "pan-left" | "pan-right" | "tilt-up" | "tilt-down" | "detail" | "focus" | "frame" | "parallax" | "diag-down" | "diag-up" | "reveal" | "tilt-rotate" | "handheld" | "snap" | "slam";
 export type Transition = "whip" | "zoom" | "glitch" | "flash" | "dip" | "fade" | "cut";
 export type Look = "normal" | "flashback" | "dramatic" | "night" | "vhs" | "dream";
 
@@ -96,6 +96,7 @@ export type Timeline = {
   musicGapBoost?: number; // music rises by this factor when nobody is speaking
   swells?: number[]; // frames where the music lifts for a moment (chapter starts, reveals)
   editStyle: string;
+  calloutStyle?: "subtitle"; // callouts sit low and centered (weapon names)
   textRules?: boolean; // decorative lines beside on-screen text (only when the reference has them)
   reveals: number[]; // absolute frames where a reveal lands
   transitions: "scene" | "chapter" | "none";

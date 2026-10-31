@@ -108,21 +108,32 @@ function withItemTimes(g, voWords, shotStartMs, shotFrom, len) {
 // print) is shown whole as a framed print over its own blurred backdrop; a
 // panorama pans; long holds push in on a detail; the rest rotate through push,
 // pull, pans and tilts. A beat can set "move" (and "focus": [x, y] in %) itself.
-const MOVES = ["push", "pan-left", "pull", "detail", "pan-right", "tilt-up", "focus", "tilt-down"];
+const MOVES = ["push", "pan-left", "reveal", "diag-down", "pull", "parallax", "tilt-up", "snap", "pan-right", "tilt-rotate", "diag-up", "detail", "handheld", "focus", "tilt-down", "slam"];
+const SHORT_ONLY = new Set(["snap", "slam", "handheld", "focus", "push", "pull"]);
+const LONG_ONLY = new Set(["detail", "reveal", "parallax", "tilt-rotate"]);
 const FRAME_AR = width / height;
 let lastMove = null, moveIdx = 0;
+const recentMoves = [];
 function stillMove(shot, planned, lenSec) {
   if (planned.move) return planned.move;
   const size = shot.src ? probeSize(path.join(PUBLIC, shot.src)) : null;
   const ar = size ? size[0] / size[1] : FRAME_AR;
   const archive = /^(wikimedia|nasa|dvids)-/.test(shot.assetId ?? "");
   let m;
-  if (ar < FRAME_AR * 0.72 || (archive && ar < FRAME_AR * 0.9)) m = "frame";
+  // A print over a blurred copy only when the picture really can't fill the frame.
+  if (ar < FRAME_AR * 0.72) m = "frame";
   else if (ar > FRAME_AR * 1.35) m = lastMove === "pan-left" ? "pan-right" : "pan-left";
-  else if (lenSec > 5) m = lastMove === "detail" ? "push" : "detail";
   else {
-    do m = MOVES[moveIdx++ % MOVES.length]; while (m === lastMove || (m === "detail" && lenSec < 3));
+    // Never one of the last five moves; a short shot takes a quick move, a long one a big one.
+    for (let tries = 0; tries < MOVES.length * 2; tries++) {
+      m = MOVES[moveIdx++ % MOVES.length];
+      if (recentMoves.includes(m)) continue;
+      if (lenSec < 2.2 && LONG_ONLY.has(m)) continue;
+      if (lenSec > 6 && SHORT_ONLY.has(m)) continue;
+      break;
+    }
   }
+  if (m !== "frame") { recentMoves.push(m); if (recentMoves.length > 5) recentMoves.shift(); }
   lastMove = m;
   return m;
 }
@@ -220,7 +231,7 @@ for (const [i, scene] of project.scenes.entries()) {
     if (asset.type === "video" && asset.duration) Object.assign(shot, clipWindow(asset, len / fps));
     if (p.sfx) {
       const ref = soundRef(p.sfx, `${id} beat "${p.on ?? p.kw}" sfx`);
-      spots.push({ ...ref, at: startFrame + from, volume: ref.volume ?? 0.45, scene: id });
+      spots.push({ ...ref, at: startFrame + from, volume: ref.volume ?? 0.55, scene: id });
     }
     return shot;
   });
@@ -453,6 +464,7 @@ const timeline = {
   musicGapBoost: project.music.gapBoost ?? 1.7,
   swells,
   editStyle: project.editStyle,
+  calloutStyle: project.calloutStyle,
   textRules: project.textRules === true,
   reveals,
   transitions: project.transitions,

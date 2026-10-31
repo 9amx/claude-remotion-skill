@@ -19,6 +19,16 @@ decide whether anyone watches: **the hook, the script, the edit decisions, the
 B-roll keywords, and the visual check.** Generic faceless videos fail on those,
 never on rendering.
 
+## Standing edit rules (the owner's, apply to every video)
+
+Set these before the first preview and check them in the preview:
+
+1. **SFX must be clearly audible.** Beat sounds on what the words and picture name (gun cock, burst, magazine, casing, impact, radio, dog, blast, typewriter), a sound on every graphic, `"sfxLevel": 1`. Aim for about 4-6 sounds a minute in long form. Measure the rendered audio around each sound: if it peaks no higher than the voice beside it, raise it.
+2. **Image motion must look edited and varied.** The timeline never repeats one of the last five moves; moves include push, pull, pans, tilts, diagonals, reveal, parallax, snap, slam, handheld, tilt-rotate. The framed print is only for pictures that truly can't fill the frame (portrait), and it has four entrances. A beat can set `"move"` and `"focus"`.
+3. **Narration captions off:** `"captions": {"style": "none"}`, `"callouts": "off"`.
+4. **Weapon names on screen** when the voice says them: `"calloutStyle": "subtitle"` and `"text": "Heckler & Koch MP7"` on the beat. For other niches, do the same for the key proper names only if the owner asks.
+5. **Transitions only where the story changes** (a new chapter, a jump in time or place, the next item of a list, a reveal), set per scene with `"transition"` and mixed; every other cut is a straight cut. `"transitions": "chapter"` keeps the rest as cuts.
+
 ## Step 1 - Brief (ask only what you can't default)
 
 | Field | Default if the user doesn't say |

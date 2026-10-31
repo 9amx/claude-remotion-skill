@@ -158,7 +158,7 @@ export const FacelessVideo: React.FC<Props> = ({ timeline }) => {
           {scene.badge && <Badge text={scene.badge} style={style} />}
           {(scene.callouts ?? []).map((c, ci) => (
             <Sequence key={`c${ci}`} from={c.from} durationInFrames={c.duration} layout="none">
-              <Callout text={c.text} style={style} duration={c.duration} index={si + ci} />
+              <Callout text={c.text} style={style} duration={c.duration} index={si + ci} subtitle={timeline.calloutStyle === "subtitle"} />
             </Sequence>
           ))}
           {scene.lowerThird && (
@@ -166,7 +166,7 @@ export const FacelessVideo: React.FC<Props> = ({ timeline }) => {
               <LowerThird {...scene.lowerThird} style={style} duration={Math.min(Math.round(fps * 4.5), scene.durationInFrames - Math.round(fps * 0.3))} />
             </Sequence>
           )}
-          {timeline.showChapterCards && scene.chapterStart && (
+          {timeline.showChapterCards && scene.chapterStart && scene.chapter > 0 && (
             <Sequence durationInFrames={Math.min(cardLen, scene.durationInFrames)}>
               <ChapterCard index={scene.chapter} title={timeline.chapters[scene.chapter]?.title ?? ""} style={style} duration={Math.min(cardLen, scene.durationInFrames)} />
             </Sequence>
@@ -192,7 +192,7 @@ export const FacelessVideo: React.FC<Props> = ({ timeline }) => {
             const t = scene.transition;
             return (
               <Sequence key={`s-${scene.id}`} layout="none">
-                {si > 0 && t !== "cut" && t !== "fade" && t !== "dip" && <Sfx timeline={timeline} name={t === "glitch" ? "glitch" : "whoosh"} i={si} at={scene.startFrame} volume={0.32} />}
+                {si > 0 && t !== "cut" && t !== "fade" && t !== "dip" && <Sfx timeline={timeline} name={t === "glitch" ? "glitch" : "whoosh"} i={si} at={scene.startFrame} volume={0.55} />}
                 {si > 0 && scene.emphasis && <Sfx timeline={timeline} name="pop" i={si} at={scene.startFrame + (scene.emphasisFrom ?? 0) + 3} volume={0.35} />}
                 {scene.fx.includes("freeze") && <Sfx timeline={timeline} name="scratch" i={si} at={scene.startFrame} volume={0.5} />}
               </Sequence>

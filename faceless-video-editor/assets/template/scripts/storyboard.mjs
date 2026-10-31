@@ -11,6 +11,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { BUILD, PUBLIC, ffmpeg, log, readJson, status, timecode } from "./lib.mjs";
+const DRAWTEXT_FONT = process.platform === "win32" ? "fontfile='C\\\\:/Windows/Fonts/arial.ttf':" : "";
 
 const t = readJson(path.join(PUBLIC, "timeline.json"), null);
 if (!t) {
@@ -50,7 +51,7 @@ for (const s of t.scenes) {
     const words = path.join(dir, "tiles", `${n}.txt`);
     const head = `${n}  ${timecode(sec(at))}  ${s.id}-${k + 1}`;
     fs.writeFileSync(words, `${head}\n${wrap(sh.words ?? "")}`);
-    const band = `pad=${TW}:${TH + BAND}:0:0:color=0x111111,drawtext=textfile='${words.replace(/\\/g, "/").replace(/:/g, "\\:")}':x=10:y=${TH + 8}:fontsize=17:fontcolor=white:line_spacing=4:expansion=none`;
+    const band = `pad=${TW}:${TH + BAND}:0:0:color=0x111111,drawtext=${DRAWTEXT_FONT}textfile='${words.replace(/\\/g, "/").replace(/:/g, "\\:")}':x=10:y=${TH + 8}:fontsize=17:fontcolor=white:line_spacing=4:expansion=none`;
     let shows, ok = false;
     if ((sh.type === "video" || sh.type === "image") && sh.src && fs.existsSync(path.join(PUBLIC, sh.src))) {
       // The frame the edit shows halfway through the shot (trimBefore + rate).
@@ -62,11 +63,11 @@ for (const s of t.scenes) {
       const card = path.join(dir, "tiles", `${n}-g.txt`);
       fs.writeFileSync(card, graphicLabel(sh.graphic).split("\n").map((l) => wrap(l, 34)).join("\n").split("\n").slice(0, 7).join("\n"));
       ok = ffmpeg(["-f", "lavfi", "-i", `color=c=0x1c2340:s=${TW}x${TH}`, "-frames:v", "1", "-vf",
-        `drawtext=textfile='${card.replace(/\\/g, "/").replace(/:/g, "\\:")}':x=20:y=20:fontsize=24:fontcolor=0xFFD60A:line_spacing=8:expansion=none,${band}`, "-q:v", "4", file]).status === 0;
+        `drawtext=${DRAWTEXT_FONT}textfile='${card.replace(/\\/g, "/").replace(/:/g, "\\:")}':x=20:y=20:fontsize=24:fontcolor=0xFFD60A:line_spacing=8:expansion=none,${band}`, "-q:v", "4", file]).status === 0;
       shows = `GRAPHIC ${graphicLabel(sh.graphic).replace(/\n/g, " | ")}`;
     } else {
       ok = ffmpeg(["-f", "lavfi", "-i", `color=c=0x7a1020:s=${TW}x${TH}`, "-frames:v", "1", "-vf",
-        `drawtext=text='NO FOOTAGE - title card':x=20:y=20:fontsize=28:fontcolor=white,${band}`, "-q:v", "4", file]).status === 0;
+        `drawtext=${DRAWTEXT_FONT}text='NO FOOTAGE - title card':x=20:y=20:fontsize=28:fontcolor=white,${band}`, "-q:v", "4", file]).status === 0;
       shows = "NO FOOTAGE (title card fallback) - fix before rendering";
     }
     if (!ok) ffmpeg(["-f", "lavfi", "-i", `color=c=gray:s=${TW}x${TH + BAND}`, "-frames:v", "1", file]);

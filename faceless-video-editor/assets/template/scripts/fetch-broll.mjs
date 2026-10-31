@@ -572,7 +572,7 @@ if (reviewArg) {
       for (const [n, c] of cands.entries()) {
         const raw = path.join(dir, `${key}-raw${n + 1}`), tile = path.join(dir, `${key}-t${n + 1}.jpg`);
         try {
-          await download(c.thumb, raw);
+          await download(c.thumb.replace("/320px-", "/330px-"), raw);
           // One pixel format for every tile: a 4:4:4 JPEG in a 4:2:0 sequence stops the tiler.
           ffmpeg(["-i", raw, "-frames:v", "1", "-vf", "scale=320:320:force_original_aspect_ratio=decrease,pad=320:320:(ow-iw)/2:(oh-ih)/2:color=white,format=yuvj420p", tile]);
         } catch {}
