@@ -697,13 +697,17 @@ function startAgent() {
   }
 
   // Upload small file with retry
-  async function uploadWithRetry(presignedUrl, dataBuffer, contentType, maxRetries = 3) {
+  async function uploadWithRetry(targetUrl, dataBuffer, contentType, maxRetries = 3) {
     let attempt = 0;
+    const headers = { "Content-Type": contentType };
+    if (targetUrl.includes("/api/uploads/")) {
+      headers["Authorization"] = `Bearer ${AGENT_TOKEN}`;
+    }
     while (attempt < maxRetries) {
       try {
-        const res = await fetch(presignedUrl, {
+        const res = await fetch(targetUrl, {
           method: "PUT",
-          headers: { "Content-Type": contentType },
+          headers,
           body: dataBuffer,
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -719,10 +723,15 @@ function startAgent() {
   // Upload single 16 MB part with retries & backoff (resumes after network drop)
   async function uploadPartWithRetry(partUrl, buffer, partNum, maxRetries = 5) {
     let attempt = 0;
+    const headers = {};
+    if (partUrl.includes("/api/uploads/")) {
+      headers["Authorization"] = `Bearer ${AGENT_TOKEN}`;
+    }
     while (attempt < maxRetries) {
       try {
         const res = await fetch(partUrl, {
           method: "PUT",
+          headers,
           body: buffer,
         });
 
@@ -731,7 +740,7 @@ function startAgent() {
         }
 
         const rawEtag = res.headers.get("etag") || "";
-        // Cloudflare R2 returns quoted ETag: '"hash"'
+        // Cloudflare R2 or local server returns ETag
         const etag = rawEtag.replace(/^"+|"+$/g, "");
         return etag || `etag_part_${partNum}`;
       } catch (err) {
