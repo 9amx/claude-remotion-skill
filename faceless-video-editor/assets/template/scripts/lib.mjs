@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { status, statusInit } from "./status.mjs";
 
 // Behind an HTTPS proxy (cloud sandboxes, company networks) Node's fetch ignores
 // HTTPS_PROXY unless NODE_USE_ENV_PROXY is set at startup (Node 22.21+ / 24), and
@@ -18,6 +19,8 @@ if ((process.env.HTTPS_PROXY || process.env.https_proxy) && !process.env.NODE_US
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const PUBLIC = path.join(ROOT, "public");
 export const BUILD = path.join(ROOT, "build");
+statusInit(BUILD);
+export { status };
 
 // Remotion's CLI run through node directly: `npx` is a .cmd file on Windows,
 // which newer Node versions refuse to spawn without a shell.
@@ -427,9 +430,11 @@ export function tightenSegments(words, start, end, maxPause = 400, pad = 140) {
 
 export function log(step, msg) {
   console.log(`\x1b[36m[${step}]\x1b[0m ${msg}`);
+  status({}, `[${step}] ${msg}`);
 }
 
 export function fail(msg) {
   console.error(`\x1b[31m[error]\x1b[0m ${msg}`);
+  status({ failed: msg }, `[error] ${msg}`);
   process.exit(1);
 }

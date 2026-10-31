@@ -10,7 +10,7 @@
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { PYTHON, ROOT, ffmpeg, fail, log, readProject } from "./lib.mjs";
+import { PYTHON, ROOT, ffmpeg, fail, log, readProject, status } from "./lib.mjs";
 
 const args = process.argv.slice(2);
 const from = args.find((a) => a.startsWith("--from="))?.slice(7);
@@ -58,6 +58,19 @@ const steps = [
   ["upload", () => run("node", ["scripts/youtube.mjs"])],
 ];
 
+// Live status page (build/status.html): which step, how far, what needs fixing.
+const DOING = {
+  lint: "Checking the script", voice: "Cleaning the voice and finding every word's timing", broll: "Finding footage for every shot",
+  timeline: "Laying the edit out on the words", storyboard: "Drawing the storyboard", audio: "Music and sound effects",
+  render: "Rendering the video", master: "Setting the loudness", check: "Checking the finished video", thumbnail: "Making the thumbnail", upload: "Uploading",
+};
+const planned = steps.map(([n]) => n).filter((n) => (n !== "upload" || uploadAfter) && !(reviewMode && !["lint", "voice", "broll"].includes(n)) &&
+  !(noRender && ["render", "master", "check", "thumbnail", "upload"].includes(n)) && (!only || n === only));
+status({ title: project.title ?? "Video", steps: planned, done: from ? planned.slice(0, Math.max(0, planned.indexOf(from))) : [],
+  step: null, doing: "Starting", progress: null, etaSec: null, finished: false, failed: null, ...(from ? {} : { issues: [], stats: {} }) });
+log("auto", `live status: ${path.join(ROOT, "build", "status.html")} (open it in a browser)`);
+const done = new Set(from ? planned.slice(0, Math.max(0, planned.indexOf(from))) : []);
+
 let started = !from;
 for (const [name, fn] of steps) {
   if (name === from) started = true;
@@ -66,8 +79,12 @@ for (const [name, fn] of steps) {
   if (noRender && ["render", "master", "check", "thumbnail", "upload"].includes(name)) continue;
   if (name === "upload" && !uploadAfter && only !== "upload") continue;
   log("auto", `--- ${name} ---`);
+  status({ step: name, doing: DOING[name] ?? name, progress: null, etaSec: null });
   fn();
+  done.add(name);
+  status({ done: [...done], progress: null, etaSec: null });
 }
+status(reviewMode ? { step: null, doing: "Review sheets ready - pick the footage", finished: false } : { step: null, finished: !noRender && !only, output: "out/final.mp4", doing: "Done" });
 if (reviewMode) log("auto", "review sheets ready in build/review/ - pick into build/picks.json, then: node scripts/auto.mjs --from=broll");
 else if (!noRender && !only) {
   log("auto", "done -> out/final.mp4 + out/thumbnail.jpg  (inspect the out/check/ contact sheets and the thumbnail before delivering)");

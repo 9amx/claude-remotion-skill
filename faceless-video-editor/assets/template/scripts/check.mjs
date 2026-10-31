@@ -7,7 +7,7 @@
 // LOOK at the sheets (and single frames where something looks off) before delivering.
 import fs from "node:fs";
 import path from "node:path";
-import { PUBLIC, ROOT, ffmpeg, fail, log, readJson, timecode } from "./lib.mjs";
+import { PUBLIC, ROOT, ffmpeg, fail, log, readJson, status, timecode } from "./lib.mjs";
 
 const t = readJson(path.join(PUBLIC, "timeline.json"), null);
 if (!t) fail("No public/timeline.json - build the timeline first.");
@@ -152,3 +152,8 @@ for (const line of report) console.log(`    ${line.includes("(!)") ? "\x1b[33m" 
 for (const w of warnings.slice(0, 40)) console.log(`  \x1b[33m! ${w}\x1b[0m`);
 if (warnings.length > 40) console.log(`  \x1b[33m! ...and ${warnings.length - 40} more\x1b[0m`);
 if (!warnings.length) log("check", "no lint warnings - now inspect the sheets visually");
+{
+  const prev = readJson(path.join(ROOT, "build", "status.json"), {});
+  status({ issues: warnings.slice(0, 60), stats: { ...(prev.stats ?? {}), "length": timecode(sec(t.durationInFrames)), "loudness": lufs != null ? `${lufs} LUFS` : "?",
+    "weak matches": weak } });
+}
