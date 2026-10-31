@@ -178,8 +178,12 @@ on purpose:
 - Template type (thick outlines, yellow all-caps slams, bouncing words,
   highlighter boxes): the `documentary` and `minimal` styles set every on-screen
   text editorially - a display face in mixed case (Fraunces / Inter Tight),
-  words rising out of a mask, fine accent rules, subtitles without a box. Keep
-  `bold` for Shorts; long form uses `documentary` or `minimal`.
+  words rising out of a mask, subtitles without a box. Keep `bold` for Shorts;
+  long form uses `documentary` or `minimal`.
+- Decorative lines beside text (a dash before a label, a rule over a title, a
+  bar beside a text pop) are OFF. Turn them on (`"textRules": true`) only when
+  the reference screenshots show that kind of line; otherwise never add
+  ornaments the reference doesn't have - match its text style, not a template.
 
 Then run the gate: `node scripts/lint-script.mjs`. It checks the hook (warm-ups,
 length, tension), word budget vs `targetSeconds`, scene and sentence length,

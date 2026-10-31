@@ -37,7 +37,7 @@ export const Emphasis: React.FC<{ text: string; style: Style; hook: boolean; dur
     return (
       <AbsoluteFill style={{ pointerEvents: "none", alignItems: "center" }}>
         <div style={{ position: "absolute", top: portrait ? height * 0.16 : height * 0.11, width: width * 0.84, textAlign: "center", opacity: exitO, transform: `translateY(${exitY * 0.5}px)` }}>
-          <div style={{ width: size * 0.9 * rule, height: Math.max(2, size * 0.035), background: style.colors.primary, margin: `0 auto ${size * 0.22}px`, borderRadius: 2 }} />
+          {style.rules && <div style={{ width: size * 0.9 * rule, height: Math.max(2, size * 0.035), background: style.colors.primary, margin: `0 auto ${size * 0.22}px`, borderRadius: 2 }} />}
           <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", columnGap: size * 0.24 }}>
             {words.map((w, i) => (
               <Reveal key={i} delay={(hook ? 0 : 3) + i * 3} frames={hook ? 12 : 16}>

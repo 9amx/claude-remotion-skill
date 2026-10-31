@@ -327,6 +327,7 @@ const timeline = {
   ambience,
   musicGapBoost: project.music.gapBoost ?? 1.7,
   editStyle: project.editStyle,
+  textRules: project.textRules === true,
   reveals,
   transitions: project.transitions,
   showChapterCards: chapters.length > 1 && project.chapterCards !== false,

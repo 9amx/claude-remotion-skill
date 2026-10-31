@@ -94,6 +94,7 @@ export type Timeline = {
   ambience?: AmbienceSegment[];
   musicGapBoost?: number; // music rises by this factor when nobody is speaking
   editStyle: string;
+  textRules?: boolean; // decorative lines beside on-screen text (only when the reference has them)
   reveals: number[]; // absolute frames where a reveal lands
   transitions: "scene" | "chapter" | "none";
   showChapterCards: boolean;

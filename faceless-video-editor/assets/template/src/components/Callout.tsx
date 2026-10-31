@@ -30,7 +30,7 @@ export const Callout: React.FC<{ text: string; style: Style; duration: number; i
           flexDirection: left === false ? "row-reverse" : "row", textAlign: left === false ? "right" : "left",
           ...(portrait ? { left: width * 0.08, right: width * 0.08 } : left ? { left: width * 0.055 } : { right: width * 0.055 }), maxWidth: portrait ? undefined : width * 0.42,
         }}>
-          <div style={{ width: Math.max(2, size * 0.06), background: style.colors.primary, transform: `scaleY(${line})`, transformOrigin: "top", borderRadius: 2 }} />
+          {style.rules && <div style={{ width: Math.max(2, size * 0.06), background: style.colors.primary, transform: `scaleY(${line})`, transformOrigin: "top", borderRadius: 2 }} />}
           <div style={{ display: "flex", flexWrap: "wrap", columnGap: size * 0.24, justifyContent: left === false ? "flex-end" : "flex-start" }}>
             {words.map((w, i) => (
               <Reveal key={i} delay={4 + i * 2} frames={14}>

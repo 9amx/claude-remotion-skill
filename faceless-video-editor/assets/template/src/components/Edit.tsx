@@ -138,7 +138,7 @@ export const Badge: React.FC<{ text: string; style: Style }> = ({ text, style })
           position: "absolute", left: portrait ? width * 0.07 : width * 0.05, top: portrait ? height * 0.1 : height * 0.07, opacity: o,
           display: "flex", alignItems: "center", gap: unit * 0.014, transform: `translateY(${(1 - o) * 10}px)`,
         }}>
-          <div style={{ width: unit * 0.03, height: 2, background: style.colors.primary }} />
+          {style.rules && <div style={{ width: unit * 0.03, height: 2, background: style.colors.primary }} />}
           <span style={{ fontFamily: style.fonts.label, fontWeight: 600, fontSize: unit * 0.03, letterSpacing: "0.26em", color: style.colors.text, textTransform: "uppercase", textShadow: "0 2px 12px rgba(0,0,0,0.8)" }}>{text}</span>
         </div>
       </AbsoluteFill>

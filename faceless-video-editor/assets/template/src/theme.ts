@@ -38,6 +38,9 @@ export type Style = {
   // case, a display face, text revealed by a mask (no bounce, no outline, no
   // highlighter boxes). Off (bold): the punchy Shorts look.
   editorial: boolean;
+  // Decorative lines next to text (a dash before a label, a rule above a title, a
+  // bar beside a text pop). Off unless the reference uses them (project "textRules").
+  rules: boolean;
   captionWeight: number;
   uppercase: boolean;
   grade: number; // soft-light tint opacity
@@ -50,6 +53,7 @@ export const STYLES: Record<string, Style> = {
     colors: { bg: "#07070B", bgAlt: "#16121F", primary: "#FFD60A", accent: "#FF3B5C", text: "#FFFFFF", outline: "#000000", scrim: "rgba(0,0,0,0.55)" },
     fonts: { caption: stack(montserrat), emphasis: stack(anton), label: stack(montserrat) },
     editorial: false,
+    rules: false,
     captionWeight: 900,
     uppercase: true,
     grade: 0.1,
@@ -60,6 +64,7 @@ export const STYLES: Record<string, Style> = {
     colors: { bg: "#0D0B08", bgAlt: "#1F1A12", primary: "#E9B44C", accent: "#C8553D", text: "#F5EFE6", outline: "#120E08", scrim: "rgba(10,8,5,0.6)" },
     fonts: { caption: stack(inter), emphasis: stack(fraunces), label: stack(inter) },
     editorial: true,
+    rules: false,
     captionWeight: 600,
     uppercase: false,
     grade: 0.16,
@@ -70,6 +75,7 @@ export const STYLES: Record<string, Style> = {
     colors: { bg: "#0A0A0F", bgAlt: "#12121A", primary: "#8B5CF6", accent: "#22D3EE", text: "#F4F4F5", outline: "#000000", scrim: "rgba(5,5,10,0.5)" },
     fonts: { caption: stack(inter), emphasis: stack(interTight), label: stack(inter) },
     editorial: true,
+    rules: false,
     captionWeight: 600,
     uppercase: false,
     grade: 0.12,
@@ -77,7 +83,7 @@ export const STYLES: Record<string, Style> = {
   },
 };
 
-export const getStyle = (name: string): Style => STYLES[name] ?? STYLES.bold;
+export const getStyle = (name: string, rules = false): Style => ({ ...(STYLES[name] ?? STYLES.bold), rules });
 
 export const ease = {
   out: Easing.bezier(0.16, 1, 0.3, 1), // entrances

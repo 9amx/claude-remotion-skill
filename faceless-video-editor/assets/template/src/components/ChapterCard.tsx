@@ -28,7 +28,7 @@ export const ChapterCard: React.FC<{ index: number; title: string; style: Style;
               CHAPTER {String(index + 1).padStart(2, "0")}
             </span>
           </Reveal>
-          <div style={{ height: 2, width: unit * 0.22 * ruleW, background: `${style.colors.text}88`, margin: portrait ? `${unit * 0.025}px auto` : `${unit * 0.025}px 0` }} />
+          {style.rules ? <div style={{ height: 2, width: unit * 0.22 * ruleW, background: `${style.colors.text}88`, margin: portrait ? `${unit * 0.025}px auto` : `${unit * 0.025}px 0` }} /> : <div style={{ height: unit * 0.02 }} />}
           <div style={{ display: "flex", flexWrap: "wrap", columnGap: size * 0.24, justifyContent: portrait ? "center" : "flex-start" }}>
             {title.split(/\s+/).map((w, i) => (
               <Reveal key={i} delay={8 + i * 3} frames={18}>
