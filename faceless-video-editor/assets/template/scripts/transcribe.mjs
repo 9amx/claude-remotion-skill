@@ -142,6 +142,34 @@ async function apiTranscribe(kind) {
   return kind === "openai" ? fromOpenAI(j) : fromElevenLabs(j);
 }
 
+// Windows: whisper.cpp ships a ready-made zip, but since 1.7.4 its programs sit in
+// "Release\\" while Remotion looks in "build\\bin\\". Copy that folder (the .exe and
+// the DLLs it needs) to where Remotion expects it, so transcription can start.
+function placeWindowsBinary(whisperDir) {
+  if (process.platform !== "win32") return;
+  // Where @remotion/install-whisper-cpp looks for whisper.cpp >= 1.7.4 on Windows
+  const want = path.join(whisperDir, "build", "bin", "whisper-cli.exe");
+  if (fs.existsSync(want)) return;
+  const find = (dir, depth = 0) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isFile() && /^(whisper-cli|main)\.exe$/i.test(e.name)) return p;
+      if (e.isDirectory() && depth < 4) { const hit = find(p, depth + 1); if (hit) return hit; }
+    }
+    return null;
+  };
+  const exe = fs.existsSync(whisperDir) ? find(whisperDir) : null;
+  if (!exe) fail(`whisper.cpp was downloaded but no whisper-cli.exe is inside ${whisperDir}. Delete that folder and run again, or set voice.transcriber to "elevenlabs" / "openai".`);
+  const dest = path.dirname(want);
+  fs.mkdirSync(dest, { recursive: true });
+  for (const f of fs.readdirSync(path.dirname(exe))) {
+    const from = path.join(path.dirname(exe), f);
+    if (fs.statSync(from).isFile()) fs.copyFileSync(from, path.join(dest, f));
+  }
+  if (!fs.existsSync(want)) fs.copyFileSync(exe, want); // main.exe in an older zip
+  log("transcribe", `whisper.cpp for Windows: using ${path.relative(ROOT, exe)}`);
+}
+
 async function localTranscribe() {
   let whisper;
   try {
@@ -179,6 +207,7 @@ async function localTranscribe() {
   } catch (e) {
     fail(`could not build whisper.cpp (${e.message}). It needs git, make and a C++ compiler - or set voice.transcriber to "elevenlabs" / "openai", or give voice.transcript.`);
   }
+  placeWindowsBinary(whisperDir);
   // A failed download leaves a broken file the next run would trip over: remove it.
   // printOutput must stay on: without it the library accepts a model file of the
   // wrong size (an interrupted download) and whisper then fails with "bad magic".
