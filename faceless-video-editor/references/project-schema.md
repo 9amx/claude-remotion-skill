@@ -124,3 +124,14 @@ clip) you can edit it and re-run `--from=audio`, but changes there are lost on
 the next `timeline` step. Durable changes go in project.json.
 
 Preview interactively with `npm run studio`.
+
+## 3D explainers (`graphic.type: "model3d"`)
+
+For mechanisms and physical events a chart or stock clip can't show. Built from code in `src/components/Model3D.tsx` (no model files), driven only by the frame. Each stage lands on its spoken words:
+
+```json
+{ "on": "roller-delayed", "graphic": { "type": "model3d", "model": "roller", "title": "Roller-delayed",
+  "items": [{ "text": "Two rollers in the bolt head", "on": "two small rollers" }, { "text": "Rollers forced inward", "on": "forced inward" }] } }
+```
+
+Models: `blowback` and `roller` (3 and 4 stages), `closedBolt` (2), `gasIntro` (2), `gasCycle` (3), `armorStop` (1), `armorCompare` (2), `energy` (1), `size` (2), `magazines` (3), `cartridges` (2), `barrel` (1). An item with empty `text` moves the model without a caption. Keep thesis lines, lists, maps and timelines as 2D graphics. `on` must match the transcript's spelling (a number may be transcribed as digits). Rendering needs WebGL: `remotion.config.ts` sets the `angle` renderer. New models are teaching schematics; only the cartridges are true scale.

@@ -13,6 +13,7 @@ import { feature } from "topojson-client";
 import type { Topology } from "topojson-specification";
 import { clamp, ease, springs, type Style } from "../theme";
 import type { GraphicSpec, Item } from "../types";
+import { Model3D } from "./Model3D";
 
 // Safe zone: above the captions (portrait ~64%, landscape subtitles ~86%).
 const useZone = () => {
@@ -453,13 +454,15 @@ const CompareG: React.FC<{ g: Extract<GraphicSpec, { type: "compare" }>; style: 
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const z = useZone();
-  const top = z.y + (g.title ? z.unit * 0.1 : 0);
-  const area = z.h - (top - z.y);
+  const areaTop = z.y + (g.title ? z.unit * 0.1 : 0);
+  const area = z.h - (areaTop - z.y);
   const gap = z.unit * 0.04;
   const colW = (z.w - gap) / 2;
   const rows = Math.max(g.left.items.length, g.right.items.length);
   const head = Math.min(z.unit * 0.1, area * 0.2);
   const row = Math.min((area - head - z.unit * 0.03) / rows, z.unit * 0.1);
+  // A short table sits in the middle of the zone, not stuck to its top edge.
+  const top = areaTop + Math.max(0, (area - (head + z.unit * 0.03 + rows * row)) / 2);
   const longest = Math.max(...[...g.left.items, ...g.right.items].map((it) => itemText(it).length), g.left.label.length, g.right.label.length);
   const fontSize = Math.min(row * 0.36, (colW * 0.8) / Math.max(10, longest * 0.5));
   const toneColor = (t?: string) => (t === "good" ? "#34D399" : t === "bad" ? "#F87171" : style.colors.primary);
@@ -611,8 +614,9 @@ const UiG: React.FC<{ g: Extract<GraphicSpec, { type: "ui" }>; style: Style }> =
   );
 };
 
-export const Graphic: React.FC<{ graphic: GraphicSpec; style: Style }> = ({ graphic, style }) => {
+export const Graphic: React.FC<{ graphic: GraphicSpec; style: Style; durationInFrames?: number }> = ({ graphic, style, durationInFrames }) => {
   switch (graphic.type) {
+    case "model3d": return <Model3D g={graphic} style={style} durationInFrames={durationInFrames ?? 150} />;
     case "counter": return <Counter g={graphic} style={style} />;
     case "bars": return <Bars g={graphic} style={style} />;
     case "timeline": return <TimelineG g={graphic} style={style} />;

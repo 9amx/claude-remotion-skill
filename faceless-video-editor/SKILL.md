@@ -102,6 +102,7 @@ Read `references/script-formula.md` before writing. Non-negotiables:
    |---|---|
    | a concrete thing, person, place, action | footage: `kw` = what the camera sees (subject + action + setting), 2-3 angles |
    | a real, named person / place / event / date | `archive:` (or DVIDS / the user's clip), plus `lowerThird` |
+   | a mechanism or physical event the viewer must see move (an action cycling, a bullet meeting armor, true-scale parts) | `graphic` `model3d`: a 3D explainer, each stage `on` its words (`references/project-schema.md`) |
    | how something works, a process, "first... then..." | `graphic` `steps`, each step `on` its words |
    | several points, reasons, features, mistakes | `graphic` `list`, each item `on` its words |
    | A vs B, before/after, pros/cons, old/new | `graphic` `compare` (tone good/bad) |

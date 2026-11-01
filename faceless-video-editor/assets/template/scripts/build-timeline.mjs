@@ -273,7 +273,7 @@ for (const [i, scene] of project.scenes.entries()) {
     !callouts.some((c) => f < c.from + c.duration + 6 && f + len > c.from - 6);
   planned.forEach((p, k) => {
     if (!p.text || k >= shots.length) return;
-    const len = Math.min(shots[k].durationInFrames, Math.round(fps * 3.5));
+    const len = Math.min(shots[k].durationInFrames - 8, Math.round(fps * 3.5)); // ends before the cut so the next shot can carry its own name
     if (free(shots[k].from + 2, len)) callouts.push({ text: p.text, from: shots[k].from + 2, duration: len });
   });
   // Long form: no automatic text pops in the opening (picture + voice carry the hook).

@@ -168,7 +168,7 @@ export const FacelessVideo: React.FC<Props> = ({ timeline }) => {
           )}
           {timeline.showChapterCards && scene.chapterStart && scene.chapter > 0 && (
             <Sequence durationInFrames={Math.min(cardLen, scene.durationInFrames)}>
-              <ChapterCard index={scene.chapter} title={timeline.chapters[scene.chapter]?.title ?? ""} style={style} duration={Math.min(cardLen, scene.durationInFrames)} />
+              <ChapterCard index={scene.chapter} title={timeline.chapters[scene.chapter]?.title ?? ""} style={style} duration={Math.min(cardLen, scene.durationInFrames)} overGraphic={scene.shots[0]?.type === "graphic"} />
             </Sequence>
           )}
           {scene.audio && <Audio src={staticFile(scene.audio)} />}
@@ -187,7 +187,6 @@ export const FacelessVideo: React.FC<Props> = ({ timeline }) => {
       {/* SFX, each peak-aligned to its moment. */}
       {sfx > 0 && (
         <>
-          <Sfx timeline={timeline} name="hit" at={0} volume={0.55} />
           {timeline.scenes.map((scene, si) => {
             const t = scene.transition;
             return (
@@ -205,7 +204,6 @@ export const FacelessVideo: React.FC<Props> = ({ timeline }) => {
               <Sfx timeline={timeline} name="hit" i={ri + 1} at={r} volume={0.5} />
             </Sequence>
           ))}
-          {ticks.map((f, ti) => <Sfx key={`k-${f}`} timeline={timeline} name="tick" i={ti} at={f} volume={0.18} />)}
           {/* Beat sounds: what the picture shows, heard as it appears. */}
           {(timeline.spots ?? []).map((sp, k) => <Sfx key={`sp-${k}`} timeline={timeline} name="spot" src={sp.src} at={sp.at} volume={sp.volume} />)}
         </>

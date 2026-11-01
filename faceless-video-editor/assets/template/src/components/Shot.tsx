@@ -146,7 +146,7 @@ export const Shot: React.FC<{ shot: ShotT; style: Style; seed: number; motion?: 
   const { fps } = useVideoConfig();
   const fade = shot.fadeIn ? interpolate(frame, [0, shot.fadeIn], [0, 1], { ...clamp, easing: ease.inOut }) : 1;
   // Graphics have their own motion; no Ken Burns or cut punch on top of a chart.
-  if (shot.type === "graphic" && shot.graphic) return <Graphic graphic={shot.graphic} style={style} />;
+  if (shot.type === "graphic" && shot.graphic) return <Graphic graphic={shot.graphic} style={style} durationInFrames={shot.durationInFrames} />;
   if (shot.type !== "video" && shot.type !== "image" || !shot.src) return <Kinetic style={style} seed={seed} words={shot.words} />;
   const punch = motion === "punchy" ? interpolate(spring({ frame, fps, config: springs.punch }), [0, 1], [1.06, 1]) : 1;
   if (shot.type === "image") {

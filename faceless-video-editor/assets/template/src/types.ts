@@ -20,6 +20,8 @@ export type GraphicSpec =
   | { type: "steps"; items: Item[]; title?: string; at?: number[] }
   | { type: "compare"; left: Side; right: Side; title?: string; at?: number[] }
   | { type: "statement"; text: string; highlight?: string; kicker?: string }
+  // A 3D explainer (components/Model3D.tsx) for a mechanism or a physical event.
+  | { type: "model3d"; model: "blowback" | "roller" | "closedBolt" | "gasIntro" | "gasCycle" | "armorStop" | "armorCompare" | "energy" | "size" | "magazines" | "cartridges" | "barrel"; items: Item[]; title?: string; at?: number[] }
   | { type: "ui"; image: string; device?: "browser" | "phone"; url?: string; highlight?: [number, number, number, number]; on?: string; caption?: string; at?: number[] };
 export type Item = string | { text: string; on?: string; icon?: string };
 export type Side = { label: string; items: Item[]; tone?: "good" | "bad" };

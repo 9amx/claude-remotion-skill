@@ -22,6 +22,7 @@ function graphicProblems(g) {
   }
   if (g.type === "timeline" && !(Array.isArray(g.events) && g.events.length >= 2 && g.events.every((e) => Array.isArray(e) && e.length === 2))) out.push('timeline needs "events": [["1969", "what happened"], ...] with 2+ rows');
   if (g.type === "timeline" && g.events?.length > 6) out.push("timeline: more than 6 events won't read on a phone");
+  if (g.type === "model3d" && !(g.model && Array.isArray(g.items) && g.items.length)) out.push('model3d needs "model" and "items": [{ "text", "on" }, ...]');
   if (g.type === "quote" && !g.text) out.push('quote needs "text" (and "by")');
   if (g.type === "map") {
     if (!(g.places?.length || g.countries?.length)) out.push('map needs "places" and/or "countries"');

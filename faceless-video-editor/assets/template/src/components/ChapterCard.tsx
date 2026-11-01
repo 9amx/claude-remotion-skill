@@ -4,11 +4,13 @@ import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } fr
 import { clamp, ease, springs, type Style } from "../theme";
 import { Reveal } from "./Reveal";
 
-export const ChapterCard: React.FC<{ index: number; title: string; style: Style; duration: number }> = ({ index, title, style, duration }) => {
+export const ChapterCard: React.FC<{ index: number; title: string; style: Style; duration: number; overGraphic?: boolean }> = ({ index, title, style, duration, overGraphic = false }) => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
   const portrait = height > width;
   const unit = portrait ? width : height;
+  // Over a graphic the card sits below the graphic's zone, with no scrim to dim it.
+  const anchor = overGraphic ? { justifyContent: "flex-end", paddingBottom: height * 0.2 } : { justifyContent: "center" };
   const rule = spring({ frame, fps, config: springs.smooth });
   const label = spring({ frame: frame - 4, fps, config: springs.snappy });
   const head = spring({ frame: frame - 9, fps, config: springs.smooth });
@@ -20,9 +22,9 @@ export const ChapterCard: React.FC<{ index: number; title: string; style: Style;
     const size = unit * (portrait ? 0.09 : 0.08);
     const ruleW = interpolate(frame, [0, 16], [0, 1], { ...clamp, easing: ease.out });
     return (
-      <AbsoluteFill style={{ pointerEvents: "none", justifyContent: "center", alignItems: portrait ? "center" : "flex-start" }}>
-        <AbsoluteFill style={{ background: `linear-gradient(${portrait ? "180deg" : "90deg"}, rgba(0,0,0,0.62), transparent 70%)`, opacity: exit }} />
-        <div style={{ marginLeft: portrait ? 0 : width * 0.07, maxWidth: portrait ? width * 0.84 : width * 0.5, textAlign: portrait ? "center" : "left", opacity: exit, transform: `translateX(${drift * 0.5}px)` }}>
+      <AbsoluteFill style={{ pointerEvents: "none", ...anchor, alignItems: portrait ? "center" : "flex-start" }}>
+        {!overGraphic && <AbsoluteFill style={{ background: `linear-gradient(${portrait ? "180deg" : "90deg"}, rgba(0,0,0,0.62), transparent 70%)`, opacity: exit }} />}
+        <div style={{ marginLeft: portrait ? 0 : width * 0.07, maxWidth: portrait ? width * 0.84 : width * 0.64, textAlign: portrait ? "center" : "left", opacity: exit, transform: `translateX(${drift * 0.5}px)` }}>
           <Reveal delay={2} frames={12}>
             <span style={{ fontFamily: style.fonts.label, fontWeight: 600, fontSize: unit * 0.024, letterSpacing: "0.32em", color: style.colors.primary }}>
               CHAPTER {String(index + 1).padStart(2, "0")}
@@ -42,9 +44,9 @@ export const ChapterCard: React.FC<{ index: number; title: string; style: Style;
   }
 
   return (
-    <AbsoluteFill style={{ pointerEvents: "none", justifyContent: "center", alignItems: portrait ? "center" : "flex-start" }}>
+    <AbsoluteFill style={{ pointerEvents: "none", ...anchor, alignItems: portrait ? "center" : "flex-start" }}>
       {/* darken the footage so the card reads at a glance */}
-      <AbsoluteFill style={{ background: `linear-gradient(${portrait ? "180deg" : "90deg"}, ${style.colors.scrim}, transparent 75%)`, opacity: exit * rule }} />
+      {!overGraphic && <AbsoluteFill style={{ background: `linear-gradient(${portrait ? "180deg" : "90deg"}, ${style.colors.scrim}, transparent 75%)`, opacity: exit * rule }} />}
       <div style={{
         marginLeft: portrait ? 0 : width * 0.07, marginTop: portrait ? -height * 0.08 : 0, maxWidth: portrait ? width * 0.84 : width * 0.55,
         textAlign: portrait ? "center" : "left", opacity: exit, transform: `translateX(${exitX + drift}px)`,
