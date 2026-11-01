@@ -212,14 +212,14 @@ const roller = ({ f, at, p, gold, hot }: Ctx): Built => {
     pins: [
       { at: [head - 0.82, 0.55, rollerZ], text: "Roller", o: p(0, 14) * (1 - p(2, 10)), dx: 0.09, dy: 0.05 },
       { at: [head - 0.82, 0.55, -rollerZ], text: "Roller", o: p(0, 14) * (1 - p(2, 10)), dx: 0.09, dy: -0.05 },
-      { at: [head - 0.8, 0.8, 0], text: "Bolt head: slow", o: speedO, dy: -0.15 },
-      { at: [carrier - 3.5, 0.8, 0], text: "Carrier: fast", o: speedO, dy: -0.1 },
+      { at: [head - 0.8, 0.8, 0], text: "Bolt head: slow", o: speedO, dy: 0.2 },
+      { at: [carrier - 3.5, 0.8, 0], text: "Carrier: fast", o: speedO, dy: 0.2 },
     ],
     node: (
       <group>
         <RollerAction head={head} carrier={carrier} roller={rollerZ} caseX={head} caseUp={0} bulletX={bulletX} gas={gas} gold={gold} rollerGlow={0.18 + p(1, 14) * 0.3 * (1 - p(3, 20))} />
-        <Arrow x={head - 0.8} y={1.2} z={-1.5} o={speedO} c={hot} len={0.6} />
-        <Arrow x={carrier - 3.5} y={1.2} z={-1.5} o={speedO} c={hot} len={1.7} />
+        <Arrow x={head - 0.8} y={1} z={0} o={speedO} c={hot} len={0.6} />
+        <Arrow x={carrier - 3.5} y={1} z={0} o={speedO} c={hot} len={1.7} />
       </group>
     ),
   };
@@ -284,7 +284,7 @@ const gasIntro = ({ f, at, p, gold }: Ctx): Built => {
     fov: 32,
     pins: [
       { at: [2.2, 1.45, 0], text: "Short piston", o: a * (1 - b), dy: -0.1 },
-      { at: [-0.25, 0.75, 0], text: "Rotating bolt", o: b, dy: -0.14, dx: 0.02 },
+      { at: [-0.25, 0.75, 0], text: "Rotating bolt", o: b, dy: -0.14, dx: -0.1 },
     ],
     node: <GasAction piston={0} carrier={-0.0} bolt={0} spin={spinT * (Math.PI / 6)} gas={0} gasFlow={0} bulletX={0} pistonGlow={a * (1 - b)} boltGlow={b} gold={gold} />,
   };
@@ -476,7 +476,8 @@ const Mag: React.FC<{ h: number; rise: number; x: number; glow: number; gold: st
     </group>
   );
 };
-const magazines = ({ p, gold }: Ctx): Built => {
+const magazines = ({ f, p, gold }: Ctx): Built => {
+  const stand = (i: number) => interpolate(f, [i * 7, i * 7 + 22], [0, 1], { ...clamp, easing: ease.out });
   const heights = [2.6, 3.8, 5];
   const xs = [-2.6, 0, 2.6];
   return {
@@ -484,13 +485,13 @@ const magazines = ({ p, gold }: Ctx): Built => {
     target: [0, 0.2, 0],
     fov: 30,
     pins: heights.map((h, i) => ({ at: [xs[i] + 0.25, h - 1.9, 0.2] as V3, text: `${[20, 30, 40][i]} rounds`, o: p(i, 14, 4), dy: -0.05 })),
-    node: <group>{heights.map((h, i) => <Mag key={i} h={h} x={xs[i]} rise={p(i, 22)} glow={p(i, 16)} gold={gold} />)}</group>,
+    node: <group>{heights.map((h, i) => <Mag key={i} h={h} x={xs[i]} rise={stand(i)} glow={p(i, 16)} gold={gold} />)}</group>,
   };
 };
 
 const cartridges = ({ f, len, p, gold }: Ctx): Built => {
   const spin = interpolate(f, [0, len], [0, Math.PI * 1.15]);
-  const at9 = p(0, 22), atHk = p(1, 22);
+  const at9 = interpolate(f, [0, 22], [0, 1], { ...clamp, easing: ease.out }), atHk = p(1, 22);
   return {
     pos: [0.15, 1.2, 15],
     target: [0.15, -0.3, 0],
