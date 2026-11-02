@@ -368,14 +368,23 @@ http://localhost:3100 (or `npm run editor`, which opens the browser): a preview
 player, a multi-track timeline (chapters, scenes, picture with thumbnails,
 text pops / emphasis / lower thirds, voice words, music, sound), an inspector
 for any clip (its words, keyword, source, match, credit), the script with the
-current word lit, the issues and the live log. Before the render the preview is
-an animatic - each shot's storyboard frame over the real voice - so the user can
-watch the edit play against the words; after the render it plays the video.
+current word lit, the issues and the live log. The preview plays the real edit
+live from the timeline (motion, overlays, transitions, voice, music) with no
+render, so the owner checks the video here before any export. Rendered files can
+be picked too, and an old one is labelled "older cut".
+**Comments, like Frame.io:** the owner pauses on a frame, presses C, writes what
+should change, and can press D to draw on the picture. Each comment marks the
+scrub bar and saves its frame, shot, voice line and drawing to
+`build/comments.json`. Run `node scripts/comments.mjs` when the owner asks you to
+read them and before any export, act on each one, then answer with
+`node scripts/comments.mjs --resolve=<id> "what changed"` so the answer shows on
+the page. If the owner's wish isn't clear, ask with `--reply=<id>` instead.
 Tell the user the address at the start of every run. The user can also edit
-there: select a shot -> "Show alternatives" (the shot's review sheet, every
-library) or type a new keyword and Search, click a candidate to swap it in
-(written to `build/picks.json`, the timeline and storyboard rebuild), and
-"Approve & render" runs `auto.mjs --from=broll`. Cuts can be moved by
+there: select a shot -> Footage bank (hover to play; shots already in the video
+are locked, per rule 6) or Photos or Search, click one to swap it in; the timeline
+and storyboard rebuild and the preview updates. Edits wait while a render runs,
+because it reads the timeline for each part; comments still work.
+"Export video" runs `auto.mjs --from=broll`, after a warning if comments are open. Cuts can be moved by
 dragging a clip's left edge, and a title / text pop / label / name tag can be
 reworded or removed in the inspector (both kept in `build/edits.json`; a moved
 cut is never re-snapped to the beat); Ctrl+Z undoes any Studio edit. After the

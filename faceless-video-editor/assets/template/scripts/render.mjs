@@ -5,7 +5,7 @@
 // cached by a hash of its content + src/, so a crash or a one-line script fix
 // re-renders only the parts that changed.
 // Env: REMOTION_BROWSER=/path/to/chrome, REMOTION_FLAGS="--concurrency=8 ..."
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { PUBLIC, ROOT, ffmpeg, fail, log, readJson, readProject, remotionCmd, remotionEnv, sha1, status, timecode, writeJson } from "./lib.mjs";
@@ -21,13 +21,21 @@ const flags = [
 const OUT = path.join(ROOT, "out");
 fs.mkdirSync(OUT, { recursive: true });
 
-const remotion = (args) => {
-  const r = spawnSync(...remotionCmd(["render", "src/index.ts", "Faceless", ...args, "--overwrite", ...flags]), { stdio: "inherit", cwd: ROOT, env: remotionEnv() });
-  if (r.status !== 0) fail(`render failed: ${args.join(" ")}`);
-};
+// Runs one Remotion render. onFrames gets each "Rendered N/M" it prints, for live progress.
+const remotion = (args, onFrames) => new Promise((resolve) => {
+  const child = spawn(...remotionCmd(["render", "src/index.ts", "Faceless", ...args, "--overwrite", ...flags]), { stdio: ["ignore", "pipe", "inherit"], cwd: ROOT, env: remotionEnv() });
+  let lastUpdate = 0;
+  child.stdout.on("data", (chunk) => {
+    process.stdout.write(chunk);
+    const found = [...chunk.toString().matchAll(/Rendered (\d+)\/(\d+)/g)].pop();
+    if (found && onFrames && Date.now() - lastUpdate > 2000) { lastUpdate = Date.now(); onFrames(Number(found[1]), Number(found[2])); }
+  });
+  child.on("error", (e) => fail(`render could not start: ${e.message}`));
+  child.on("close", (code) => { if (code !== 0) fail(`render failed: ${args.join(" ")}`); resolve(); });
+});
 
 if (t.durationInFrames <= chunkFrames * 1.5) {
-  remotion(["out/video.mp4", "--codec", "h264", "--crf", "18"]);
+  await remotion(["out/video.mp4", "--codec", "h264", "--crf", "18"], (n, total) => status({ progress: n / Math.max(1, total) }));
   process.exit(0);
 }
 
@@ -83,7 +91,10 @@ for (const [i, [a, b]] of ranges.entries()) {
   log("render", label);
   status({ doing: `Rendering ${label}`, progress: doneFrames / Math.max(1, todo) });
   const ts = Date.now();
-  remotion([path.relative(ROOT, file), `--frames=${a}-${b}`, "--muted", "--codec", "h264", "--crf", "18"]);
+  await remotion([path.relative(ROOT, file), `--frames=${a}-${b}`, "--muted", "--codec", "h264", "--crf", "18"], (n) => {
+    const finished = doneFrames + n, rate = finished / Math.max(1, (Date.now() - t0) / 1000);
+    status({ progress: finished / Math.max(1, todo), etaSec: (todo - finished) / Math.max(0.1, rate) });
+  });
   manifest[path.basename(file)] = key;
   writeJson(manifestFile, manifest); // saved after every part: a crash keeps finished parts
   doneFrames += b - a + 1;
@@ -97,7 +108,7 @@ for (const f of fs.readdirSync(dir)) {
 }
 
 log("render", "audio (whole video, one pass)");
-remotion(["out/parts/audio.wav", "--codec", "wav"]);
+await remotion(["out/parts/audio.wav", "--codec", "wav"]);
 
 log("render", `joining ${parts.length} parts`);
 const list = path.join(dir, "list.txt");
