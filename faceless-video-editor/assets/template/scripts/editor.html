@@ -257,7 +257,7 @@ kbd { font:600 11px "JetBrains Mono", monospace; padding:1px 6px; border-radius:
   .tlw.closed { height:46px }
 }
 /* ---------- phone, upright: one column, picture pinned on top, comment box pinned below ---------- */
-@media (max-width: 760px) {
+@media (max-width: 900px) and (orientation: portrait), (max-width: 760px) {
   ::-webkit-scrollbar { display:none }
   html { height:auto; overflow:auto } body { height:auto; min-height:100dvh; overflow:visible }
   #app { display:block; height:auto; overflow:visible }
@@ -282,7 +282,7 @@ kbd { font:600 11px "JetBrains Mono", monospace; padding:1px 6px; border-radius:
   .composer { position:sticky; bottom:0; z-index:15; padding:8px 10px; padding-bottom:max(8px, env(safe-area-inset-bottom)) } .c-row { padding:4px 4px 4px 10px } .composer input { font-size:16px; padding:8px 2px } .composer .tbtn { width:40px; height:40px } .c-send { height:40px; padding:0 14px } .composer .at { font-size:11.5px }
   .kwrow input, .txtedit textarea, .cm-replyin, .bk-theme { font-size:16px } .rtabs button { padding:10px 4px } .bk-theme { height:42px } .bk-grid { max-height:none; overflow:visible } .btn { min-height:42px }
   .work[data-pg="media"] .insp-p { display:none !important }
-  .pool-p { display:flex } .ph { padding:0 14px } .chips { flex-wrap:nowrap; overflow-x:auto; padding:0 12px 10px; scrollbar-width:none } .chips button { flex:none; height:38px; padding:0 12px } .pool { overflow:visible; padding:4px 12px 20px; grid-template-columns:1fr 1fr; gap:14px 10px }
+  .pool-p { display:flex } .ph { padding:0 14px } .chips { flex-wrap:nowrap; overflow-x:auto; padding:0 12px 10px; scrollbar-width:none } .chips button { flex:none; height:38px; padding:0 12px } .pool { overflow:visible; padding:4px 12px 20px; grid-template-columns:repeat(auto-fill,minmax(165px,1fr)); gap:14px 10px }
   .deliver { padding:20px 16px 28px } .dhead { gap:16px; flex-wrap:nowrap } .bigring, .bigring svg { width:68px; height:68px } .bigring .val b { font-size:15px } .dhead > div:last-child div:first-child { font-size:17px !important; line-height:1.25 } .pipe { margin:22px -16px 4px; padding:0 8px 8px } .pstep { min-width:84px } .stats { grid-template-columns:1fr 1fr } .pub { grid-template-columns:1fr; gap:18px; margin-top:22px; padding-top:20px } .pub-f label button { padding:9px 0 9px 16px; margin:-9px 0 } .pub-f div { max-height:220px } .outbtn { min-height:42px; margin-top:10px }
   .tlw { height:auto; border-top:1px solid var(--stroke); transition:none } .tlw .tl { height:230px } .tlw.closed { height:37px } .tlw.closed .tl { display:none } .tbar { height:44px } .tlw.closed { height:44px } .tbar .info, .zoom { display:none } :root { --hdr:64px } .th .nm { font-size:10.5px }
   .toasts { left:12px; right:12px; bottom:76px } .toast { max-width:none } .keys .row { gap:14px }
@@ -449,7 +449,7 @@ let S = null, T = null, tSig = "", fps = 30, clips = [], shots = [], dur = 0, pp
 let follow = true, loop = false, speed = 1, filter = "all", knownDone = null, hidden = new Set(), muted = new Set();
 const video = $("video"), audio = new Audio();
 const isTouch = matchMedia("(hover: none)").matches;
-const isPhone = () => innerWidth <= 760;
+const isPhone = () => matchMedia("(max-width: 900px) and (orientation: portrait), (max-width: 760px)").matches;
 const pad = (n) => String(Math.floor(n)).padStart(2, "0");
 const tcode = (s) => { s = Math.max(0, s); return `${pad(s / 3600)}:${pad((s / 60) % 60)}:${pad(s % 60)}:${pad(Math.floor((s % 1) * fps + 1e-6))}`; };
 const tile = (n) => `/files/build/storyboard/tiles/${String(n).padStart(4, "0")}.jpg?${tSig}`;
@@ -1036,7 +1036,7 @@ async function poll() {
 if (innerHeight < 720 || isPhone()) document.querySelector(".tlw").classList.add("closed");
 new ResizeObserver(() => document.documentElement.style.setProperty("--stageH", document.querySelector(".stage").offsetHeight + "px")).observe(document.querySelector(".stage"));
 setPage("edit"); drawComments(); poll();
-addEventListener("scroll", () => { if (scrollX || scrollY) { if (innerWidth > 760) scrollTo(0, 0); } });
+addEventListener("scroll", () => { if (scrollX || scrollY) { if (!isPhone()) scrollTo(0, 0); } });
 addEventListener("resize", () => { if (T) drawTimeline(); setPage($("nav").querySelector(".on").dataset.pg); });
 </script>
 </body>
