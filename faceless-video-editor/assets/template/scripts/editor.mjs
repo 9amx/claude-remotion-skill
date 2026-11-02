@@ -128,6 +128,14 @@ function renders() {
     .sort((a, b) => b.time - a.time);
 }
 
+// The Deliver page: the thumbnail and what goes on YouTube. A pasted-ready description wins.
+function deliverInfo() {
+  const yt = readJson(path.join(ROOT, "project.json"))?.youtube ?? {};
+  const ready = path.join(ROOT, "youtube-description.txt");
+  const description = fs.existsSync(ready) ? fs.readFileSync(ready, "utf8").trim() : [yt.description, (yt.hashtags ?? []).join(" ")].filter(Boolean).join("\n\n");
+  return { thumbnail: mtime(path.join(ROOT, "out", "thumbnail.jpg")) || null, title: yt.title ?? null, description: description || null, tags: (yt.tags ?? []).join(", ") || null };
+}
+
 function state() {
   const videos = renders();
   const video = videos.find((v) => v.name === "final.mp4")?.path ?? videos[0]?.path ?? null;
@@ -136,6 +144,7 @@ function state() {
   return {
     timelineTime: mtime(path.join(PUBLIC, "timeline.json")),
     videos, openComments: readComments().filter((c) => !c.resolved).length,
+    deliver: deliverInfo(),
     status: readJson(path.join(BUILD, "status.json")) ?? {},
     project: readJson(path.join(ROOT, "project.json"))?.title ?? null,
     video, videoTime: video ? mtime(path.join(ROOT, video)) : 0,
@@ -335,6 +344,8 @@ const server = http.createServer((req, res) => {
       if (!validShot(b.shot) || typeof b.from !== "string" || typeof b.text !== "string") return sendJson(res, 400, { error: "bad text edit" });
       if (busy()) return sendJson(res, 409, { error: busy() });
       const text = b.text.trim().slice(0, 160);
+      const known = projectScene(readJson(path.join(ROOT, "project.json")), b.shot)?.broll?.some((beat) => beat?.overlays?.some((o) => o.text === b.from));
+      if (!known) return sendJson(res, 404, { error: "that text isn't in this scene any more" });
       snapshot(`text ${b.shot}`);
       const ok = editProject((p) => {
         for (const beat of projectScene(p, b.shot)?.broll ?? []) {
