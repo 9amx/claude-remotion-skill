@@ -28,6 +28,7 @@ Set these before the first preview and check them in the preview:
 3. **Narration captions off:** `"captions": {"style": "none"}`, `"callouts": "off"`.
 4. **Weapon names on screen** when the voice says them: `"calloutStyle": "subtitle"` and `"text": "Heckler & Koch MP7"` on the beat. For other niches, do the same for the key proper names only if the owner asks.
 5. **Transitions only where the story changes** (a new chapter, a jump in time or place, the next item of a list, a reveal), set per scene with `"transition"` and mixed; every other cut is a straight cut. `"transitions": "chapter"` keeps the rest as cuts.
+6. **One shot, one use.** The same moment or scene never appears twice in a video, and each photo is used once; different scenes cut from one long source video are fine. No photo left for a line? Find another free one, or use a graphic or other footage. `auto.mjs` lists repeats after the timeline and refuses to render until they are fixed, and `footage-bank.mjs --cut` refuses a shot picked twice. `"allowRepeats": true` turns both off, only when the owner asks for a repeat.
 
 ## Step 1 - Brief (ask only what you can't default)
 

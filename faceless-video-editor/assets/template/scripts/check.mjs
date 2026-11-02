@@ -8,6 +8,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { PUBLIC, ROOT, ffmpeg, fail, log, readJson, status, timecode } from "./lib.mjs";
+import { findRepeats } from "./check-repeats.mjs";
 const DRAWTEXT_FONT = process.platform === "win32" ? "fontfile='C\\\\:/Windows/Fonts/arial.ttf':" : "";
 
 const t = readJson(path.join(PUBLIC, "timeline.json"), null);
@@ -28,6 +29,9 @@ for (const sh of allShots) {
 }
 for (let i = 1; i < allShots.length; i++) {
   if (allShots[i].src && allShots[i].src === allShots[i - 1].src) warnings.push(`${allShots[i].scene}: same clip twice in a row (${allShots[i].src})`);
+}
+for (const r of findRepeats(t)) {
+  warnings.push(`same footage used ${r.uses.length} times (${path.basename(r.uses[0].media)}): ${r.uses.map((u) => `${u.scene} @ ${timecode(u.at)}`).join(", ")}`);
 }
 for (const sh of allShots) {
   if (sh.crossesCut) warnings.push(`${sh.scene} @ ${timecode(sec(sh.at))}: the stock clip's own cut shows inside this shot - pick a longer clip`);

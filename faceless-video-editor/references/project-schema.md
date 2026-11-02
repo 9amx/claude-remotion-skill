@@ -50,6 +50,7 @@
   "sfxLevel": 1,                     // 0-1 scales every SFX (default from editStyle)
   "transitions": "scene",            // WHERE: scene | chapter | none; default chapter when chapters exist
   "transitionStyle": "auto",         // WHICH: auto (by meaning: flash->reveal, dip->flashback/chapter, whip->list item, else whip/zoom) | whip | zoom | glitch | flash | dip | fade | cut
+  "allowRepeats": false,             // true = a shot or photo may appear twice; by default a repeat stops the render
   "punchIns": true,                  // punch-in zoom on highlighted words (default from editStyle)
   "hookShake": true,                 // impact shake on the hook (default: viral only)
   "loop": false,                     // true = the last line loops into the first (silences the CTA note)
