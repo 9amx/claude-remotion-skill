@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
 <title>Faceless Studio</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
@@ -67,7 +68,7 @@ svg { display:block; flex:none }
 @keyframes rise { from { opacity:0; transform:translateY(6px) } }
 
 /* ---------- viewer ---------- */
-.stage { display:grid; grid-template-rows:minmax(0,1fr) auto auto; min-height:0; background:#000 }
+.stage { display:grid; grid-template-rows:minmax(0,1fr) auto auto; min-height:0; background:#000; container:stage / inline-size }
 .viewer { position:relative; display:flex; min-height:0 }
 .screen { flex:1; position:relative; display:flex; align-items:center; justify-content:center; min-height:0; min-width:0; container-type:size }
 .pic { position:relative; aspect-ratio:var(--ar,16/9); width:min(100cqw, calc(100cqh * var(--arn,1.7778))); background:#000; overflow:hidden; cursor:pointer }
@@ -86,7 +87,7 @@ svg { display:block; flex:none }
 .flash.go { animation:flash .45s ease-out } @keyframes flash { 0% { opacity:1; transform:scale(.8) } 100% { opacity:0; transform:scale(1.25) } }
 .empty { position:absolute; inset:0; display:grid; place-items:center; color:var(--sub); text-align:center; padding:30px; z-index:2 }
 .skel { position:absolute; inset:0; background:linear-gradient(100deg,#0d0d0f 30%,#19191c 50%,#0d0d0f 70%); background-size:200% 100%; animation:shim 1.4s linear infinite } @keyframes shim { to { background-position:-200% 0 } }
-#draw { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:2 } #draw.on { pointer-events:auto; cursor:crosshair }
+#draw { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:2 } #draw.on { pointer-events:auto; cursor:crosshair; touch-action:none }
 
 /* ---------- seek bar ---------- */
 .bar { position:relative; height:20px; margin:0 14px; cursor:pointer; touch-action:none; flex:none }
@@ -101,8 +102,8 @@ svg { display:block; flex:none }
 .bar-tip .im { aspect-ratio:16/9; background:#000 center top / 100% auto no-repeat } .bar-tip div:last-child { padding:6px 9px; font-size:11.5px; color:var(--text) }
 
 /* ---------- transport ---------- */
-.transport { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); align-items:center; gap:10px; padding:2px 14px 10px; min-width:0 }
-.t-left, .t-right, .t-mid { display:flex; align-items:center; min-width:0 } .t-left { gap:12px } .t-mid { gap:4px } .t-right { gap:4px; justify-content:flex-end }
+.transport { display:grid; grid-template-columns:minmax(max-content,1fr) auto minmax(max-content,1fr); align-items:center; gap:10px; padding:2px 14px 10px; min-width:0 }
+.t-left, .t-right, .t-mid { display:flex; align-items:center; min-width:0 } .t-left { gap:12px; overflow:hidden } .t-mid { gap:4px } .t-right { gap:4px; justify-content:flex-end }
 .tbtn { width:32px; height:32px; flex:none; border-radius:6px; border:0; background:none; display:grid; place-items:center; color:var(--sub); transition:color .12s, background .12s }
 .tbtn:hover { color:#fff; background:rgba(255,255,255,.1) } .tbtn.on { color:var(--amber) }
 .tbtn.pen.on { background:var(--bad); color:#fff }
@@ -238,7 +239,61 @@ kbd { font:600 11px "JetBrains Mono", monospace; padding:1px 6px; border-radius:
 #app.focus .insp-p, #app.focus .tlw, #app.focus .top { display:none } #app.focus { grid-template-rows:minmax(0,1fr) } #app.focus .work { grid-template-columns:1fr }
 
 @media (max-width: 1200px) { .work, .work[data-pg="media"] { grid-template-columns:minmax(0,1fr) 320px } .status { display:none } .where { display:none } }
-@media (max-width: 760px) { html, body { overflow:auto } #app { height:auto; grid-template-rows:52px auto auto } .work, .work[data-pg="media"] { grid-template-columns:1fr } .stage { min-height:56vh } .insp-p { min-height:60vh; border-left:0 } :root { --hdr:60px } .th .nm { font-size:10px } .title b { display:none } .top { gap:6px; padding:0 8px } .brand span { display:none } .nav { margin:0 } .nav button { padding:6px 8px } .seg, #loop, #safe, #toStart, #toEnd { display:none } .transport { grid-template-columns:auto auto } .t-right { display:none } .pub { grid-template-columns:1fr } }
+.where { max-width:240px }
+@container stage (max-width: 960px) { .where { display:none } .tcbox small { display:none } }
+@media (max-width: 1000px) { .title { justify-content:flex-end } .title b { display:none } .src { flex:0 1 auto; min-width:0; max-width:150px } }
+@container stage (max-width: 800px) {
+  .transport { grid-template-columns:auto minmax(0,1fr); row-gap:2px } .t-mid { justify-content:flex-end } .t-right { grid-column:1 / -1; justify-content:space-between }
+  .tcbox small { display:none } .where { display:none }
+}
+/* ---------- touch: no hover, so what hover revealed is always there ---------- */
+@media (hover: none) {
+  .cm-acts { opacity:1; height:auto; margin-top:4px; gap:4px } .cm-acts button { padding:9px 10px; margin-left:-10px; margin-right:10px }
+  .th .tg { opacity:1 } .trim { opacity:.5; width:12px }
+  .bk.ready { box-shadow:0 0 0 2px var(--amber) }
+  .nav button { height:40px } .icon-btn, .tbtn { width:42px; height:42px } .approve { min-height:40px } .src { height:36px } .tabs button { padding:14px 2px 12px }
+  .chips button { height:38px } .rtabs button { padding:10px 4px } .c-send { height:40px } .composer .tbtn { width:40px; height:40px } .composer input { font-size:16px } .seg button { padding:9px 9px }
+  .pub-f label button { padding:9px 0 9px 16px; margin:-9px 0 } .tbar { height:46px } .tbar .btn, .tbar .tbtn { min-height:38px; min-width:38px } .bar { height:28px } .bar::before, .bar-fill, .bar:hover::before, .bar:hover .bar-fill { top:12px; height:4px } .bar-ch { top:10px } .mark { top:3px; width:16px; height:16px; margin-left:-8px }
+  .tlw.closed { height:46px }
+}
+/* ---------- phone, upright: one column, picture pinned on top, comment box pinned below ---------- */
+@media (max-width: 760px) {
+  ::-webkit-scrollbar { display:none }
+  html { height:auto; overflow:auto } body { height:auto; min-height:100dvh; overflow:visible }
+  #app { display:block; height:auto; overflow:visible }
+  .top { flex-wrap:wrap; gap:0 6px; padding:6px 10px 8px; padding-top:max(6px, env(safe-area-inset-top)) }
+  .brand span, .status, #keysBtn { display:none } .brand { margin-right:2px }
+  .nav { margin:0; flex:1 } .nav button { flex:1; justify-content:center; height:40px; padding:0 6px } .nav .pill { top:0; bottom:0 }
+  .icon-btn { width:40px; height:40px }
+  .approve { width:40px; height:40px; padding:0; justify-content:center; font-size:0; gap:0; margin:0 }
+  .title { order:9; flex-basis:100%; justify-content:space-between; margin-top:6px } .title b { display:block; font-size:12px; font-weight:500; color:var(--dim) } .src { max-width:150px; height:32px; font-size:13px }
+  .work, .work[data-pg="media"] { display:block; background:var(--bg) } .work[data-pg="deliver"] { display:block }
+  .stage { position:sticky; top:0; z-index:20; display:block; box-shadow:0 8px 18px rgba(0,0,0,.55) }
+  .viewer { display:block } .screen { container-type:normal; display:block } .pic { width:100% }
+  .hud { top:7px; left:7px; right:7px } .hud span { font-size:10.5px }
+  .bar { height:28px; margin:0 12px } .bar::before, .bar-fill { top:12px } .bar:hover::before, .bar:hover .bar-fill { top:12px; height:4px } .bar-ch { top:10px } .mark { top:3px; width:16px; height:16px; margin-left:-8px } .bar-fill::after { transform:scale(1) } .bar-tip { display:none !important }
+  .transport { display:flex; justify-content:space-between; gap:4px; padding:0 8px 8px }
+  .t-left { flex:none } .t-right { display:none } .tcbox { font-size:13px; padding-left:4px } .tcbox small, #toStart, #toEnd { display:none }
+  .t-mid { gap:2px; margin-right:2px } .tbtn { width:42px; height:42px } .play { width:46px; height:46px; margin:0 4px }
+  #fsPen { display:grid }
+  .panel { overflow:visible } .insp-p { display:flex; border-left:0; min-height:calc(100dvh - 340px) }
+  .tabs { position:sticky; top:var(--stageH,290px); z-index:15; gap:0; padding:0; background:var(--solid); overflow-x:auto; scrollbar-width:none } .tabs button { flex:1; justify-content:center; padding:11px 8px 10px; white-space:nowrap }
+  .pane { flex:1 0 auto; overflow:visible; padding:12px 14px 16px } .cm { margin:0 -6px; padding:10px 6px } .cm-text { font-size:14.5px }
+  .composer { position:sticky; bottom:0; z-index:15; padding:8px 10px; padding-bottom:max(8px, env(safe-area-inset-bottom)) } .c-row { padding:4px 4px 4px 10px } .composer input { font-size:16px; padding:8px 2px } .composer .tbtn { width:40px; height:40px } .c-send { height:40px; padding:0 14px } .composer .at { font-size:11.5px }
+  .kwrow input, .txtedit textarea, .cm-replyin, .bk-theme { font-size:16px } .rtabs button { padding:10px 4px } .bk-theme { height:42px } .bk-grid { max-height:none; overflow:visible } .btn { min-height:42px }
+  .work[data-pg="media"] .insp-p { display:none !important }
+  .pool-p { display:flex } .ph { padding:0 14px } .chips { flex-wrap:nowrap; overflow-x:auto; padding:0 12px 10px; scrollbar-width:none } .chips button { flex:none; height:38px; padding:0 12px } .pool { overflow:visible; padding:4px 12px 20px; grid-template-columns:1fr 1fr; gap:14px 10px }
+  .deliver { padding:20px 16px 28px } .dhead { gap:16px; flex-wrap:nowrap } .bigring, .bigring svg { width:68px; height:68px } .bigring .val b { font-size:15px } .dhead > div:last-child div:first-child { font-size:17px !important; line-height:1.25 } .pipe { margin:22px -16px 4px; padding:0 8px 8px } .pstep { min-width:84px } .stats { grid-template-columns:1fr 1fr } .pub { grid-template-columns:1fr; gap:18px; margin-top:22px; padding-top:20px } .pub-f label button { padding:9px 0 9px 16px; margin:-9px 0 } .pub-f div { max-height:220px } .outbtn { min-height:42px; margin-top:10px }
+  .tlw { height:auto; border-top:1px solid var(--stroke); transition:none } .tlw .tl { height:230px } .tlw.closed { height:37px } .tlw.closed .tl { display:none } .tbar { height:44px } .tlw.closed { height:44px } .tbar .info, .zoom { display:none } :root { --hdr:64px } .th .nm { font-size:10.5px }
+  .toasts { left:12px; right:12px; bottom:76px } .toast { max-width:none } .keys .row { gap:14px }
+}
+/* ---------- phone, sideways: just the picture and its controls ---------- */
+@media (max-height: 500px) and (orientation: landscape) {
+  ::-webkit-scrollbar { display:none }
+  #app { grid-template-rows:minmax(0,1fr) } .top, .tlw, .insp-p { display:none !important } .work { grid-template-columns:1fr !important }
+  .bar { margin:0 14px } .transport { padding:0 14px 4px; grid-template-columns:minmax(max-content,1fr) auto minmax(max-content,1fr); row-gap:0 } .t-mid { justify-content:center } .t-right { grid-column:auto; justify-content:flex-end } .t-right .seg, #safe, #loop, #penBtn2 { display:none } .tbtn { width:38px; height:38px } .play { width:40px; height:40px } .tcbox small { display:none }
+  .deliver { display:none }
+}
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration:.01ms !important; transition-duration:.01ms !important } }
 </style>
 </head>
@@ -340,7 +395,7 @@ kbd { font:600 11px "JetBrains Mono", monospace; padding:1px 6px; border-radius:
       <form class="composer" id="composer" autocomplete="off">
         <div class="c-row">
           <span class="at mono" id="cmtAt">00:00</span>
-          <input id="cmtIn" placeholder="Comment on this frame…">
+          <input id="cmtIn" placeholder="Comment on this frame">
           <button type="button" class="tbtn pen" id="penBtn" title="Draw on the frame (D)"><svg width="15" height="15"><use href="#i-pen"/></svg></button>
           <button type="submit" class="c-send">Send</button>
         </div>
@@ -393,6 +448,8 @@ window.remotion_staticBase = "/files/public";
 let S = null, T = null, tSig = "", fps = 30, clips = [], shots = [], dur = 0, pps = 40, t = 0, playing = false, last = 0, sel = null;
 let follow = true, loop = false, speed = 1, filter = "all", knownDone = null, hidden = new Set(), muted = new Set();
 const video = $("video"), audio = new Audio();
+const isTouch = matchMedia("(hover: none)").matches;
+const isPhone = () => innerWidth <= 760;
 const pad = (n) => String(Math.floor(n)).padStart(2, "0");
 const tcode = (s) => { s = Math.max(0, s); return `${pad(s / 3600)}:${pad((s / 60) % 60)}:${pad(s % 60)}:${pad(Math.floor((s % 1) * fps + 1e-6))}`; };
 const tile = (n) => `/files/build/storyboard/tiles/${String(n).padStart(4, "0")}.jpg?${tSig}`;
@@ -680,13 +737,18 @@ async function replaceTab(c, tab) {
   const themes = [...new Set(all.map((x) => x.theme))].sort();
   const draw = (theme) => {
     const list = all.filter((x) => x.theme === theme).sort((a, b) => !!a.usedIn - !!b.usedIn);
-    box.innerHTML = `<select class="bk-theme" id="bkTheme">${themes.map((x) => `<option${x === theme ? " selected" : ""}>${esc(x)}</option>`).join("")}</select><div style="color:var(--dim);margin-bottom:6px">Hover to play. Shots already in the video are locked, so nothing repeats.</div>
+    box.innerHTML = `<select class="bk-theme" id="bkTheme">${themes.map((x) => `<option${x === theme ? " selected" : ""}>${esc(x)}</option>`).join("")}</select><div style="color:var(--dim);margin-bottom:6px">${isTouch ? "Tap to play, tap again to use it." : "Hover to play, click to use it."} Shots already in the video are locked, so nothing repeats.</div>
       <div class="bk-grid" id="bkGrid">${list.map((x) => `<div class="bk${x.usedIn ? " used" : ""}" ${x.usedIn ? `data-used="Used in ${esc(x.usedIn)}"` : ""} data-tile="${esc(x.id)}" title="${esc(x.title)}" style="background-image:url('/bank/sheets/${esc(x.theme)}-${x.page}.jpg');background-size:606.25% 611.11%;background-position:${x.col * 20}% ${x.row * 20}%"></div>`).join("")}</div>`;
     $("bkTheme").onchange = (e) => draw(e.target.value);
     const grid = $("bkGrid");
-    grid.onclick = (e) => { const el = e.target.closest("[data-tile]"); if (el && !el.classList.contains("used")) swap({ tile: el.dataset.tile }, "this bank shot"); };
-    grid.onpointerover = (e) => { const el = e.target.closest("[data-tile]"); if (!el || el.classList.contains("used") || el.querySelector("video")) return; const x = list.find((y) => y.id === el.dataset.tile); if (!x?.file) return; el.innerHTML = `<video muted autoplay loop playsinline src="/bank/${esc(x.file)}#t=${x.in},${x.out}"></video>`; };
-    grid.onpointerout = (e) => { const el = e.target.closest("[data-tile]"); if (el && !el.contains(e.relatedTarget)) el.innerHTML = ""; };
+    const preview = (el) => { const x = list.find((y) => y.id === el.dataset.tile); if (x?.file) el.innerHTML = `<video muted autoplay loop playsinline src="/bank/${esc(x.file)}#t=${x.in},${x.out}"></video>`; };
+    grid.onclick = (e) => {
+      const el = e.target.closest("[data-tile]"); if (!el || el.classList.contains("used")) return;
+      if (isTouch && !el.classList.contains("ready")) { grid.querySelectorAll(".ready").forEach((o) => { o.classList.remove("ready"); o.innerHTML = ""; }); el.classList.add("ready"); preview(el); return; }
+      swap({ tile: el.dataset.tile }, "this bank shot");
+    };
+    if (!isTouch) grid.onpointerover = (e) => { const el = e.target.closest("[data-tile]"); if (el && !el.classList.contains("used") && !el.querySelector("video")) preview(el); };
+    if (!isTouch) grid.onpointerout = (e) => { const el = e.target.closest("[data-tile]"); if (el && !el.contains(e.relatedTarget)) el.innerHTML = ""; };
   };
   draw(mine?.theme ?? themes[0]);
 }
@@ -730,8 +792,8 @@ canvas.addEventListener("pointerdown", (e) => {
   const r = canvas.getBoundingClientRect(), at = (ev) => [+((ev.clientX - r.left) / r.width).toFixed(3), +((ev.clientY - r.top) / r.height).toFixed(3)];
   const line = [at(e)]; strokes.push(line);
   const move = (ev) => { if (line.length < 300) { line.push(at(ev)); drawStrokes(); } };
-  const up = () => { canvas.removeEventListener("pointermove", move); canvas.removeEventListener("pointerup", up); $("cmtIn").focus(); };
-  canvas.addEventListener("pointermove", move); canvas.addEventListener("pointerup", up);
+  const up = () => { canvas.removeEventListener("pointermove", move); canvas.removeEventListener("pointerup", up); canvas.removeEventListener("pointercancel", up); if (!isTouch) $("cmtIn").focus(); };
+  canvas.addEventListener("pointermove", move); canvas.addEventListener("pointerup", up); canvas.addEventListener("pointercancel", up);
 });
 $("penBtn").onclick = () => setPen(!pen);
 $("penBtn2").onclick = () => setPen(!pen);
@@ -772,7 +834,7 @@ function drawComments() {
       ${sh && has(sh.n) ? `<div class="cm-thumb" style="background-image:url('${tile(sh.n)}')">${c.drawing ? "<i>Drawing</i>" : ""}</div>` : ""}
       ${(c.replies || []).map((r) => `<div class="cm-reply${r.author === "Owner" ? "" : " ai"}"><i>${r.author === "Owner" ? "Y" : "C"}</i><div><b>${r.author === "Owner" ? "You" : esc(r.author)}</b>${esc(r.text)}</div></div>`).join("")}
       <div class="cm-acts"><button data-a="resolve">${c.resolved ? "Reopen" : "Mark done"}</button><button data-a="reply">Reply</button><button data-a="delete">Delete</button></div>
-    </div></div>`; }).join("") || `<div class="cm-empty">${comments.length ? "<h4>All done</h4>Every comment is marked done." : `<svg width="34" height="34"><use href="#i-chat"/></svg><h4>What should change?</h4>Pause on any frame and leave a note. It stays on that exact moment.<div class="cm-keys"><div><kbd>Space</kbd> Play or pause</div><div><kbd>C</kbd> Comment on this frame</div><div><kbd>D</kbd> Draw on the picture</div></div>`}</div>`) +
+    </div></div>`; }).join("") || `<div class="cm-empty">${comments.length ? "<h4>All done</h4>Every comment is marked done." : `<svg width="34" height="34"><use href="#i-chat"/></svg><h4>What should change?</h4>${isTouch ? "Pause on any frame and write below. Your note stays on that exact moment. Tap the pen to draw on the picture." : 'Pause on any frame and leave a note. It stays on that exact moment.<div class="cm-keys"><div><kbd>Space</kbd> Play or pause</div><div><kbd>C</kbd> Comment on this frame</div><div><kbd>D</kbd> Draw on the picture</div></div>'}`}</div>`) +
     (open ? `<div class="cm-foot">When you're finished, tell Claude to read the comments.</div>` : "");
 }
 function goToComment(id, scroll) {
@@ -780,7 +842,7 @@ function goToComment(id, scroll) {
   cmtSel = id; if (playing) setPlaying(false); seek(cmtTime(c));
   shownDrawing = c.drawing ? { frame: c.frame, paths: c.drawing } : null; drawStrokes();
   showTab("cmts"); drawComments(); drawBar();
-  if (scroll) document.querySelector(`.cm[data-c="${id}"]`)?.scrollIntoView({ block: "nearest" });
+  if (scroll && !isPhone()) document.querySelector(`.cm[data-c="${id}"]`)?.scrollIntoView({ block: "nearest" });
 }
 $("cmts").addEventListener("click", async (e) => {
   const seg = e.target.closest("#cmtSeg button"); if (seg) { cmtFilter = seg.dataset.c; drawComments(); return; }
@@ -868,9 +930,9 @@ $("navStrip").addEventListener("pointerdown", (e) => {
   const go = (ev) => { const r = $("navStrip").getBoundingClientRect(), x = ((ev.clientX - r.left) / r.width) * dur; seek(x); $("scroll").scrollLeft = x * pps - $("scroll").clientWidth / 2; };
   go(e); const up = () => { removeEventListener("pointermove", go); removeEventListener("pointerup", up); }; addEventListener("pointermove", go); addEventListener("pointerup", up);
 });
-$("pool").addEventListener("click", (e) => { const el = e.target.closest("[data-i]"); if (el) select(Number(el.dataset.i)); });
-$("pool").addEventListener("pointerover", (e) => { const v = e.target.closest(".card")?.querySelector("video"); if (v && !v.src) { v.src = v.dataset.src; v.oncanplay = () => v.classList.add("ready"); } v?.play().catch(() => {}); });
-$("pool").addEventListener("pointerout", (e) => { const v = e.target.closest(".card")?.querySelector("video"); if (v && !e.relatedTarget?.closest?.(".card")?.contains(v)) v.pause(); });
+$("pool").addEventListener("click", (e) => { const el = e.target.closest("[data-i]"); if (!el) return; if (isPhone()) { setPage("edit"); scrollTo(0, 0); } select(Number(el.dataset.i)); });
+if (!isTouch) $("pool").addEventListener("pointerover", (e) => { const v = e.target.closest(".card")?.querySelector("video"); if (v && !v.src) { v.src = v.dataset.src; v.oncanplay = () => v.classList.add("ready"); } v?.play().catch(() => {}); });
+if (!isTouch) $("pool").addEventListener("pointerout", (e) => { const v = e.target.closest(".card")?.querySelector("video"); if (v && !e.relatedTarget?.closest?.(".card")?.contains(v)) v.pause(); });
 $("filter").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; filter = b.dataset.f; $("filter").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b)); drawPool(); });
 $("words").addEventListener("click", (e) => { const w = e.target.closest("[data-w]"); if (w) seek(T.words[Number(w.dataset.w)].startMs / 1000); });
 $("scroll").addEventListener("scroll", () => { $("heads").scrollTop = $("scroll").scrollTop; updateNavView(); });
@@ -971,7 +1033,8 @@ async function poll() {
   } catch { $("dot").className = "dot bad"; $("stTitle").textContent = "Editor server stopped"; $("stSub").textContent = "Run: npm run editor"; }
   setTimeout(poll, 2500);
 }
-if (innerHeight < 720) document.querySelector(".tlw").classList.add("closed");
+if (innerHeight < 720 || isPhone()) document.querySelector(".tlw").classList.add("closed");
+new ResizeObserver(() => document.documentElement.style.setProperty("--stageH", document.querySelector(".stage").offsetHeight + "px")).observe(document.querySelector(".stage"));
 setPage("edit"); drawComments(); poll();
 addEventListener("scroll", () => { if (scrollX || scrollY) { if (innerWidth > 760) scrollTo(0, 0); } });
 addEventListener("resize", () => { if (T) drawTimeline(); setPage($("nav").querySelector(".on").dataset.pg); });
