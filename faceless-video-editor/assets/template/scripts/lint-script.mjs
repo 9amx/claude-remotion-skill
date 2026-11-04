@@ -23,7 +23,8 @@ function graphicProblems(g) {
   if (g.type === "timeline" && !(Array.isArray(g.events) && g.events.length >= 2 && g.events.every((e) => Array.isArray(e) && e.length === 2))) out.push('timeline needs "events": [["1969", "what happened"], ...] with 2+ rows');
   if (g.type === "timeline" && g.events?.length > 6) out.push("timeline: more than 6 events won't read on a phone");
   if (g.type === "quote" && !g.text) out.push('quote needs "text" (and "by")');
-  if (g.type === "map") {
+  if (g.type === "map" || g.type === "globe") {
+    if (g.type === "globe" && !g.places?.length) out.push('globe needs "places" (one place, or a route: origin first)');
     if (!(g.places?.length || g.countries?.length)) out.push('map needs "places" and/or "countries"');
     for (const c of g.countries ?? []) if (COUNTRIES && !COUNTRIES.includes(c.toLowerCase())) out.push(`map: no country called "${c}" (names are English, e.g. "United States of America")`);
     for (const p of g.places ?? []) if (typeof p === "object" && !(num(p.lat) && num(p.lon))) out.push(`map place ${JSON.stringify(p)} needs lat and lon (or give just the name to geocode it)`);
@@ -41,7 +42,7 @@ function graphicProblems(g) {
     else if (!fs.existsSync(path.join(PUBLIC, g.image))) out.push(`ui image ${g.image} is not in public/ yet`);
     if (g.highlight && !(Array.isArray(g.highlight) && g.highlight.length === 4 && g.highlight.every(num))) out.push('ui "highlight" is [x, y, width, height] in % of the screenshot');
   }
-  if (["counter", "bars", "map"].includes(g.type) && !g.source) out.push(`${g.type}: add "source" - a number or map on screen should say where it comes from`);
+  if (["counter", "bars", "map", "globe"].includes(g.type) && !g.source) out.push(`${g.type}: add "source" - a number or map on screen should say where it comes from`);
   return out;
 }
 

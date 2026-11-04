@@ -1,106 +1,124 @@
 ---
 name: daily-shorts
-description: Make one finished YouTube Short a day, unattended - research a recent real event (plane crashes, missing aircraft, aviation incidents, natural disasters; USA first, then Europe and other top-tier countries), verify the facts, write the script, voice it with ElevenLabs v3 (expressive audio tags), edit it with the faceless-video-editor skill (9:16, maps, motion graphics, captions), pass a hard quality gate, and upload it. Use when the nightly runner starts it ("daily-shorts run"), or when the user asks for today's short / a short about a recent incident.
+description: Make one finished YouTube Short a day, unattended - research a recent real event (plane crashes, missing aircraft, aviation incidents, natural disasters; USA first, then Europe and other top-tier countries), pick the topic with the most viewer demand, verify every fact against sources that are checked automatically, write a high-retention script, voice it with ElevenLabs v3 (expressive audio tags), edit it with the faceless-video-editor skill (9:16, 3D globe, maps, motion graphics, captions), pass fact, voice, packaging and quality gates, and upload it. Use when the nightly runner starts it ("daily-shorts run"), or when the user asks for today's short / a short about a recent incident.
 ---
 
 # Daily Shorts
 
-One Short per run, made to the standard of a top documentary Shorts channel. Quality beats
-speed and cost: research thoroughly, check every fact, and do not ship anything that fails a check.
+One Short per run, made to the standard of a top documentary Shorts channel, for two goals that
+do not trade off: **every fact correct**, and **as many views and subscribers as possible**.
+Quality beats speed and cost. Nothing ships that fails a gate.
 
 The editing itself is the **faceless-video-editor** skill (installed next to this one). Read its
-SKILL.md and references when you build the project; this skill decides *what* to make and the
-extra rules for real-world tragedies, then runs that pipeline.
+SKILL.md and references when you build the project. This skill decides what to make, how to
+package it for Shorts, and adds four gates. `<skill>` below means this skill's folder
+(the "Base directory" you were given); run its scripts from the project folder:
+`node <skill>/scripts/factcheck.mjs`.
 
-## Inputs (set by `scripts/run-daily.ps1`, or ask when run by hand)
+## Inputs
 
 | What | Where |
 |---|---|
 | Project folder for today | the working directory (e.g. `D:\Faceless\daily\2026-11-04`), a copy of the editor template with `node_modules` linked |
-| History of past topics | `../history.json` (one level up). Create it if missing: `{"videos": []}` |
-| Mode | env `DAILY_MODE`: `approval` (default: upload **private**, the owner publishes) or `auto` (upload **public**) |
-| Voice | env `ELEVENLABS_VOICE_ID` (and `ELEVENLABS_API_KEY`) |
-| Footage keys | env `PIXABAY_API_KEY`, `COVERR_API_KEY`, `DVIDS_API_KEY` (whatever is set) |
-| Music | `../music/` - tracks the owner downloaded from their own Epidemic Sound subscription |
+| History and results | `../history.json` (every Short made), `../performance.json` (what got views; refreshed by `yt-stats.mjs`) |
+| Mode | env `DAILY_MODE`: `approval` (default: upload **private**, the owner publishes) or `auto` (public at the next US peak slot) |
+| Voice | env `ELEVENLABS_VOICE_ID`, `ELEVENLABS_API_KEY` |
+| Footage keys | env `PIXABAY_API_KEY`, `COVERR_API_KEY`, `DVIDS_API_KEY` |
+| Music | `../music/` (the owner's own Epidemic Sound downloads) |
 
-Never print, log or commit API keys or tokens.
+Never print, log or commit keys or tokens.
 
-## The run, step by step
+## Resume first
+The run may be a retry (usage limit, crash). If `build/daily-log.md` exists, read it and
+`build/` and **continue from where it stopped** - same topic, keep finished work (facts, voice,
+footage). Never start a second topic in the same folder. If `build/daily-result.json` says
+uploaded or held, stop.
 
-Work through these in order. Write progress notes to `build/daily-log.md` as you go (what you
-picked and why, sources, every check and its result) - the owner reads it in the morning.
+## Step by step
+Log every decision and every gate result in `build/daily-log.md` as you go.
 
-### 1. Find candidate topics (research)
-Read `references/research.md`. Search the web for events from the **last 14 days** first, then
-notable anniversaries ("on this day") and unresolved historical cases if nothing recent fits.
-Collect 5-8 candidates. For each: what happened, where, when, official sources, what visuals
-exist that we may legally use, and why a viewer would stop scrolling.
+### 1. Learn from the channel
+`node <skill>/scripts/yt-stats.mjs` (the runner already did it; run it if `../performance.json`
+is missing or older than a day). Read `../performance.json`: which formats and categories get the
+most views at 72 h. Lean towards what works, but keep testing: at least 1 day in 4 tries a
+different format or category.
 
-Skip any topic already in `history.json` (same event, even with a different angle) and anything
-covered in the last 30 days that is too similar.
+### 2. Find candidates
+`references/research.md`. 6-10 candidate events, newest first (last 14 days), then strong
+anniversaries this week, then unresolved classics. For each: what happened, official sources,
+usable visuals, and 1-2 search phrases people would type (`"delta flight 2210"`,
+`"tampa tornado"`). Drop anything already in `../history.json`.
 
-### 2. Pick one and verify it
-Score candidates with the table in `references/research.md`. Pick the best. Then verify every
-fact you will say with **at least two independent reliable sources** (official investigators,
-agencies, or two major outlets). Write `build/research.md`: the facts, each with its sources and
-links, plus what is *not* known yet. If the key facts cannot be confirmed, pick the next topic.
+### 3. Measure demand and pick
+Save the candidates to `build/candidates.json` (`[{"id","title","query","category","date"}]`) and run
+`node <skill>/scripts/yt-demand.mjs --file=build/candidates.json`. Score each candidate with the
+table in `references/research.md`, which combines demand, crowding, freshness, verifiability,
+visuals and harm. Pick the best. Then pick the **format** from `references/formats.md` (rotate:
+not the same format 2 days in a row; follow `performance.json`). Write the choice and the scores
+into the log.
 
-### 3. Write the script
-Read `references/script.md`. 40-55 seconds spoken (about 110-140 words), one idea, a hook in
-the first line, a payoff at the end. No speculation about causes or blame that investigators
-have not stated. Respectful about victims. Then review your own script as a strict editor:
-every claim checked against `build/research.md`, numbers and names exact, nothing filler.
-Rewrite until it passes.
+### 4. Verify (gate 1: facts)
+Research the picked event properly. Write `build/facts.json` (format in the header of
+`scripts/factcheck.mjs`): every fact you will say or show, each with 2+ sources on different
+sites, each source with the **exact sentence copied from the page** (`quote`), the official
+investigators' or agencies' pages first; `places` with exact coordinates.
+Then: `node <skill>/scripts/factcheck.mjs` - it opens every page, checks the quotes are really
+there, and later checks that every number and name in the video is backed. Fix until PASS.
+If key facts cannot be verified, go back to step 3 and take the next candidate.
 
-### 4. Build the project
-Use the faceless-video-editor workflow with these settings in `project.json`:
-- `"format": "shorts"`, `"editStyle": "viral"` for breaking incidents or `"story"` for history,
-  `"style": "documentary"` (or `"bold"` when the story is fast and numeric).
-- `"voice": { "provider": "elevenlabs", "model": "eleven_v3" }` - the voice ID comes from the
-  environment. Put ElevenLabs v3 audio tags in the scene text where the delivery should change
-  (see `references/script.md`); they are spoken as delivery only, captions never show them.
-- Captions on (Shorts default). Text pops only for numbers, names and dates that matter.
-- Visual plan from `references/visuals.md`: a map with the route or location, a timeline or
-  counter where it explains, archival/official photos and footage, stock B-roll for mood.
-- Music: pick a track from `../music/` that fits (tense or calm), copy it into `public/music/`
-  and set `"music": { "file": "music/<name>.mp3", "volume": 0.1 }` (faceless-video-editor
-  `references/voice-and-audio.md`). Do not use the same track two days in a row (check history).
-  No tracks there: use `"music": { "mood": "tense" }` (built-in) and note it in the log.
-- `"youtube"`: title (under 60 characters, no clickbait lies), description with the sources list
-  from `build/research.md`, 5-10 tags, `"syntheticMedia": true` (AI voice), `"categoryId": 25`
-  (News & Politics) for news or `27` (Education) for history, and
-  `"privacy"`: `"private"` in approval mode, `"public"` in auto mode.
+### 5. Script
+`references/script.md` and the format's structure from `references/formats.md`. 110-140 words,
+under 55 seconds, hook of 14 words or fewer, a loop ending. Write ElevenLabs v3 audio tags where
+the delivery should change. Self-review as a strict editor against `build/facts.json`.
 
-Run the editor pipeline (`node scripts/auto.mjs`). Fix every lint and footage problem it reports.
+### 6. Build the project
+faceless-video-editor workflow, with:
+- `"format": "shorts"`, `"editStyle": "viral"` (breaking, by-the-numbers) or `"story"` (mystery,
+  minute-by-minute, on-this-day), `"style": "documentary"`, `"loop": true`, `"outroMs": 300`.
+- `"voice": { "provider": "elevenlabs", "model": "eleven_v3" }` (voice ID from the environment).
+- Visual plan from `references/visuals.md`: open on the **globe** graphic (route or place) or the
+  strongest real image; then official imagery, map/timeline/counter where it explains, stock for mood.
+- Music: a fitting track from `../music/` copied into `public/music/`, `"music": { "file": ..., "volume": 0.1 }`;
+  not the same track as yesterday. None there: `"music": { "mood": "tense" }`.
+- `"daily": { "format", "category", "topic" }` (for learning what works).
+- `"youtube"`: see `references/packaging.md` - title, description with "Sources:", tags,
+  hashtags incl. `shorts`, `"syntheticMedia": true`, `"categoryId": 25` (news) or `27` (history),
+  privacy `"private"` in approval mode; in auto mode `"privacy": "private"` with
+  `"publishAt"` = the output of `node <skill>/scripts/package-check.mjs --slot`.
 
-### 5. Review and polish (do this properly - it is the job)
-Follow the faceless-video-editor review gate, then read `references/qa.md` and go through all
-of it:
-- Look at **every tile** of `out/check/contact*.jpg`, `out/qa/hook.jpg` and `out/qa/sheet-*.jpg`.
-  Every shot must show what the voice says at that moment; no watermark, no unrelated or
-  disrespectful image, no wrong aircraft type, no wrong country on a map.
-- Read every caption against the script. Check names, numbers, flight numbers, places, dates.
-- `node scripts/qa.mjs` must PASS (black frames, frozen picture, dead air, clipping, loudness,
-  sync, length). If anything fails or looks weak: fix it, render again, check again. Repeat
-  until it is clean. Up to 5 rounds; if it is still not clean, do not upload.
+Run `node scripts/auto.mjs --no-render` first (lint, voice, footage, timeline).
 
-### 6. Upload and record
-- If QA passed and you are satisfied: `node scripts/youtube.mjs`. (First time on this machine
-  the owner signs in once with `node scripts/youtube.mjs --auth`; if there is no sign-in, stop
-  and say so - do not try to sign in unattended.)
-- Append to `../history.json`: date, topic, event date, title, video id/URL, privacy, sources.
-- Write `build/daily-result.json`: `{"status": "uploaded" | "held" | "failed", "title", "url",
-  "privacy", "reason", "qa": out/qa/report.json summary}`. "held" = finished but not uploaded
-  (a check failed, or nothing good enough to make today).
-- Finish with a short summary: topic, why it was chosen, title, link, anything the owner should
-  look at.
+### 7. Voice (gate 2)
+`node <skill>/scripts/voicecheck.mjs` - transcribes every scene and compares it with the script.
+On FAIL: re-voice those scenes (adjust the wording or add `"seed"` to `voice`, delete
+`build/vo/sNNN.json`, run `node scripts/auto.mjs --only=voice`, then `--from=broll`). Up to 3
+takes per scene; then rewrite the line.
+
+### 8. Render and review (gate 3: quality)
+`node scripts/auto.mjs --from=render` (renders, masters, checks, runs `qa.mjs`). Then do all of
+`references/qa.md`: look at every tile of `out/qa/hook.jpg`, `out/qa/sheet-*.jpg` and
+`out/check/contact*.jpg`; fix and re-render until clean (up to 5 rounds).
+
+### 9. Package (gate 4) and upload
+`node <skill>/scripts/factcheck.mjs` again (captions, titles, graphics are final now) and
+`node <skill>/scripts/package-check.mjs`. Both must PASS; fix every warning you can.
+Then `node scripts/youtube.mjs`. (No sign-in on this machine: stop with status "held" and the
+reason - never try to sign in unattended.)
+
+### 10. Record
+- Append to `../history.json` `videos`: `{ date, topic, eventDate, title, videoId, url, privacy,
+  format, category, query, sources: [urls], uploadedAt }`.
+- `build/daily-result.json`: `{ "status": "uploaded" | "held" | "failed", "title", "url", "privacy",
+  "reason", "gates": { "facts", "voice", "qa", "package" } }`. "held" = finished but not
+  uploaded; "failed" = could not finish (the runner retries).
+- Last message: topic and why, format, title, link, the gate results, anything to look at.
 
 ## Hard rules
-- No footage, photos or audio from TV channels, news sites or other YouTubers. Only sources in
-  the faceless-video-editor footage list and the public-domain sources in `references/visuals.md`.
-- Never show victims' bodies, injured people, or identifiable grieving families. No crash
-  "re-enactment" that pretends to be real footage; reconstructions are maps and diagrams.
-- Never state a cause, blame a person, or give a death toll that the official sources do not.
-  Say "investigators have not said why yet" when that is the truth.
-- If the voice, footage or upload service fails, stop with a clear message in
-  `build/daily-result.json`; never upload a half-finished video.
+- Only footage you may use: faceless-video-editor sources and the public-domain list in
+  `references/visuals.md`. Never TV or news footage, other channels' clips, or social posts.
+- Never show victims, bodies, injured or grieving people. Reconstructions are maps and diagrams,
+  never fake "real" footage.
+- Never state a cause, blame, or a casualty number the official sources do not. "Investigators
+  have not said why" is a fine line.
+- No tragedy bait in titles or text ("shocking", "horrific", "you won't believe").
+- A gate failing that cannot be fixed means status "held". An empty day is better than a wrong video.

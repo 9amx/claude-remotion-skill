@@ -14,6 +14,7 @@ export type GraphicSpec =
   | { type: "timeline"; events: [string, string][]; highlight?: number; title?: string; source?: string }
   | { type: "quote"; text: string; by?: string; source?: string }
   | { type: "map"; places: MapPlace[]; countries?: string[]; route?: boolean; title?: string; source?: string }
+  | { type: "globe"; places: MapPlace[]; countries?: string[]; route?: boolean; marker?: number; title?: string; source?: string }
   // Explainers: each item appears on its own words ("on"); build-timeline turns
   // that into `at` (frames from the shot's start) for every item.
   | { type: "list"; items: Item[]; title?: string; numbered?: boolean; at?: number[] }

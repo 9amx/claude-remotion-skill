@@ -1,12 +1,13 @@
 // Motion-graphics shots: facts drawn from data, so they are exactly right.
 // counter (a number), bars (a comparison), map (places, countries, a route),
+// globe (a 3D earth that flies in to the place, with a route and a moving plane),
 // timeline (dates), quote (someone's words); explainers for what footage can't
 // show: list, steps (a process), compare (two sides), statement (the key line),
 // ui (a screenshot in a browser / phone frame with a highlight). A beat in project.json:
 //   { "on": "3.5 million", "graphic": { "type": "counter", "value": 3500000, "label": "...", "source": "..." } }
 // Content stays in the safe zone above the captions; every entrance is a
 // spring with a stagger, idle elements breathe.
-import { geoCircle, geoInterpolate, geoMercator, geoNaturalEarth1, geoPath, type GeoProjection } from "d3-geo";
+import { geoCircle, geoDistance, geoGraticule10, geoInterpolate, geoMercator, geoNaturalEarth1, geoOrthographic, geoPath, type GeoProjection } from "d3-geo";
 import { useEffect, useMemo, useState } from "react";
 import { AbsoluteFill, Img, cancelRender, continueRender, delayRender, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { feature } from "topojson-client";
@@ -325,6 +326,120 @@ const MapG: React.FC<{ g: Extract<GraphicSpec, { type: "map" }>; style: Style }>
 };
 
 
+// ---------- globe ----------
+// A 3D earth: it turns in from the side, pushes in on the place(s), draws the route
+// and flies a plane along it; the last place (or "marker") pulses. Aviation and
+// disaster stories open well on this.
+const PLANE = "M0,-11 L1.7,-3.4 L10,1.6 L10,3.4 L1.7,1.3 L1.3,7 L3.9,9 L3.9,10.3 L0,9.3 L-3.9,10.3 L-3.9,9 L-1.3,7 L-1.7,1.3 L-10,3.4 L-10,1.6 L-1.7,-3.4 Z";
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+const GlobeG: React.FC<{ g: Extract<GraphicSpec, { type: "globe" }>; style: Style }> = ({ g, style }) => {
+  const frame = useCurrentFrame();
+  const { fps, width, height } = useVideoConfig();
+  const z = useZone();
+  const geo = useCountries();
+  const top = z.y + (g.title ? z.unit * 0.1 : 0);
+  const box = { x: z.x, y: top, w: z.w, h: z.h - (top - z.y) };
+  const cx = box.x + box.w / 2, cy = box.y + box.h / 2;
+  const R0 = Math.min(box.w, box.h) * 0.44;
+  const pts = g.places.map((p) => [p.lon, p.lat] as [number, number]);
+  const first = pts[0], last = pts[pts.length - 1];
+  const focus: [number, number] = pts.length > 1 ? (geoInterpolate(first, last)(0.5) as [number, number]) : first;
+  const span = pts.length > 1 ? Math.max(...pts.slice(1).map((p, i) => geoDistance(pts[i], p))) : 0;
+  // Zoom so the route fills about 60% of the frame (a single place: a regional view).
+  const zoomTo = span > 0 ? Math.min(7, Math.max(1.1, (0.62 * Math.min(box.w, box.h)) / (span * R0))) : 3.4;
+
+  const fly = spring({ frame, fps, config: { damping: 200, stiffness: 14, mass: 1.2 } });
+  const push = interpolate(frame, [fps * 0.9, fps * 3.2], [0, 1], { ...clamp, easing: ease.inOut });
+  const drift = 1 + Math.max(0, frame - fps * 3.2) * 0.0009;
+  const k = lerp(1, zoomTo, push) * drift;
+  const rotate: [number, number, number] = [lerp(-focus[0] + 80, -focus[0], fly), lerp(-focus[1] * 0.4 - 12, -focus[1], fly), 0];
+  const projection = geoOrthographic().translate([cx, cy]).scale(R0 * k).rotate(rotate).clipAngle(90);
+  const path = geoPath(projection);
+  const center: [number, number] = [-rotate[0], -rotate[1]];
+  const visible = (p: [number, number]) => geoDistance(p, center) < Math.PI / 2 - 0.02;
+
+  const highlight = new Set((g.countries ?? []).map((c) => c.toLowerCase()));
+  const lit = spring({ frame: frame - fps * 1.2, fps, config: springs.smooth });
+  const routeP = g.route ? interpolate(frame, [fps * 1.6, fps * 3.6], [0, 1], { ...clamp, easing: ease.inOut }) : 0;
+  const arcs = g.route ? pts.slice(1).map((p, i) => geoInterpolate(pts[i], p)) : [];
+  const legs = arcs.length;
+  const legOf = (t: number) => Math.min(legs - 1, Math.floor(t * legs));
+  const plane = (() => {
+    if (!legs || routeP <= 0 || routeP >= 1) return null;
+    const li = legOf(routeP), lt = routeP * legs - li;
+    const here = arcs[li](lt) as [number, number], ahead = arcs[li](Math.min(1, lt + 0.02)) as [number, number];
+    if (!visible(here)) return null;
+    const a = projection(here), b = projection(ahead);
+    if (!a || !b) return null;
+    return { x: a[0], y: a[1], deg: (Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI + 90 };
+  })();
+  const labels = interpolate(frame, [fps * 2.4, fps * 3], [0, 1], clamp);
+  const marker = g.marker ?? g.places.length - 1;
+  const R = R0 * k;
+  return (
+    <Frame style={style} title={g.title} source={g.source}>
+      <svg width={width} height={height} style={{ position: "absolute", left: 0, top: 0, overflow: "visible" }}>
+        <defs>
+          <clipPath id="globe-zone"><rect x={box.x} y={box.y} width={box.w} height={box.h} rx={z.unit * 0.02} /></clipPath>
+          <radialGradient id="globe-ocean" cx="38%" cy="32%" r="75%">
+            <stop offset="0%" stopColor={style.colors.bgAlt} />
+            <stop offset="100%" stopColor={style.colors.bg} />
+          </radialGradient>
+          <radialGradient id="globe-air" cx="50%" cy="50%" r="50%">
+            <stop offset="86%" stopColor={style.colors.primary} stopOpacity={0.35} />
+            <stop offset="100%" stopColor={style.colors.primary} stopOpacity={0} />
+          </radialGradient>
+          <radialGradient id="globe-shine" cx="34%" cy="28%" r="70%">
+            <stop offset="0%" stopColor="#ffffff" stopOpacity={0.16} />
+            <stop offset="55%" stopColor="#ffffff" stopOpacity={0} />
+            <stop offset="100%" stopColor="#000000" stopOpacity={0.45} />
+          </radialGradient>
+        </defs>
+        <g clipPath="url(#globe-zone)">
+          <circle cx={cx} cy={cy} r={R * 1.09} fill="url(#globe-air)" />
+          <circle cx={cx} cy={cy} r={R} fill="url(#globe-ocean)" />
+          <path d={path(geoGraticule10()) ?? ""} fill="none" stroke={style.colors.text} strokeOpacity={0.08} strokeWidth={1} />
+          {geo ? geo.features.map((f, i) => {
+            const on = highlight.has(f.properties.name.toLowerCase());
+            return <path key={i} d={path(f as never) ?? ""} fill={on ? style.colors.primary : style.colors.text} fillOpacity={on ? 0.18 + 0.5 * lit : 0.16}
+              stroke={style.colors.text} strokeOpacity={0.3} strokeWidth={z.unit * 0.001} />;
+          }) : null}
+          {arcs.map((arc, i) => {
+            const d = path({ type: "LineString", coordinates: Array.from({ length: 96 }, (_, s) => arc(s / 95)) } as never) ?? "";
+            const p = Math.max(0, Math.min(1, routeP * legs - i));
+            return <path key={`r${i}`} d={d} fill="none" stroke={style.colors.primary} strokeWidth={z.unit * 0.006} strokeLinecap="round"
+              pathLength={1} strokeDasharray="1" strokeDashoffset={1 - p} />;
+          })}
+          <circle cx={cx} cy={cy} r={R} fill="url(#globe-shine)" />
+          {g.places.map((p, i) => {
+            if (!visible([p.lon, p.lat])) return null;
+            const xy = projection([p.lon, p.lat]);
+            if (!xy) return null;
+            const s = spring({ frame: frame - fps * 1.4 - i * 5, fps, config: springs.snappy });
+            const r = z.unit * 0.013;
+            const ring = ((frame - i * 7) % 36) / 36;
+            const hot = i === marker;
+            return (
+              <g key={`p${i}`} transform={`translate(${xy[0]} ${xy[1]})`} opacity={s}>
+                {hot ? <circle r={r * (1 + ring * 3)} fill="none" stroke={style.colors.primary} strokeWidth={3} opacity={(1 - ring) * 0.9} /> : null}
+                <circle r={r * (hot ? 1.2 : 0.85) * s} fill={hot ? style.colors.primary : style.colors.text} stroke={style.colors.outline} strokeWidth={2} />
+                <text x={0} y={-r * 2.2} textAnchor="middle" fill={style.colors.text} fontFamily={style.fonts.caption} fontWeight={style.captionWeight}
+                  fontSize={z.unit * 0.036} stroke={style.colors.outline} strokeWidth={z.unit * 0.008} paintOrder="stroke" opacity={labels}>{p.label ?? p.name}</text>
+              </g>
+            );
+          })}
+          {plane ? (
+            <g transform={`translate(${plane.x} ${plane.y}) rotate(${plane.deg}) scale(${z.unit * 0.0032})`}>
+              <path d={PLANE} fill={style.colors.text} stroke={style.colors.outline} strokeWidth={1.2} />
+            </g>
+          ) : null}
+        </g>
+      </svg>
+    </Frame>
+  );
+};
+
+
 // ---------- explainers ----------
 // Each item lands on its own words: `at` holds frames from the shot's start
 // (build-timeline fills it from the items' "on" phrases, or spreads them evenly).
@@ -618,6 +733,7 @@ export const Graphic: React.FC<{ graphic: GraphicSpec; style: Style }> = ({ grap
     case "timeline": return <TimelineG g={graphic} style={style} />;
     case "quote": return <Quote g={graphic} style={style} />;
     case "map": return <MapG g={graphic} style={style} />;
+    case "globe": return <GlobeG g={graphic} style={style} />;
     case "list": return <ListG g={graphic} style={style} />;
     case "steps": return <StepsG g={graphic} style={style} />;
     case "compare": return <CompareG g={graphic} style={style} />;

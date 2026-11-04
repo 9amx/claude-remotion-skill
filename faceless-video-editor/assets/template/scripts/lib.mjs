@@ -154,7 +154,7 @@ export const sceneId = (i) => `s${String(i + 1).padStart(3, "0")}`;
 // to the first word they share with the line (in order), else spread evenly.
 export const brollEntries = (scene) =>
   (scene.broll ?? []).map((e) => (typeof e === "string" ? { kw: [e] } : { ...e, kw: [].concat(e.kw ?? []).filter(Boolean) }));
-export const GRAPHIC_TYPES = ["counter", "bars", "timeline", "quote", "map", "list", "steps", "compare", "statement", "ui"];
+export const GRAPHIC_TYPES = ["counter", "bars", "timeline", "quote", "map", "globe", "list", "steps", "compare", "statement", "ui"];
 export const entryKeywords = (scene) => brollEntries(scene).flatMap((e) => e.kw);
 
 export const normWord = (w) => String(w).toLowerCase().replace(/[^\p{L}\p{M}\p{N}]/gu, "");

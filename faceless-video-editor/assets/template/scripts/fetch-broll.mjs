@@ -503,7 +503,7 @@ const countryNames = () => {
 };
 async function resolveGraphic(g, label) {
   if (!GRAPHIC_TYPES.includes(g.type)) fail(`${label}: graphic type "${g.type}" - use ${GRAPHIC_TYPES.join(", ")}`);
-  if (g.type !== "map") return g;
+  if (g.type !== "map" && g.type !== "globe") return g;
   const names = countryNames();
   for (const c of g.countries ?? []) {
     if (!names.some((n) => n.toLowerCase() === c.toLowerCase())) {
@@ -518,6 +518,7 @@ async function resolveGraphic(g, label) {
     places.push({ name: name.split(",")[0], lat: at.lat, lon: at.lon, ...(p.label ? { label: p.label } : {}) });
   }
   if (!places.length && !(g.countries ?? []).length) fail(`${label}: a map needs "places" or "countries"`);
+  if (g.type === "globe" && !places.length) fail(`${label}: a globe needs at least one place in "places"`);
   return { ...g, places };
 }
 

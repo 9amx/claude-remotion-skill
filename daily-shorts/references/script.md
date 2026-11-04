@@ -12,9 +12,16 @@
 5. **Payoff (last line):** the takeaway or the unanswered question that makes people comment.
    It should loop well into the hook if possible.
 
+## Retention techniques
+- Open on the turn, not the setup ("The tower called twice. No answer." beats "On Sunday a plane took off").
+- An open loop by second 5: a question the video promises to answer ("So why did nobody see it?").
+- Specifics over adjectives: "1,200 feet in 9 seconds" beats "a terrifying drop".
+- Pattern breaks: a short line after long ones, a pause tag before the key fact.
+- The last line returns to the first image or question so the replay feels natural.
+
 ## Writing rules
 - 110-140 words. Short sentences. One fact per sentence. Spoken English, not written.
-- Exact names, flight numbers, aircraft types, places, dates - matching `build/research.md`.
+- Exact names, flight numbers, aircraft types, places, dates - matching `build/facts.json`.
 - Numbers as they should be read ("two thousand feet" only if the voice misreads "2,000 ft").
 - No speculation, no blame, no gore, no "shocking" adjectives in place of facts.
 - Respect: mention people as people ("the two pilots", "a family of four"), never as spectacle.
@@ -32,7 +39,7 @@ Tags never appear in captions and do not count as words.
 
 ## Self-review checklist (rewrite until all are yes)
 - Would someone keep watching after the first line?
-- Is every claim in `build/research.md` with two sources?
+- Is every claim in `build/facts.json` with two sources?
 - Is there anything a family member of a victim would find disrespectful?
 - Does it fit in 55 seconds at a natural pace (about 2.5 words per second)?
 - Does the last line pay off the hook?

@@ -112,6 +112,12 @@ so it is exactly right, and it counts as a pattern interrupt:
   OpenStreetMap and cached; the log says what each resolved to, check it) or
   `{ "name", "lat", "lon", "label" }`, `route: true` draws a great-circle line
   through the places in order. The map frames what you name.
+- **globe**: a 3D earth that turns in from the side, pushes in on the `places`,
+  draws the `route` (great circle, origin first) and flies a plane along it; the
+  last place (or `marker`: index) pulses. `countries` light up. Same place format
+  as map; give exact `lat`/`lon` for airports and small towns. The fly-in takes
+  about 3.5 s, so give it a beat of 3-5 s. Best opener for flights, storms, quakes:
+  `{ "on": "Flight 2210", "graphic": { "type": "globe", "route": true, "places": [{ "name": "Atlanta", "lat": 33.64, "lon": -84.43 }, { "name": "Paris", "lat": 49.0, "lon": 2.55 }], "source": "FAA" } }`
 - **timeline**: 2-6 `[date, what]` rows, `highlight`.
 - **quote**: `text`, `by` (who, where, when).
 - **list**: 2-6 `items` (strings, or `{ "text", "on", "icon" }`), `numbered` (default true).

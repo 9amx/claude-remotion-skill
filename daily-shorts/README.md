@@ -50,15 +50,24 @@ node scripts/youtube.mjs --auth
 ```
 Until Google approves your API project (the "audit"), YouTube keeps API uploads private. You can still publish them by hand.
 
-### 4. Music (optional, recommended)
+### 4. Phone notifications (optional, recommended)
+1. Install the free **ntfy** app (Android / iPhone).
+2. In the app, subscribe to a topic with a long random name nobody can guess, for example `faceless-k7q2x9m4p1`.
+3. On the laptop:
+   ```powershell
+   setx DAILY_NOTIFY_URL "https://ntfy.sh/faceless-k7q2x9m4p1"
+   ```
+You get a push for every finished Short (with its link), every held Short (with the reason), and every failed or paused run.
+
+### 5. Music (optional, recommended)
 Download 20–30 tracks from your Epidemic Sound subscription (dark, tense, documentary) into `D:\Faceless\daily\music\`. The run picks a fitting track each night. If the folder is empty, it uses a built-in music bed.
 
-### 5. Turn on the nightly run
+### 6. Turn on the nightly run
 ```powershell
 powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.claude\skills\daily-shorts\scripts\install-task.ps1" -Time 02:30
 ```
 
-### 6. Test it now
+### 7. Test it now
 ```powershell
 Start-ScheduledTask -TaskName "Faceless Daily Shorts"
 ```
@@ -67,6 +76,32 @@ Follow it in either place:
 - the Studio website: the project appears with a live progress screen.
 
 A run takes about 1–3 hours.
+
+## How each Short is made, and its gates
+1. **Learn:** fetches the views of past Shorts. Formats and topics that perform get picked more often.
+2. **Find and measure:** 6–10 candidate events. YouTube search shows how much people watch each one right now (demand) and how crowded it is.
+3. **Verify (gate 1, `factcheck.mjs`):** every fact needs two sources on two different sites, and each source must carry the exact sentence. The script opens every page and fails on:
+   - a dead link,
+   - a misquote,
+   - a number or name in the voice, captions, graphics or title that no fact backs,
+   - a map/globe place that doesn't match the verified coordinates.
+
+   Causes need an official source. Casualty figures need to be less than 24 hours old.
+4. **Script:** one of six formats, rotated: breaking, minute-by-minute, mystery, what-went-wrong, on-this-day, by-the-numbers. It has a hook of 14 words or fewer and a loop ending.
+5. **Voice (gate 2, `voicecheck.mjs`):** every scene is transcribed again and compared with the script. A skipped, repeated or garbled phrase or a missing number means that scene is re-voiced.
+6. **Edit:** opens on a 3D globe that flies in to the place and draws the route with a moving plane. Then official imagery, maps, timelines, counters and captions.
+7. **Quality (gate 3, `qa.mjs`):** checks for black frames, a frozen picture, dead air, clipping, loudness (−14 LUFS), audio/picture sync and length. Claude also looks at every second of the video. Fix and re-render, up to 5 rounds.
+8. **Packaging (gate 4, `package-check.mjs`):**
+   - hook and length,
+   - a loop,
+   - an honest searchable title with no bait,
+   - sources in the description,
+   - hashtags,
+   - the AI-voice disclosure,
+   - privacy that matches the mode,
+   - the publish time: 12:00 New York time in auto mode. Change it with `setx DAILY_PUBLISH_ET "15:00"`.
+
+If a gate fails and can't be fixed, the Short is **held**, not uploaded, and you get the reason.
 
 ## Every morning
 For each day, look in `D:\Faceless\daily\<date>\`:
@@ -85,6 +120,9 @@ In approval mode, open the YouTube Studio app, watch the new private Short, then
 - Change the time: run `install-task.ps1` again with a different `-Time`.
 
 ## Limits
-- **Claude Pro:** the nightly run shares your usage limit with everything else you do in Claude. If the limit runs out mid-run, the task retries up to 3 times, 2 hours apart.
-- **3D:** routes and locations are 2D animated maps. Full 3D aircraft animation is not included yet.
+- **Claude Pro:** the nightly run shares your usage limit with everything else you do in Claude. If the limit runs out mid-run, the task retries up to 3 times, 2 hours apart, and continues where it stopped.
+- **3D:** the globe opener is a 3D earth with a flying plane. 3D aircraft models are not included.
+- **Accuracy:** the gates catch dead links, misquotes, unbacked numbers and names, voice mistakes and wrong places. They cannot judge whether a source itself is wrong. That is why agencies come first, and why approval mode is the default.
+- **Views:** demand checks, format rotation and the learning loop raise the odds. Nobody can promise views. Expect the first 2–4 weeks to be a test period while the channel builds its audience.
+- **YouTube API audit:** until Google approves your API project, every upload stays private. Publish by hand, or apply for the audit in Google Cloud. The audit is free and takes a few weeks.
 - **Footage:** only free and public-domain sources (NTSB, FAA, NOAA, NASA, USGS, FEMA, DVIDS, Wikimedia, Pixabay, Coverr). Never news-channel footage.

@@ -1,13 +1,15 @@
 # Visuals for aviation and disaster Shorts
 
-Vertical 1080x1920. Something moves on screen every 1.5-3 seconds. The first frame already shows
+Vertical 1080x1920. Something moves on screen every 1.5-3 seconds. Use the same look every day
+(documentary style, the globe opener, the same caption style) so viewers recognise the channel. The first frame already shows
 the subject (a plane, the storm, the map) - never a black or title-only opening.
 
 ## The visual plan (map it to the script before searching footage)
 | Script moment | Best visual |
 |---|---|
-| Where it happened | `map` graphic with the place(s); give exact `lat`/`lon` for airports and small towns |
-| A flight's route | `map` with `"route": true` from origin to where it ended (exact coordinates) |
+| The opening (most stories) | `globe` graphic: the earth turns in and flies to the place; with `"route": true` it draws the flight path and flies a plane along it; the last place pulses |
+| Where it happened (later) | `map` graphic with the place(s) and highlighted country/state |
+| A flight's route | `globe` with `"route": true` (origin first, then where it ended), exact coordinates from `facts.json` |
 | Times, altitudes, counts | `counter` or `timeline` graphic (from official figures) |
 | The aircraft | stock or Wikimedia photo of the **same type and, if possible, operator livery**; never another type |
 | The investigation | official photos (NTSB/FAA/agency), investigators at work, documents |

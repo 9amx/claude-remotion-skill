@@ -12,7 +12,8 @@
       (for example when the Claude usage limit is reached)
 
   Needs (set once with setx, see README): ELEVENLABS_API_KEY, ELEVENLABS_VOICE_ID, footage keys;
-  optional DAILY_MODE (approval | auto), DAILY_ROOT, REMOTE_URL + REMOTE_AGENT_TOKEN (Studio).
+  optional DAILY_MODE (approval | auto), DAILY_ROOT, REMOTE_URL + REMOTE_AGENT_TOKEN (Studio),
+  DAILY_NOTIFY_URL (an ntfy.sh topic URL: a push to your phone when a run ends).
 #>
 param(
   [string]$Root = $(if ($env:DAILY_ROOT) { $env:DAILY_ROOT } else { "D:\Faceless\daily" }),
@@ -33,6 +34,16 @@ function Log([string]$msg) {
   $line = "{0} {1}" -f (Get-Date -Format "HH:mm:ss"), $msg
   Add-Content -Path $log -Value $line
   Write-Host $line
+}
+
+# Push to the phone (ntfy app) when DAILY_NOTIFY_URL is set; never fails the run.
+function Notify([string]$title, [string]$msg, [string]$tags = "clapper") {
+  if (-not $env:DAILY_NOTIFY_URL) { return }
+  $title = $title -replace '[^\x20-\x7E]', ''  # HTTP headers must be plain ASCII
+  try {
+    Invoke-RestMethod -Method Post -Uri $env:DAILY_NOTIFY_URL -Body ([Text.Encoding]::UTF8.GetBytes($msg)) `
+      -Headers @{ Title = $title; Tags = $tags } -TimeoutSec 20 | Out-Null
+  } catch { Log "notify failed: $($_.Exception.Message)" }
 }
 
 # Keep the laptop awake while this runs (released when the process ends).
@@ -57,6 +68,14 @@ function Invoke-Daily {
   if (-not $Claude) { $Claude = Join-Path $env:USERPROFILE ".local\bin\claude.exe" }
   if (-not (Test-Path $Claude)) { throw "Claude Code not found ($Claude)" }
   if (-not $env:ELEVENLABS_API_KEY) { throw "ELEVENLABS_API_KEY is not set (setx ELEVENLABS_API_KEY ...)" }
+  if (-not $env:ELEVENLABS_VOICE_ID) { Log "WARNING: ELEVENLABS_VOICE_ID is not set - the default ElevenLabs voice will be used" }
+  if (-not (Get-Command node -ErrorAction SilentlyContinue)) { throw "Node.js is not installed or not on PATH" }
+  $ytDir = Join-Path $env:APPDATA "faceless-video"
+  if (-not (Get-ChildItem -Path $ytDir -Filter "youtube-token-*.json" -ErrorAction SilentlyContinue)) {
+    Log "WARNING: no YouTube sign-in found in $ytDir - the Short will be made but not uploaded (run: node scripts/youtube.mjs --auth once)"
+  }
+  $drive = (Get-Item $Root).PSDrive
+  if ($drive -and $drive.Free -lt 10GB) { throw ("only {0:N1} GB free on {1}: - free up at least 10 GB" -f ($drive.Free / 1GB), $drive.Name) }
 
   # Already done today?
   $resultFile = Join-Path $day "build\daily-result.json"
@@ -104,10 +123,21 @@ function Invoke-Daily {
   if (-not (Test-Path (Join-Path $Root "history.json"))) { Set-Content -Path (Join-Path $Root "history.json") -Value '{ "videos": [] }' }
   Log "Project folder: $day"
 
+  # What worked so far (views per format/category) - read by the skill when it picks the topic.
+  $daily = Join-Path $skills "daily-shorts\scripts"
+  Push-Location $day
+  $ErrorActionPreference = "Continue"
+  & node (Join-Path $daily "yt-stats.mjs") 2>&1 | ForEach-Object { Add-Content -Path $log -Value "$_" }
+  $ErrorActionPreference = "Stop"
+  Pop-Location
+
   # Claude, unattended.
   $mode = if ($env:DAILY_MODE) { $env:DAILY_MODE } else { "approval" }
+  $retry = Test-Path (Join-Path $day "build\daily-log.md")
+  $resumeLine = if ($retry) { "This is a RETRY: build/daily-log.md exists. Continue from where it stopped, same topic, keep finished work." } else { "" }
   $prompt = @"
 Use the daily-shorts skill to make today's YouTube Short in this folder ($day). Mode: $mode.
+$resumeLine
 This run is unattended: nobody will answer questions. Make the best decision yourself at every
 step and write each decision in build/daily-log.md. Take the time the skill asks for: research
 carefully, verify facts, and repeat the review until the quality checks pass.
@@ -127,9 +157,12 @@ End by writing build/daily-result.json.
   if (Test-Path $resultFile) {
     $r = Get-Content $resultFile -Raw | ConvertFrom-Json
     Log ("Result: {0} - {1} {2} {3}" -f $r.status, $r.title, $r.url, $r.reason)
-    if ($r.status -eq "failed") { $script:exitCode = 1 }
+    if ($r.status -eq "uploaded") { Notify "Short ready: $($r.title)" ("{0}`n{1}`n{2}" -f $r.privacy, $r.url, $(if ($mode -eq "approval") { "Watch it and publish it in YouTube Studio." } else { "Scheduled." })) "white_check_mark" }
+    elseif ($r.status -eq "held") { Notify "Short held (not uploaded)" ("{0}`n{1}" -f $r.title, $r.reason) "warning" }
+    else { Notify "Short failed - will retry" "$($r.reason)" "x"; $script:exitCode = 1 }
   } else {
     Log "No build\daily-result.json: the run stopped early (usage limit or an error). The task will retry."
+    Notify "Short run stopped early" "Usage limit or an error. The task retries in 2 hours. Log: $log" "hourglass"
     $script:exitCode = 1
   }
 }
@@ -138,6 +171,7 @@ try {
   Invoke-Daily
 } catch {
   Log "ERROR: $($_.Exception.Message)"
+  Notify "Short run error" "$($_.Exception.Message)" "x"
   $script:exitCode = 1
 } finally {
   Remove-Item -Path $lock -ErrorAction SilentlyContinue

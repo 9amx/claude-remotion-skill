@@ -19,16 +19,18 @@ historic crashes that changed safety rules, record storms), ideally tied to an a
 
 ## Scoring (pick the highest total; 1-5 each)
 
-| Criterion | 5 means |
-|---|---|
-| Fresh or timely | happened in the last few days, or a notable anniversary this week |
-| Verified | official investigators/agencies have published the key facts |
-| Story shape | a clear hook, a turn, and a payoff that fits under 55 seconds |
-| Visuals we may use | official photos/video, satellite imagery, maps, good stock B-roll |
-| Interest | a mystery, a near miss, a lesson, a number people will repeat |
-| Low harm | can be told without graphic detail or blaming anyone |
+| Criterion | 5 means | From |
+|---|---|---|
+| Demand | people are watching this topic now (median views/hour high) | `build/demand.json` demand |
+| Room | few strong Shorts on it yet, or we have a fresher angle | 6 - `build/demand.json` crowding |
+| Fresh or timely | happened in the last 72 h, or an anniversary this week | your research |
+| Verified | official investigators/agencies have published the key facts | your research |
+| Visuals we may use | official photos/video, satellite imagery, a clear route/place for the globe | your research |
+| Channel fit | category and format that do well in `../performance.json` | performance.json |
+| Low harm | can be told without graphic detail or blaming anyone | your judgement |
 
-Do not pick a topic below 3 on **Verified** or **Low harm**, whatever its total.
+Double-weight **Demand** and **Verified**. Do not pick a topic below 3 on **Verified** or **Low harm**,
+whatever its total. Demand 1 means nobody is searching it: pick it only if nothing else is good.
 
 ## Verification rules
 - Two independent reliable sources for every fact on screen or in the voice.
@@ -36,4 +38,8 @@ Do not pick a topic below 3 on **Verified** or **Low harm**, whatever its total.
 - Use exact figures from the source and the date they were true ("as of Tuesday, officials
   said 12 people were injured"). Death tolls change: say who reported it and when.
 - Note what is *unknown*. "The cause is under investigation" is a valid, honest line.
-- Record every source with its URL in `build/research.md`; the YouTube description lists them.
+- Every fact goes into `build/facts.json` with the exact supporting sentence copied from each page
+  (`quote`). `factcheck.mjs` opens the pages and fails on a misquote, a dead link, or a number or
+  name in the video that no fact backs. Pages it cannot open (paywalls, bot walls) do not count as
+  confirmed: add an agency page or a wire service (AP) that can be read.
+- The YouTube description lists the sources.

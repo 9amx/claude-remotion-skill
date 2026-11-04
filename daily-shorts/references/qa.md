@@ -1,6 +1,13 @@
 # Quality review before upload
 
-Run all of it. Fix, re-render and re-check until everything is clean (up to 5 rounds).
+Four gates must PASS before upload, each re-run after any change:
+1. `node <skill>/scripts/factcheck.mjs` - sources open, quotes are on the pages, every number and
+   name in voice, captions, graphics and title is backed, map/globe places match.
+2. `node <skill>/scripts/voicecheck.mjs` - the voice said exactly the script.
+3. `node scripts/qa.mjs` (runs inside `auto`) - picture and sound (below).
+4. `node <skill>/scripts/package-check.mjs` - hook, length, loop, title, description, disclosure, timing.
+
+Then the review by eye below. Run all of it. Fix, re-render and re-check until everything is clean (up to 5 rounds).
 Record each round in `build/daily-log.md`.
 
 ## 1. Automated gate: `node scripts/qa.mjs` must PASS
