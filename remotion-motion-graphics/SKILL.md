@@ -126,8 +126,9 @@ speech, see the captions section of `references/motion-patterns.md`.
   emoji against the extracted frames.
 - **No SFX assets is not a reason to ship silent.** Synthesize a minimal kit as
   16-bit WAVs from a Node script (noise-burst whoosh, pitch-drop pop, sine-thump
-  kick/bass, detuned-sine pad) into `public/sfx/` — see `examples/scripts/` in
-  the repo. Zero downloads, fully deterministic.
+  kick/bass, detuned-sine pad) into `public/sfx/` — the faceless-video-editor
+  skill's `assets/template/scripts/gen-audio.mjs` is a working synth to copy.
+  Zero downloads, fully deterministic.
 - Generating one giant component instead of themed, reusable pieces.
 - `durationInFrames` mismatch between Composition and scene content (dead air).
 - Forgetting `--overwrite` on re-renders, then inspecting the stale file.

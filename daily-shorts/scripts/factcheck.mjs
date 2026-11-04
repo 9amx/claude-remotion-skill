@@ -114,8 +114,19 @@ project.scenes.forEach((sc, i) => {
 add("YouTube title", project.youtube?.title ?? project.title);
 
 const COMMON = new Set("I A An The This That These Those It Its He She They We You Our Your His Her Their And But Or So Then Now Here There When Where Why How What Who Which If In On At By For From To Of With Without After Before During Inside Over Under Into Out Up Down Just Only Even Still Yet No Not Nobody Nothing Every Everyone Some Someone Today Tonight Yesterday Tomorrow Minutes Hours Seconds Later Moments Seconds".split(" "));
+// Text set in capitals ("ENGINE OUT", "9 PM") is styling, not a row of acronyms: there only
+// numbers and real acronyms are checked. A real acronym is 2-5 capitals that also appear in
+// capitals in the voice or in facts.json, or a well-known agency/aviation one.
+const KNOWN_ACRONYMS = new Set("NTSB FAA NOAA NWS NHC USGS FEMA NASA EASA AAIB ATSB TSB BEA ICAO ATC".split(" "));
+const capsSource = [
+  ...shown.filter((s) => s.where.endsWith(" voice")).map((s) => s.text),
+  facts.event, ...(facts.facts || []).flatMap((f) => [f.claim, ...(f.sources || []).map((s) => s.quote)]), ...(facts.places || []).map((p) => p.name),
+].join(" ");
+const capsSeen = new Set(capsSource.match(/\b[A-Z]{2,5}\b/g) || []);
+const isAllCaps = (t) => /\p{L}/u.test(t) && !/\p{Ll}/u.test(t);
 const missing = new Map();
 for (const { where, text } of shown) {
+  const allCaps = isAllCaps(text);
   const sentences = text.split(/(?<=[.!?:])\s+/);
   for (const sent of sentences) {
     const toks = sent.split(/\s+/).filter(Boolean);
@@ -127,6 +138,7 @@ for (const { where, text } of shown) {
       const isName = /^\p{Lu}/u.test(w) && k > 0 && !COMMON.has(w);
       const spelled = !isNum && /^(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion)$/i.test(w);
       if (!isNum && !isAcr && !isName && !spelled) return;
+      if (allCaps && !isNum && !spelled && !(/^[A-Z]{2,5}$/.test(w) && (capsSeen.has(w) || KNOWN_ACRONYMS.has(w)))) return;
       // Whole tokens only: "10" must not pass because "2210" is in the facts.
       const parts = isNum ? w.replace(/,(\d{3})/g, "$1").split(/\D+/).filter(Boolean) : words(w);
       const ok = parts.every((p) => factWords.has(p.toLowerCase()));
@@ -162,7 +174,7 @@ project.scenes.forEach((sc, i) => (sc.broll || []).forEach((b) => {
       const f = k.slice(5).replace(/^public\//, "");
       if (!media.some((m) => String(m.file).replace(/^public\//, "") === f)) bad(`scene ${i + 1}: "${k}" is not in facts.json "media" - say what it shows and where it is from`);
     } else if (/^archive:/.test(k)) {
-      warn(`scene ${i + 1}: "${k}" is picked automatically from the Internet Archive - use it only as neutral context, never as the event itself`);
+      warn(`scene ${i + 1}: "${k}" is picked automatically from Wikimedia Commons / NASA - use it only as neutral context, never as the event itself`);
     }
   }
 }));

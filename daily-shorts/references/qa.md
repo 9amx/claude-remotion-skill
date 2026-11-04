@@ -32,7 +32,7 @@ and either fixed or explained in the log.
 - Ending: the music fades, nothing cuts off mid-word.
 
 ## 4. Facts, last time
-- Every number, name and date in captions and voice against `build/research.md`.
+- Every number, name and date in captions and voice against `build/facts.json`.
 - Title and description: true, not misleading, sources listed, no tragedy-baiting words.
 
 Only when all four are clean: upload. If something cannot be fixed, mark the day "held" with
