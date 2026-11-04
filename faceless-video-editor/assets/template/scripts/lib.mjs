@@ -25,7 +25,11 @@ export { status };
 // Remotion's CLI run through node directly: `npx` is a .cmd file on Windows,
 // which newer Node versions refuse to spawn without a shell.
 export const REMOTION = [process.execPath, path.join(ROOT, "node_modules", "@remotion", "cli", "remotion-cli.js")];
-export const remotionCmd = (args) => [REMOTION[0], [REMOTION[1], ...args]];
+// 3D graphics (globe, aircraft) render with WebGL: use the GPU (ANGLE) on Windows and macOS,
+// the software renderer (SwANGLE) on Linux servers without one. REMOTION_GL overrides.
+const GL = process.env.REMOTION_GL || (process.platform === "linux" ? "swangle" : "angle");
+export const remotionCmd = (args) => [REMOTION[0], [REMOTION[1], ...args,
+  ...(["render", "still"].includes(args[0]) && !args.some((a) => String(a).startsWith("--gl")) && !(process.env.REMOTION_FLAGS || "").includes("--gl") ? [`--gl=${GL}`] : [])]];
 // Remotion's CLI gets the environment WITHOUT NODE_USE_ENV_PROXY: through a proxy
 // that blocks remotion.media its background check throws and kills the render.
 export const remotionEnv = () => { const e = { ...process.env }; delete e.NODE_USE_ENV_PROXY; return e; };
@@ -91,7 +95,7 @@ export function stripAudioTags(text) {
 
 // Edit styles: how the video is cut, independent of its colors (style).
 //   shot: [Shorts, long form] seconds per B-roll shot
-//   transition: auto cycles whip/zoom/glitch/flash; or one of whip|zoom|glitch|flash|dip|fade|cut
+//   transition: auto cycles whip/zoom/glitch/flash; or one of whip|zoom|glitch|flash|light|dip|fade|cut
 export const EDIT_STYLES = {
   viral: { shot: [2.2, 3.5], transition: "auto", punchIns: true, hookShake: true, sfx: 1, captions: "pop" },
   story: { shot: [3.5, 5], transition: "dip", punchIns: false, hookShake: false, sfx: 0.7, captions: "karaoke", style: "documentary" },
@@ -102,7 +106,7 @@ export const EDIT_STYLES = {
 // Tempo of the synthesized beds (gen-audio.mjs), so cuts can land on their beats.
 export const MOOD_BPM = { calm: 84, tense: 100, upbeat: 118 };
 
-export const TRANSITIONS = ["whip", "zoom", "glitch", "flash", "dip", "fade", "cut"];
+export const TRANSITIONS = ["whip", "zoom", "glitch", "flash", "light", "dip", "fade", "cut"];
 export const LOOKS = ["normal", "flashback", "dramatic", "night", "vhs", "dream"];
 export const FX = ["shake", "freeze", "reveal", "punch"];
 
@@ -110,7 +114,10 @@ export const FX = ["shake", "freeze", "reveal", "punch"];
 // synthesized kit. Drop files in public/sfx/ named after the slot, with optional
 // variants that rotate so repeated cuts don't sound identical:
 //   public/sfx/whoosh-1.mp3, whoosh-2.mp3, hit.wav, riser.mp3, ...
-export const SFX_NAMES = ["hit", "whoosh", "pop", "riser", "scratch", "glitch", "tick"];
+export const SFX_NAMES = ["hit", "whoosh", "pop", "riser", "scratch", "glitch", "tick", "ping", "data"];
+// Synthesized kit variants (gen-audio): whoosh.wav, whoosh-2.wav, whoosh-3.wav; hit.wav, hit-2.wav.
+export const KIT_VARIANTS = { whoosh: 3, hit: 2 };
+export const kitSfx = (n) => Array.from({ length: KIT_VARIANTS[n] ?? 1 }, (_, k) => `audio/${n}${k ? `-${k + 1}` : ""}.wav`);
 const AUDIO_EXT = /\.(mp3|wav|m4a|aac|ogg|flac)$/i;
 export function userSfx() {
   const dir = path.join(PUBLIC, "sfx");

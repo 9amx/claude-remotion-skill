@@ -58,7 +58,7 @@ Pick one per video; it sets the defaults below. Anything set explicitly wins.
 | `lowerThird` | `{title, subtitle}` | name/place/date tag | people, places, dates (documentary, true crime) |
 | `layout` | `"split"` | two clips side by side (top/bottom on 9:16) with a VS divider | comparisons, then vs now, expectation vs reality |
 | `look` | `flashback` `dramatic` `night` `vhs` `dream` | grade for the picture | flashback = the past; dramatic = danger, stakes; night = crime, mystery; vhs = 80s/90s, found footage; dream = memory, fantasy |
-| `transition` | `whip` `zoom` `glitch` `flash` `dip` `fade` `cut` | how this scene enters (overrides the style) | whip = energy, a jump in place/time; zoom = going deeper; glitch = tech, error, twist; flash = impact; dip = time passing, chapter, serious beat; fade = calm, emotional; cut = continuity |
+| `transition` | `whip` `zoom` `glitch` `flash` `light` `dip` `fade` `cut` | how this scene enters (overrides the style) | whip = energy, a jump in place/time; zoom = going deeper; glitch = tech, error, twist; flash = impact; light = film light leak, memory, emotion, a softer story cut; dip = time passing, chapter, serious beat; fade = calm, emotional; cut = continuity |
 | `fx` | `"reveal"` | music drops out under a riser, the scene lands on a hit | the payoff, the twist, the mid-video rehook |
 | `fx` | `"freeze"` | picture freezes with a flash and a record scratch | "that's me, and you're wondering how I got here", the moment it went wrong |
 | `fx` | `"shake"` | impact camera shake | crashes, explosions, shocking lines (rarely) |
@@ -117,10 +117,16 @@ B-roll (rain window, city night). End on the verdict question.
 
 ## Sound design (automatic, tune with sfxLevel)
 
-- `hit` on frame 0 and on reveals; `whoosh` 4 frames before whip/zoom/flash
+- `hit` on frame 0 and on reveals; `whoosh` peaking on whip/zoom/flash/light
   cuts; `glitch` on glitch cuts; `pop` when emphasis lands; `scratch` on freezes;
   `riser` into reveals with the music dropped to ~12% under it; `tick` on
   highlighted words (viral/explainer only, max ~1/sec).
+- Explainers make their own sound (`graphicSfx`, on by default): a radar `ping`
+  as the scope opens and a `hit` the moment contact is lost; soft `data` blips as
+  counters, timelines, charts and aircraft diagrams build.
+- The built-in kit is synthesized in stereo (whooshes with doppler and pan, trailer
+  impacts with a sub drop and room tail, risers, a sonar ping); whoosh and hit have
+  variants that rotate. Your own library files in `public/sfx/` replace any slot.
 - `sfxLevel` 0-1 scales all of it; `"sfx": false` turns it off.
 - Music: 8-15% under voice, ducked while someone speaks and lifted
   `music.gapBoost` (1.7x) in the gaps between lines, crossfades between chapter
@@ -156,7 +162,10 @@ beat (broll-keywords.md) for:
 `transitionStyle: "auto"` (the viral default) chooses by meaning: **flash** into a
 reveal, **dip** into a flashback / dream / new chapter, **glitch** into VHS,
 **whip** out of a look and onto the next list item, **zoom** into a split
-comparison, otherwise whip and zoom alternate (never the same twice by chance).
+comparison, otherwise whip and zoom alternate (never the same twice by chance; story
+alternates zoom and light). Whip and zoom move both pictures on one curve with real
+directional motion blur and a touch of RGB split at the fastest frames; flash is an
+exposure flash; light is a warm film light leak sweeping across the cut.
 Inside a scene, shots are hard cuts on the words. That's how real edits work:
 the transition marks a change, the cut carries the story.
 

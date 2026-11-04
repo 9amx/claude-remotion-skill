@@ -83,7 +83,8 @@ faceless-video-editor workflow, with:
   - `globe`/`map` for where and the route (3D/2D)
   - `radar` for contact lost (instrument UI)
   - `profile` for altitude/speed/wind over time (2D)
-  - `aircraft` for which part failed and how it banked or pitched (3D diagram)
+  - `aircraft` for which part failed and how it banked or pitched (3D airliner over clouds;
+    twin-engine jet airliners only, `light` = local time of the event)
   - `timeline`/`counter`/`quote`/`statement` for sequence, numbers and official words
 
   Use neutral stock only for context, never as the event. Keep everything 9:16: wide real footage

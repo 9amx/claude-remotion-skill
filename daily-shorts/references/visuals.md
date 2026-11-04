@@ -20,11 +20,11 @@ otherwise):
 
 | What the viewer must understand | Use | Kind |
 |---|---|---|
-| Where it is, how far, the route | `globe` (opener) or `map` | 3D / 2D |
+| Where it is, how far, the route | `globe` (opener: cinematic 3D Earth with satellite imagery; `light: "night"` for night events) or `map` | 3D / 2D |
 | Radar contact lost, vanished, stopped responding | `radar` with `vanish` | instrument / UI (SaaS-style) |
 | How altitude, speed, wind or water changed over time | `profile` | 2D motion graphic |
-| Which part failed, a door, an engine, gear | `aircraft` (`top` or `side`) with `highlight` and `labels` | 3D diagram |
-| How the plane moved: banked, pitched, dived | `aircraft` with `roll` (top) or `pitch` (side) | 3D diagram |
+| Which part failed, a door, an engine, gear | `aircraft` (`top` or `side`) with `highlight` and `labels`; `light` = the local time of the event (`day`, `dusk`, `night`) | 3D airliner flying over clouds |
+| How the plane moved: banked, pitched, dived | `aircraft` with `roll` (top) or `pitch` (side) | 3D airliner, real horizon |
 | The order of events | `timeline` or `steps` | motion graphic |
 | One number that matters | `counter`; comparisons `bars` / `compare` | motion graphic |
 | Official words (report, statement, ATC transcript) | `quote` (with `by` and the date) | typography |
@@ -32,6 +32,14 @@ otherwise):
 | An official web page or report, shown as it is | `ui` with a screenshot in `public/` | UI (SaaS-style) |
 
 Pick the one that makes it clearest. Do not use the same graphic type twice in a row.
+
+**The `aircraft` graphic is a generic twin-engine jet airliner** (two engines under the
+wings, one fin): it fits a 737, A320 family, 757, 767, 777, 787, A330, A350 or an E-Jet.
+Never use it for any other type: a turboprop (ATR, Q400), rear-engined jets (CRJ,
+business jets), four-engine aircraft (747, A380), small planes, helicopters or military
+types. Showing the wrong shape is a factual error. For those, show the part with real
+photos of that type, or use `profile`, `radar`, `timeline` or `statement` instead.
+Set `light` from the event's local time: `day`, `dusk` (around sunrise/sunset) or `night`.
 A typical 50-second Short has 2-4 explainers plus real or neutral footage between them.
 
 **3. Neutral stock footage only for context, never as the event.** An airport, a runway at

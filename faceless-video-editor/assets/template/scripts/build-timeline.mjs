@@ -2,7 +2,7 @@
 // the single file the Remotion composition renders from.
 import path from "node:path";
 import fs from "node:fs";
-import { BUILD, FORMATS, FX, LOOKS, MOOD_BPM, PUBLIC, SFX_NAMES, TRANSITIONS, fail, findPhrase, log, planShots, probeDuration, probeSize, ffmpegRaw, readJson, readProject, sceneId, timecode,
+import { BUILD, FORMATS, FX, LOOKS, MOOD_BPM, PUBLIC, SFX_NAMES, TRANSITIONS, kitSfx, fail, findPhrase, log, planShots, probeDuration, probeSize, ffmpegRaw, readJson, readProject, sceneId, timecode,
   userAmbiencePath, userMusicPath, userSfx, userSfxPath, userSpotPath, writeJson } from "./lib.mjs";
 
 const project = readProject();
@@ -14,7 +14,8 @@ const OUTRO_MS = project.outroMs ?? 900; // hold after the last word
 const CHAPTER_GAP_MS = project.chapterGapMs ?? 900; // longer breath before a new chapter
 const toF = (ms) => Math.round((ms / 1000) * fps);
 
-const AUTO_TRANSITIONS = ["whip", "zoom"];
+// auto: what alternates when nothing motivates a transition (story: softer, filmic)
+const AUTO_TRANSITIONS = project.editStyle === "story" ? ["zoom", "light"] : ["whip", "zoom"];
 let autoIdx = 0;
 const fxList = (scene) => [].concat(scene.fx ?? []);
 for (const [i, s] of project.scenes.entries()) {
@@ -233,6 +234,16 @@ for (const [i, scene] of project.scenes.entries()) {
     if (p.sfx) {
       const ref = soundRef(p.sfx, `${id} beat "${p.on ?? p.kw}" sfx`);
       spots.push({ ...ref, at: startFrame + from, volume: ref.volume ?? 0.45, scene: id });
+    } else if (shot.type === "graphic" && shot.graphic && project.sfxLevel > 0 && project.graphicSfx !== false) {
+      // Explainers make the sound of what they show: a radar pings, and the contact
+      // drops out on an impact; counters, charts and diagrams build with soft data blips.
+      const g = shot.graphic, at = startFrame + from;
+      if (g.type === "radar") {
+        spots.push({ file: "ping", slot: "ping", at: at + 4, volume: 0.3, scene: id });
+        if (g.vanish) spots.push({ file: "hit", slot: "hit", at: at + Math.round(len * (g.vanishAt ?? 0.62)), volume: 0.38, scene: id });
+      } else if (["counter", "timeline", "profile", "aircraft", "bars"].includes(g.type)) {
+        spots.push({ file: "data", slot: "data", at: at + 3, volume: 0.2, scene: id });
+      }
     }
     return shot;
   });
@@ -324,7 +335,7 @@ for (const [i, scene] of project.scenes.entries()) {
 const durationInFrames = toF(cursorMs);
 // Overlapping transitions keep the outgoing picture playing (and animating out)
 // under the incoming scene for a few frames.
-const OVERLAP = { fade: FADE_FRAMES, whip: 8, zoom: 9 };
+const OVERLAP = { fade: FADE_FRAMES, whip: 8, zoom: 9, light: 8 };
 scenes.forEach((s, i) => {
   s.exit = scenes[i + 1]?.transition ?? "cut";
   s.visualExtend = OVERLAP[s.exit] ?? 0;
@@ -442,7 +453,7 @@ scenes.forEach((sc, i) => {
 
 // SFX: user files (variants rotate) or the synthesized kit.
 const user = userSfx();
-const sfxFiles = Object.fromEntries(SFX_NAMES.map((n) => [n, user[n] ? user[n].map(userSfxPath) : [`audio/${n}.wav`]]));
+const sfxFiles = Object.fromEntries(SFX_NAMES.map((n) => [n, user[n] ? user[n].map(userSfxPath) : kitSfx(n)]));
 const custom = Object.keys(user);
 if (custom.length) log("timeline", `own SFX: ${custom.map((n) => `${n} x${user[n].length}`).join(", ")}`);
 

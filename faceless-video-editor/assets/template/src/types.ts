@@ -2,7 +2,7 @@
 export type Word = { text: string; startMs: number; endMs: number; scene: number; hl?: boolean };
 
 export type StillMove = "push" | "pull" | "pan-left" | "pan-right" | "tilt-up" | "tilt-down" | "detail" | "focus" | "frame";
-export type Transition = "whip" | "zoom" | "glitch" | "flash" | "dip" | "fade" | "cut";
+export type Transition = "whip" | "zoom" | "glitch" | "flash" | "light" | "dip" | "fade" | "cut";
 export type Look = "normal" | "flashback" | "dramatic" | "night" | "vhs" | "dream";
 
 // Motion graphics drawn from data (components/Graphic.tsx). Map places are
@@ -14,11 +14,11 @@ export type GraphicSpec =
   | { type: "timeline"; events: [string, string][]; highlight?: number; title?: string; source?: string }
   | { type: "quote"; text: string; by?: string; source?: string }
   | { type: "map"; places: MapPlace[]; countries?: string[]; route?: boolean; title?: string; source?: string }
-  | { type: "globe"; places: MapPlace[]; countries?: string[]; route?: boolean; marker?: number; title?: string; source?: string }
+  | { type: "globe"; places: MapPlace[]; countries?: string[]; route?: boolean; marker?: number; light?: "day" | "night"; look?: "3d" | "vector"; title?: string; source?: string }
   // Aviation explainers: an ATC radar scope, a data line over time, an aircraft diagram in 3D.
   | { type: "radar"; callsign: string; altitude?: number; altitudeTo?: number; speed?: number; heading?: number; vanish?: boolean; vanishAt?: number; label?: string; title?: string; source?: string }
   | { type: "profile"; points: [string, number][]; unit?: string; icon?: "plane" | "dot"; highlight?: number; title?: string; source?: string }
-  | { type: "aircraft"; view?: "top" | "side"; highlight?: string[]; pitch?: number; roll?: number; labels?: { part: string; text: string }[]; title?: string; source?: string }
+  | { type: "aircraft"; view?: "top" | "side"; look?: "3d" | "vector"; light?: "day" | "dusk" | "night" | "studio"; highlight?: string[]; pitch?: number; roll?: number; labels?: { part: string; text: string }[]; title?: string; source?: string }
   // Explainers: each item appears on its own words ("on"); build-timeline turns
   // that into `at` (frames from the shot's start) for every item.
   | { type: "list"; items: Item[]; title?: string; numbered?: boolean; at?: number[] }

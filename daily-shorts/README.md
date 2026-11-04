@@ -62,6 +62,22 @@ You get a push for every finished Short (with its link), every held Short (with 
 ### 5. Music (optional, recommended)
 Download 20–30 tracks from your Epidemic Sound subscription (dark, tense, documentary) into `D:\Faceless\daily\music\`. The run picks a fitting track each night. If the folder is empty, it uses a built-in music bed.
 
+### 5b. Sound effects (recommended: this is what makes cuts feel premium)
+From your Epidemic Sound subscription, download short sound effects into `D:\Faceless\daily\sfx\`. Name each file after its slot, and number the variants:
+
+| Slot | What to download | Files |
+|---|---|---|
+| `whoosh` | fast cinematic whooshes / swishes (0.3–0.8 s) | `whoosh-1.mp3` … `whoosh-5.mp3` |
+| `hit` | deep cinematic impacts / boom hits | `hit-1.mp3` … `hit-3.mp3` |
+| `riser` | tension risers (1–2 s) | `riser-1.mp3`, `riser-2.mp3` |
+| `glitch` | short digital glitches | `glitch-1.mp3` |
+| `tick` | clock tick / UI blip | `tick-1.mp3` |
+| `pop` | soft UI pop / click | `pop-1.mp3` |
+| `ping` | sonar / radar ping | `ping-1.mp3` |
+| `data` | short UI data / computing blips | `data-1.mp3` |
+
+Every Short uses them on cuts, reveals and graphics, rotating the variants so no two cuts sound the same. Without them, a built-in kit is used. It is synthesized in stereo (whooshes, impacts, risers, a radar ping). It sounds decent, but a real library sounds better.
+
 ### 6. Turn on the nightly run
 ```powershell
 powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.claude\skills\daily-shorts\scripts\install-task.ps1" -Time 02:30
@@ -128,7 +144,7 @@ In approval mode, open the YouTube Studio app, watch the new private Short, then
 
 ## Limits
 - **Claude Pro:** the nightly run shares your usage limit with everything else you do in Claude. If the limit runs out mid-run, the task retries up to 3 times, 2 hours apart, and continues where it stopped.
-- **3D:** the globe and the aircraft diagrams are 3D in a clean technical-drawing style (CSS/SVG 3D, fast on a laptop CPU). They are not photoreal 3D models.
+- **3D:** the globe (NASA satellite imagery) and the airliner (flying over clouds under a real sky) are real-time WebGL 3D, rendered on your laptop's graphics card. They look cinematic, but they are not photoreal film-grade CGI. The airliner is a generic model, not the exact aircraft type.
 - **Accuracy:** the gates catch dead links, misquotes, unbacked numbers and names, voice mistakes and wrong places. They cannot judge whether a source itself is wrong. That is why agencies come first, and why approval mode is the default.
 - **Views:** demand checks, format rotation and the learning loop raise the odds. Nobody can promise views. Expect the first 2–4 weeks to be a test period while the channel builds its audience.
 - **YouTube API audit:** until Google approves your API project, every upload stays private. Publish by hand, or apply for the audit in Google Cloud. The audit is free and takes a few weeks.

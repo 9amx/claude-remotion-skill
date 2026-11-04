@@ -37,20 +37,44 @@ const steps = [
   ["render", () => run("node", ["scripts/render.mjs"])], // chunked + resumable for long videos
   ["master", () => {
     // Platforms normalise to about -14 LUFS; mastering there keeps the VO punchy.
-    // Two-pass loudnorm: measure, then apply linearly (single pass undershoots).
-    const target = "I=-14:TP=-1.5:LRA=11";
-    const m = ffmpeg(["-i", "out/video.mp4", "-af", `loudnorm=${target}:print_format=json`, "-f", "null", "-"], { capture: true });
-    const json = /\{[^{}]*"input_i"[^{}]*\}/.exec(m.stderr || "");
-    let af = `loudnorm=${target}`;
-    if (json) {
-      const v = JSON.parse(json[0]);
-      af += `:measured_I=${v.input_i}:measured_TP=${v.input_tp}:measured_LRA=${v.input_lra}:measured_thresh=${v.input_thresh}:offset=${v.target_offset}:linear=true`;
+    // Gain to the target, then a true-peak-safe limiter (oversampled, delay compensated)
+    // so impacts and transients can't clip on phones; measured after the AAC encode, the
+    // same way the qa gate measures, and corrected up to 4 times.
+    const TARGET = project.qa?.lufs ?? -14;
+    const measure = (file) => {
+      const m = ffmpeg(["-i", file, "-vn", "-af", "ebur128=peak=true", "-f", "null", "-"], { capture: true });
+      const sum = (m.stderr || "").split("Summary:").pop();
+      const i = Number(/I:\s+(-?[\d.]+) LUFS/.exec(sum)?.[1]), tp = Number(/Peak:\s+(-?[\d.]+) dBFS/.exec(sum)?.[1]);
+      return Number.isFinite(i) ? { i, tp: Number.isFinite(tp) ? tp : 0 } : null;
+    };
+    const src = measure("out/video.mp4");
+    const encode = (af) => ffmpeg(["-y", "-i", "out/video.mp4", "-c:v", "copy", "-af", af, "-ar", "48000",
+      "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", "out/final.mp4"]).status === 0;
+    let ok = false;
+    if (src) {
+      let gain = TARGET - src.i, ceil = -2.0;
+      // A mix that needs a lot of limiting (a quiet voice under loud impacts, or no voice at all)
+      // gets a gentle compressor first: hard-limited peaks turn into overshoot in the AAC encode.
+      const comp = src.tp + gain - ceil > 3;
+      const pre = gain; // into the compressor; corrections after it (make-up gain) act one to one
+      if (comp) log("master", `peaks would need ${(src.tp + gain - ceil).toFixed(1)} dB of limiting - compressing gently first`);
+      for (let k = 0; k < 5; k++) {
+        const lim = Math.pow(10, ceil / 20).toFixed(4);
+        ok = encode(`volume=${pre.toFixed(2)}dB,${comp ? "acompressor=threshold=-14dB:ratio=4:attack=3:release=150:knee=4," : ""}volume=${(gain - pre).toFixed(2)}dB,aresample=192000,alimiter=limit=${lim}:attack=2:release=80:level=false:latency=true,aresample=48000`);
+        if (!ok) break;
+        const out = measure("out/final.mp4");
+        if (!out) break;
+        log("master", `pass ${k + 1}: ${out.i.toFixed(1)} LUFS, true peak ${out.tp.toFixed(1)} dBTP`);
+        const loudOk = Math.abs(out.i - TARGET) <= 0.7, peakOk = out.tp <= -1.2;
+        if (loudOk && peakOk) break;
+        // fix the peak first (lower the ceiling), the loudness only while the peak is safe
+        if (!peakOk) ceil -= out.tp + 1.2 + 0.3;
+        else gain += TARGET - out.i;
+      }
     }
-    const r = ffmpeg(["-i", "out/video.mp4", "-c:v", "copy", "-af", af, "-ar", "48000",
-      "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", "out/final.mp4"]);
-    if (r.status !== 0) {
+    if (!ok) {
       fs.copyFileSync(path.join(ROOT, "out/video.mp4"), path.join(ROOT, "out/final.mp4"));
-      log("master", "loudnorm unavailable, copied video.mp4 -> final.mp4 unmastered");
+      log("master", "could not master the audio, copied video.mp4 -> final.mp4 unmastered");
     }
   }],
   ["check", () => run("node", ["scripts/check.mjs"])],

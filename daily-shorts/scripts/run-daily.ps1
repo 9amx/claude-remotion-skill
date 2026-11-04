@@ -120,6 +120,14 @@ function Invoke-Daily {
   $nm = Join-Path $day "node_modules"
   if (-not (Test-Path $nm)) { New-Item -ItemType Junction -Path $nm -Target (Join-Path $base "node_modules") | Out-Null }
   New-Item -ItemType Directory -Force -Path (Join-Path $Root "music") | Out-Null
+  # The owner's own sound-effect library (Epidemic Sound downloads), named by slot: whoosh-1.mp3, hit-2.wav ...
+  $sfxLib = Join-Path $Root "sfx"
+  New-Item -ItemType Directory -Force -Path $sfxLib | Out-Null
+  if (Get-ChildItem -Path $sfxLib -File -ErrorAction SilentlyContinue) {
+    $sfxDest = Join-Path $day "public\sfx"
+    New-Item -ItemType Directory -Force -Path $sfxDest | Out-Null
+    Copy-Item -Path (Join-Path $sfxLib "*") -Destination $sfxDest -Recurse -Force
+  }
   if (-not (Test-Path (Join-Path $Root "history.json"))) { Set-Content -Path (Join-Path $Root "history.json") -Value '{ "videos": [] }' }
   Log "Project folder: $day"
 

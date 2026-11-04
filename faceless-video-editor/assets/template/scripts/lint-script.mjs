@@ -38,16 +38,20 @@ function graphicProblems(g) {
     else if (g.points.length > 8) out.push("profile: more than 8 points won't read on a phone");
   }
   if (g.type === "aircraft") {
-    const top = ["fuselage", "cockpit", "wing-left", "wing-right", "engine-left", "engine-right", "tail", "tail-left", "tail-right", "fin"];
-    const side = ["fuselage", "cockpit", "wing", "engine", "fin", "tail", "door", "gear"];
+    const vector = g.look === "vector";
+    const top = vector ? ["fuselage", "cockpit", "wing-left", "wing-right", "engine-left", "engine-right", "tail", "tail-left", "tail-right", "fin"]
+      : ["fuselage", "cockpit", "wing-left", "wing-right", "engine-left", "engine-right", "tail", "fin", "door", "gear"];
+    const side = vector ? ["fuselage", "cockpit", "wing", "engine", "fin", "tail", "door", "gear"] : top;
     const alias = { "left-engine": "engine-left", "right-engine": "engine-right", "left-wing": "wing-left", "right-wing": "wing-right", "landing-gear": "gear",
       stabilizer: "tail", "horizontal-stabilizer": "tail", "vertical-stabilizer": "fin", rudder: "fin", nose: "cockpit", "door-plug": "door" };
     const view = g.view ?? "top";
     if (!["top", "side"].includes(view)) out.push('aircraft "view" is "top" or "side"');
+    if (g.light != null && !["day", "dusk", "night", "studio"].includes(g.light)) out.push('aircraft "light" is day, dusk, night or studio');
     const known = view === "side" ? side : top;
     for (const n of [...(g.highlight ?? []), ...(g.labels ?? []).map((l) => l.part)]) {
       const k = alias[String(n).toLowerCase().replace(/\s+/g, "-")] ?? String(n).toLowerCase().replace(/\s+/g, "-");
-      if (!known.includes(view === "side" ? k.replace(/-(left|right)$/, "") : k)) out.push(`aircraft (${view} view) has no part "${n}" - use ${known.join(", ")}`);
+      const k3 = !vector && (k === "engine" || k === "wing") ? `${k}-left` : k;
+      if (!known.includes(vector && view === "side" ? k3.replace(/-(left|right)$/, "") : k3)) out.push(`aircraft (${view} view) has no part "${n}" - use ${known.join(", ")}`);
     }
     if (g.pitch != null && (view !== "side" || Math.abs(g.pitch) > 60)) out.push('aircraft "pitch" needs view "side" and a value within +-60 degrees');
     if (g.roll != null && (view !== "top" || Math.abs(g.roll) > 70)) out.push('aircraft "roll" needs view "top" and a value within +-70 degrees');

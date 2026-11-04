@@ -1,13 +1,15 @@
 // Synthesize royalty-free music loops and an SFX kit.
 // Zero downloads, deterministic. Music skipped when music.file is set.
 //   public/audio/bed-<mood>.wav  mood: calm | tense | upbeat (one per mood in use)
-//   public/audio/whoosh.wav scene transitions
-//   public/audio/hit.wav    hook impact on frame 0
+//   public/audio/whoosh.wav scene transitions (+ whoosh-2, whoosh-3 variants)
+//   public/audio/hit.wav    hook impact on frame 0 (+ hit-2)
 //   public/audio/pop.wav    emphasis text landing
 //   public/audio/riser.wav  build into a reveal (fx "reveal")
 //   public/audio/scratch.wav freeze frame (fx "freeze")
 //   public/audio/glitch.wav glitch transition
 //   public/audio/tick.wav   highlighted caption words
+//   public/audio/ping.wav   radar graphics (contact ping)
+//   public/audio/data.wav   explainer graphics building (counter, timeline, profile, aircraft)
 // Your own files are normalized into public/audio/user/: public/sfx/<slot>*.wav|mp3
 // (kit replacements), beat sounds and ambience beds named in project.json, music.
 import fs from "node:fs";
@@ -23,105 +25,273 @@ const rand = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296) *
 const secs = (s) => Math.round(s * SR);
 const hz = (midi) => 440 * 2 ** ((midi - 69) / 12);
 
-function wav(samples) {
+function wav(samples, right = null) {
+  // mono, or stereo when a right channel is given; peak-normalized to -1.4 dBFS
+  const ch = right ? 2 : 1, n = samples.length;
   let peak = 0;
-  for (const s of samples) peak = Math.max(peak, Math.abs(s));
+  for (let i = 0; i < n; i++) peak = Math.max(peak, Math.abs(samples[i]), right ? Math.abs(right[i]) : 0);
   const gain = peak > 0 ? 0.85 / peak : 1;
-  const buf = Buffer.alloc(44 + samples.length * 2);
+  const bytes = n * 2 * ch;
+  const buf = Buffer.alloc(44 + bytes);
   buf.write("RIFF", 0);
-  buf.writeUInt32LE(36 + samples.length * 2, 4);
+  buf.writeUInt32LE(36 + bytes, 4);
   buf.write("WAVEfmt ", 8);
   buf.writeUInt32LE(16, 16);
   buf.writeUInt16LE(1, 20);
-  buf.writeUInt16LE(1, 22);
+  buf.writeUInt16LE(ch, 22);
   buf.writeUInt32LE(SR, 24);
-  buf.writeUInt32LE(SR * 2, 28);
-  buf.writeUInt16LE(2, 32);
+  buf.writeUInt32LE(SR * 2 * ch, 28);
+  buf.writeUInt16LE(2 * ch, 32);
   buf.writeUInt16LE(16, 34);
   buf.write("data", 36);
-  buf.writeUInt32LE(samples.length * 2, 40);
-  samples.forEach((s, i) => buf.writeInt16LE(Math.round(Math.max(-1, Math.min(1, s * gain)) * 32767), 44 + i * 2));
+  buf.writeUInt32LE(bytes, 40);
+  const q = (x) => Math.round(Math.max(-1, Math.min(1, x * gain)) * 32767);
+  for (let i = 0; i < n; i++) {
+    buf.writeInt16LE(q(samples[i]), 44 + i * 2 * ch);
+    if (right) buf.writeInt16LE(q(right[i]), 46 + i * 4);
+  }
   return buf;
 }
 
-// ---------- SFX ----------
-{
-  const N = secs(0.45), out = new Float32Array(N);
-  let lp = 0;
+// ---------- tiny DSP (filters, reverb) for the SFX kit ----------
+// RBJ biquad; set() can be called per sample for sweeps.
+function biquad(type) {
+  let b0 = 1, b1 = 0, b2 = 0, a1 = 0, a2 = 0, x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+  return {
+    set(f, q = 0.707) {
+      const w = (2 * Math.PI * Math.min(f, SR * 0.45)) / SR, cw = Math.cos(w), al = Math.sin(w) / (2 * q);
+      let n0, n1, n2;
+      if (type === "lp") [n0, n1, n2] = [(1 - cw) / 2, 1 - cw, (1 - cw) / 2];
+      else if (type === "hp") [n0, n1, n2] = [(1 + cw) / 2, -(1 + cw), (1 + cw) / 2];
+      else [n0, n1, n2] = [al, 0, -al]; // band-pass, 0 dB peak
+      const a0 = 1 + al;
+      [b0, b1, b2, a1, a2] = [n0 / a0, n1 / a0, n2 / a0, (-2 * cw) / a0, (1 - al) / a0];
+      return this;
+    },
+    run(x) {
+      const y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+      [x2, x1, y2, y1] = [x1, x, y1, y];
+      return y;
+    },
+  };
+}
+// Small stereo room (Schroeder: 4 combs + 2 all-passes per side, offset delays for width).
+function reverb(L, R, { wet = 0.3, size = 0.84, damp = 0.35, tail = 1.2 } = {}) {
+  const n = L.length + secs(tail), outL = new Float32Array(n), outR = new Float32Array(n);
+  const side = (input, out, spread) => {
+    const combs = [1116, 1188, 1277, 1356].map((d) => ({ buf: new Float32Array(d + spread), i: 0, lp: 0 }));
+    const aps = [556, 441].map((d) => ({ buf: new Float32Array(d + spread), i: 0 }));
+    for (let i = 0; i < n; i++) {
+      const x = (i < input.length ? input[i] : 0) * 0.25;
+      let y = 0;
+      for (const c of combs) {
+        const o = c.buf[c.i];
+        c.lp = o * (1 - damp) + c.lp * damp;
+        c.buf[c.i] = x + c.lp * size;
+        c.i = (c.i + 1) % c.buf.length;
+        y += o;
+      }
+      for (const a of aps) {
+        const o = a.buf[a.i];
+        a.buf[a.i] = y + o * 0.5;
+        a.i = (a.i + 1) % a.buf.length;
+        y = o - y;
+      }
+      out[i] = (i < input.length ? input[i] : 0) * (1 - wet * 0.5) + y * wet;
+    }
+  };
+  side(L, outL, 0);
+  side(R, outR, 23);
+  return [outL, outR];
+}
+const pan = (x, p) => [x * Math.cos(((p + 1) * Math.PI) / 4), x * Math.sin(((p + 1) * Math.PI) / 4)]; // -1 left .. 1 right
+const soft = (x, drive = 1.5) => Math.tanh(x * drive) / Math.tanh(drive);
+const save = (name, L, R) => fs.writeFileSync(path.join(OUT, name), wav(L, R));
+
+// ---------- SFX kit ----------
+// Cinematic, stereo, deterministic. Your own library files (public/sfx/) replace any of these.
+
+// whoosh: air rushing past - band-passed noise whose pitch rises then falls (doppler)
+// as it pans across, a low body under it and a little room. 3 variants rotate.
+function whoosh(variant) {
+  seed = 4242 + variant * 101;
+  const dur = [0.75, 0.62, 0.9][variant], N = secs(dur), L = new Float32Array(N), R = new Float32Array(N);
+  const bpL = biquad("bp"), bpR = biquad("bp"), body = biquad("lp").set(180), hiss = biquad("hp").set(5000);
+  const peakAt = [0.58, 0.5, 0.62][variant], dir = variant === 1 ? -1 : 1;
   for (let i = 0; i < N; i++) {
     const t = i / N;
-    lp += (0.04 + 0.3 * Math.sin(Math.PI * t)) * (rand() - lp);
-    out[i] = lp * Math.sin(Math.PI * t ** 0.6) ** 2;
+    const env = t < peakAt ? Math.pow(t / peakAt, 2.2) : Math.pow(1 - (t - peakAt) / (1 - peakAt), 1.6);
+    const f = 350 + 2600 * Math.exp(-Math.pow((t - peakAt) / 0.2, 2)); // doppler-ish centre frequency
+    bpL.set(f, 1.4); bpR.set(f * 1.06, 1.4);
+    const n1 = rand(), n2 = rand();
+    const air = bpL.run(n1) * 1.0, airR = bpR.run(n2) * 1.0;
+    const low = body.run(n1) * 1.4, top = hiss.run(n2) * 0.25 * env;
+    const [pl, pr] = pan(1, dir * (t * 2 - 1) * 0.8);
+    L[i] = (air * pl + low * 0.6 + top) * env;
+    R[i] = (airR * pr + low * 0.6 + top) * env;
   }
-  fs.writeFileSync(path.join(OUT, "whoosh.wav"), wav(out));
+  const [rl, rr] = reverb(L, R, { wet: 0.22, size: 0.8, tail: 0.5 });
+  save(variant ? `whoosh-${variant + 1}.wav` : "whoosh.wav", rl, rr);
 }
-{
-  const N = secs(0.9), out = new Float32Array(N);
-  let ph = 0, lp = 0;
+[0, 1, 2].forEach(whoosh);
+
+// hit: trailer impact - a sub drop, a cracked transient, a mid thump and a long dark room tail.
+function hit(variant) {
+  seed = 9001 + variant * 7;
+  const N = secs(1.4), L = new Float32Array(N), R = new Float32Array(N);
+  const crack = biquad("hp").set(1800), thump = biquad("lp").set(300), thumpR = biquad("lp").set(300);
+  let ph = 0;
+  const f0 = variant ? 58 : 66, f1 = variant ? 30 : 34;
   for (let i = 0; i < N; i++) {
     const t = i / SR;
-    ph += (2 * Math.PI * (38 + 90 * Math.exp(-t * 18))) / SR;
-    lp += 0.2 * (rand() - lp);
-    out[i] = Math.sin(ph) * Math.exp(-t * 4.5) + lp * Math.exp(-t * 30) * 0.5;
+    ph += (2 * Math.PI * (f1 + (f0 - f1) * Math.exp(-t * 9))) / SR;
+    const sub = Math.sin(ph) * Math.exp(-t * 2.6) * Math.min(1, t * 400);
+    const n = rand(), m = rand();
+    const tr = crack.run(n) * Math.exp(-t * 55) * 0.9;
+    const body = thump.run(n) * Math.exp(-t * 11) * 2.2, bodyR = thumpR.run(m) * Math.exp(-t * 11) * 2.2;
+    const fade = Math.min(1, (N - i) / secs(0.3)); // no click where the dry sound ends
+    L[i] = soft(sub * 1.1 + body + tr, 1.8) * fade;
+    R[i] = soft(sub * 1.1 + bodyR + tr, 1.8) * fade;
   }
-  fs.writeFileSync(path.join(OUT, "hit.wav"), wav(out));
+  const [rl, rr] = reverb(L, R, { wet: 0.38, size: 0.88, damp: 0.55, tail: 1.6 });
+  save(variant ? "hit-2.wav" : "hit.wav", rl, rr);
 }
+[0, 1].forEach(hit);
+
+// pop: a soft, rounded UI pop with a tiny click and room (emphasis text landing)
 {
-  const N = secs(0.16), out = new Float32Array(N);
+  seed = 77;
+  const N = secs(0.22), L = new Float32Array(N), R = new Float32Array(N);
+  const click = biquad("bp").set(3500, 2);
   let ph = 0;
   for (let i = 0; i < N; i++) {
-    const t = i / N;
-    ph += (2 * Math.PI * (820 - 450 * t)) / SR;
-    out[i] = Math.sin(ph) * Math.exp(-t * 8);
+    const t = i / SR;
+    ph += (2 * Math.PI * (420 + 900 * Math.exp(-t * 60))) / SR;
+    const x = Math.sin(ph) * Math.exp(-t * 26) * Math.min(1, t * 900) + click.run(rand()) * Math.exp(-t * 300) * 0.6;
+    L[i] = x; R[i] = x;
   }
-  fs.writeFileSync(path.join(OUT, "pop.wav"), wav(out));
+  const [rl, rr] = reverb(L, R, { wet: 0.18, size: 0.7, tail: 0.3 });
+  save("pop.wav", rl, rr);
 }
 
+// riser: tension build - noise sweeping up through a narrowing band, a rising
+// detuned chord and a reverse-cymbal shimmer, all stopping dead at the peak
+// (the reveal lands on silence + hit).
 {
-  // riser: noise + tone sweeping up for 1.2s, stopping dead at the peak (the reveal lands on silence + hit)
-  const N = secs(1.2), out = new Float32Array(N);
-  let ph = 0, lp = 0;
+  seed = 31337;
+  const D = 1.6, N = secs(D), L = new Float32Array(N), R = new Float32Array(N);
+  const bpL = biquad("bp"), bpR = biquad("bp"), shim = biquad("hp").set(6500), shimR = biquad("hp").set(6500);
+  const phs = [0, 0, 0, 0, 0, 0];
   for (let i = 0; i < N; i++) {
     const t = i / N;
-    ph += (2 * Math.PI * (180 + 900 * t * t)) / SR;
-    lp += (0.02 + 0.4 * t * t) * (rand() - lp);
-    out[i] = (Math.sin(ph) * 0.5 + lp) * t ** 2.2;
+    const f = 180 * Math.pow(40, t); // 180 Hz -> 7.2 kHz
+    bpL.set(f, 1 + 4 * t); bpR.set(f * 1.04, 1 + 4 * t);
+    const nl = bpL.run(rand()), nr = bpR.run(rand());
+    let tone = 0;
+    [0, 7, 12].forEach((semi, k) => {
+      const base = 110 * 2 ** (semi / 12) * Math.pow(2, t * 1.4);
+      for (const [j, det] of [[k * 2, 0.996], [k * 2 + 1, 1.004]]) {
+        phs[j] += (2 * Math.PI * base * det) / SR;
+        tone += ((phs[j] / Math.PI) % 2) - 1; // saw
+      }
+    });
+    tone *= 0.06;
+    const cym = shim.run(rand()) * Math.pow(t, 4) * 1.2, cymR = shimR.run(rand()) * Math.pow(t, 4) * 1.2;
+    const env = Math.pow(t, 2.2) * (t > 0.985 ? (1 - t) / 0.015 : 1);
+    L[i] = (nl * 1.3 + tone + cym) * env;
+    R[i] = (nr * 1.3 + tone * 0.96 + cymR) * env;
   }
-  fs.writeFileSync(path.join(OUT, "riser.wav"), wav(out));
+  save("riser.wav", L, R);
 }
+
+// record scratch: fast pitch wobble on filtered noise (freeze frames)
 {
-  // record scratch: fast pitch wobble on filtered noise (freeze frames)
-  const N = secs(0.38), out = new Float32Array(N);
+  seed = 555;
+  const N = secs(0.38), L = new Float32Array(N), R = new Float32Array(N);
   let ph = 0, lp = 0;
   for (let i = 0; i < N; i++) {
     const t = i / N;
     ph += (2 * Math.PI * (300 + 700 * Math.sin(t * Math.PI * 3))) / SR;
     lp += 0.35 * (rand() - lp);
-    out[i] = (Math.sin(ph) * 0.6 + lp * 0.7) * Math.sin(Math.PI * t) * (1 - t * 0.5);
+    const x = (Math.sin(ph) * 0.6 + lp * 0.7) * Math.sin(Math.PI * t) * (1 - t * 0.5);
+    [L[i], R[i]] = pan(x, Math.sin(t * Math.PI * 3) * 0.4);
   }
-  fs.writeFileSync(path.join(OUT, "scratch.wav"), wav(out));
+  save("scratch.wav", L, R);
 }
+
+// glitch: digital stutter - sample-and-hold noise and buzzing squares in short
+// random slices, different on each side (glitch transitions)
 {
-  // glitch: bit-crushed square buzz with stutters (glitch transitions)
-  const N = secs(0.25), out = new Float32Array(N);
+  seed = 2024;
+  const N = secs(0.32), L = new Float32Array(N), R = new Float32Array(N);
+  const slice = secs(0.018);
+  let freq = 220, hold = 1, gateL = 1, gateR = 1, sh = 0, held = 0;
+  const hp = biquad("hp").set(120), hpR = biquad("hp").set(120);
   for (let i = 0; i < N; i++) {
-    const t = i / SR;
-    const gate = Math.floor(t * 40) % 3 !== 1 ? 1 : 0;
-    const sq = Math.sign(Math.sin(2 * Math.PI * 220 * t)) * 0.4 + Math.round(rand() * 3) / 6;
-    out[i] = sq * gate * Math.exp(-t * 6);
+    if (i % slice === 0) {
+      freq = [110, 220, 330, 880, 1760][Math.floor(Math.abs(rand()) * 5)];
+      hold = 1 + Math.floor(Math.abs(rand()) * 12);
+      gateL = rand() > -0.5 ? 1 : 0; gateR = rand() > -0.5 ? 1 : 0;
+    }
+    if (sh++ % hold === 0) held = rand();
+    const t = i / SR, env = Math.exp(-t * 5) * Math.min(1, t * 2000);
+    const sq = Math.sign(Math.sin(2 * Math.PI * freq * t)) * 0.35;
+    const x = (sq + held * 0.6) * env;
+    L[i] = hp.run(x * gateL);
+    R[i] = hpR.run(x * gateR * 0.9 + held * 0.1 * env);
   }
-  fs.writeFileSync(path.join(OUT, "glitch.wav"), wav(out));
+  save("glitch.wav", L, R);
 }
+
+// tick: tiny, soft click for highlighted caption words
 {
-  // tick: tiny click for highlighted caption words
-  const N = secs(0.06), out = new Float32Array(N);
+  seed = 12;
+  const N = secs(0.05), L = new Float32Array(N), R = new Float32Array(N);
+  const bp = biquad("bp").set(2600, 3);
   let ph = 0;
   for (let i = 0; i < N; i++) {
-    const t = i / N;
-    ph += (2 * Math.PI * 2100) / SR;
-    out[i] = Math.sin(ph) * Math.exp(-t * 12);
+    const t = i / SR;
+    ph += (2 * Math.PI * 3100) / SR;
+    const x = Math.sin(ph) * Math.exp(-t * 160) * 0.6 + bp.run(rand()) * Math.exp(-t * 400);
+    L[i] = x; R[i] = x;
   }
-  fs.writeFileSync(path.join(OUT, "tick.wav"), wav(out));
+  save("tick.wav", L, R);
+}
+
+// ping: sonar / radar contact ping with ping-pong echoes (radar graphics)
+{
+  const N = secs(2.2), L = new Float32Array(N), R = new Float32Array(N);
+  const dly = secs(0.27);
+  for (let i = 0; i < N; i++) {
+    const t = i / SR;
+    const x = (Math.sin(2 * Math.PI * 1320 * t) + 0.35 * Math.sin(2 * Math.PI * 2640 * t) + 0.12 * Math.sin(2 * Math.PI * 3960 * t)) * Math.exp(-t * 7) * Math.min(1, t * 600);
+    L[i] += x * 0.9; R[i] += x * 0.9;
+    // echoes alternate sides, each quieter
+    for (let k = 1; k <= 4; k++) {
+      const j = i + dly * k;
+      if (j < N) (k % 2 ? L : R)[j] += x * 0.45 ** k;
+    }
+  }
+  const [rl, rr] = reverb(L, R, { wet: 0.3, size: 0.86, tail: 0.6 });
+  save("ping.wav", rl, rr);
+}
+
+// data: a quick run of soft UI blips (explainer graphics building: counters, timelines, charts)
+{
+  seed = 808;
+  const N = secs(0.42), L = new Float32Array(N), R = new Float32Array(N);
+  const notes = [84, 91, 88, 96, 93]; // MIDI, high and airy
+  notes.forEach((m, k) => {
+    const at = secs(0.06 * k), f = hz(m), len = secs(0.07), p = (k % 2 ? 1 : -1) * 0.35;
+    for (let i = 0; i < len && at + i < N; i++) {
+      const t = i / SR;
+      const x = Math.sin(2 * Math.PI * f * t) * Math.exp(-t * 55) * Math.min(1, t * 1500) * (1 - k * 0.12);
+      const [a, b] = pan(x, p);
+      L[at + i] += a; R[at + i] += b;
+    }
+  });
+  const [rl, rr] = reverb(L, R, { wet: 0.2, size: 0.75, tail: 0.35 });
+  save("data.wav", rl, rr);
 }
 
 // ---------- your own sound (public/sfx/, music files) ----------

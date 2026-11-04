@@ -16,6 +16,8 @@ import { feature } from "topojson-client";
 import type { Topology } from "topojson-specification";
 import { clamp, ease, springs, type Style } from "../theme";
 import type { GraphicSpec, Item } from "../types";
+import { Aircraft3D } from "./Aircraft3D";
+import { Earth3D } from "./Earth3D";
 
 // Safe zone: above the captions (portrait ~64%, landscape subtitles ~86%).
 const useZone = () => {
@@ -475,8 +477,11 @@ const RadarG: React.FC<{ g: Extract<GraphicSpec, { type: "radar" }>; style: Styl
   const label = g.label ?? "LAST CONTACT";
   return (
     <Frame style={style} title={g.title} source={g.source}>
-      <svg width={width} height={height} style={{ position: "absolute", left: 0, top: 0, overflow: "visible" }}>
+      <svg width={width} height={height} style={{ position: "absolute", left: 0, top: 0, overflow: "visible",
+        transform: `perspective(${z.unit * 2.4}px) rotateX(${interpolate(open, [0, 1], [38, 18])}deg)`, transformOrigin: `${cx}px ${cy}px` }}>
         <defs>
+          <filter id="radar-glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation={z.unit * 0.006} result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+          <pattern id="radar-scan" width="4" height="6" patternUnits="userSpaceOnUse"><rect width="4" height="1.5" fill="#000" opacity="0.28" /></pattern>
           <radialGradient id="radar-bg" cx="50%" cy="50%" r="50%">
             <stop offset="0%" stopColor={style.colors.primary} stopOpacity={0.12} />
             <stop offset="100%" stopColor={style.colors.bg} stopOpacity={0.95} />
@@ -487,7 +492,8 @@ const RadarG: React.FC<{ g: Extract<GraphicSpec, { type: "radar" }>; style: Styl
           </linearGradient>
         </defs>
         <g opacity={open} transform={`translate(${cx} ${cy}) scale(${interpolate(open, [0, 1], [0.9, 1])}) translate(${-cx} ${-cy})`}>
-          <circle cx={cx} cy={cy} r={R} fill="url(#radar-bg)" stroke={style.colors.primary} strokeOpacity={0.6} strokeWidth={z.unit * 0.004} />
+          <circle cx={cx} cy={cy} r={R * 1.04} fill="none" stroke={style.colors.text} strokeOpacity={0.12} strokeWidth={z.unit * 0.02} />
+          <circle cx={cx} cy={cy} r={R} fill="url(#radar-bg)" stroke={style.colors.primary} strokeOpacity={0.75} strokeWidth={z.unit * 0.004} filter="url(#radar-glow)" />
           {[1, 2, 3].map((i) => <circle key={i} cx={cx} cy={cy} r={ring(i)} fill="none" stroke={style.colors.text} strokeOpacity={0.2} strokeWidth={2} />)}
           <path d={`M${cx - R},${cy} L${cx + R},${cy} M${cx},${cy - R} L${cx},${cy + R}`} stroke={style.colors.text} strokeOpacity={0.1} strokeWidth={1.5} />
           {Array.from({ length: 36 }, (_, i) => {
@@ -496,7 +502,7 @@ const RadarG: React.FC<{ g: Extract<GraphicSpec, { type: "radar" }>; style: Styl
               stroke={style.colors.text} strokeOpacity={0.35} strokeWidth={1.5} />;
           })}
           {/* sweep: a fading wedge behind the beam */}
-          <g transform={`rotate(${sweep} ${cx} ${cy})`}>
+          <g transform={`rotate(${sweep} ${cx} ${cy})`} filter="url(#radar-glow)">
             {Array.from({ length: 10 }, (_, i) => {
               const a0 = (-(i + 1) * 4 * Math.PI) / 180, a1 = (-i * 4 * Math.PI) / 180;
               return <path key={i} d={`M${cx},${cy} L${cx + Math.sin(a0) * R},${cy - Math.cos(a0) * R} A${R},${R} 0 0 1 ${cx + Math.sin(a1) * R},${cy - Math.cos(a1) * R} Z`}
@@ -513,7 +519,7 @@ const RadarG: React.FC<{ g: Extract<GraphicSpec, { type: "radar" }>; style: Styl
           })}
           {/* the aircraft */}
           {blink ? (
-            <g>
+            <g filter="url(#radar-glow)">
               <rect x={now.x - z.unit * 0.011} y={now.y - z.unit * 0.011} width={z.unit * 0.022} height={z.unit * 0.022} fill="none"
                 stroke={lost ? lostColor : style.colors.text} strokeWidth={z.unit * 0.004} opacity={lost ? 1 : glow} />
               <line x1={now.x + z.unit * 0.011} y1={now.y - z.unit * 0.011} x2={now.x + z.unit * 0.05} y2={now.y - z.unit * 0.05} stroke={style.colors.text} strokeOpacity={0.7} strokeWidth={1.5} />
@@ -525,8 +531,9 @@ const RadarG: React.FC<{ g: Extract<GraphicSpec, { type: "radar" }>; style: Styl
               </g>
             </g>
           ) : null}
+          <circle cx={cx} cy={cy} r={R} fill="url(#radar-scan)" />
           {lost ? (
-            <g opacity={interpolate(frame, [vanishF + 18, vanishF + 30], [0, 1], clamp)} fontFamily={style.fonts.caption}>
+            <g opacity={interpolate(frame, [vanishF + 18, vanishF + 30], [0, 1], clamp)} fontFamily={style.fonts.caption} filter="url(#radar-glow)">
               <path d={`M${now.x - 12},${now.y - 12} L${now.x + 12},${now.y + 12} M${now.x + 12},${now.y - 12} L${now.x - 12},${now.y + 12}`} stroke={lostColor} strokeWidth={z.unit * 0.004} />
               <text x={cx} y={cy + R * 0.62} textAnchor="middle" fill={lostColor} fontWeight={800} fontSize={z.unit * 0.05} letterSpacing="0.06em"
                 stroke={style.colors.outline} strokeWidth={z.unit * 0.01} paintOrder="stroke">{label}</text>
@@ -578,6 +585,7 @@ const ProfileG: React.FC<{ g: Extract<GraphicSpec, { type: "profile" }>; style: 
             <stop offset="0%" stopColor={style.colors.primary} stopOpacity={0.4} />
             <stop offset="100%" stopColor={style.colors.primary} stopOpacity={0} />
           </linearGradient>
+          <filter id="profile-glow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation={z.unit * 0.008} result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
           <clipPath id="profile-reveal"><rect x={box.x - 4} y={box.y - z.unit * 0.2} width={Math.max(0, hx - box.x + 4)} height={box.h + z.unit * 0.4} /></clipPath>
         </defs>
         <g opacity={axis}>
@@ -596,7 +604,7 @@ const ProfileG: React.FC<{ g: Extract<GraphicSpec, { type: "profile" }>; style: 
         </g>
         <g clipPath="url(#profile-reveal)">
           <path d={area} fill="url(#profile-fill)" />
-          <path d={line} fill="none" stroke={style.colors.primary} strokeWidth={z.unit * 0.008} strokeLinejoin="round" strokeLinecap="round" />
+          <path d={line} fill="none" stroke={style.colors.primary} strokeWidth={z.unit * 0.008} strokeLinejoin="round" strokeLinecap="round" filter="url(#profile-glow)" />
         </g>
         {g.highlight != null && reached(g.highlight) ? (() => {
           const [x, y] = pts[g.highlight];
@@ -1062,10 +1070,10 @@ export const Graphic: React.FC<{ graphic: GraphicSpec; style: Style; dur?: numbe
     case "timeline": return <TimelineG g={graphic} style={style} />;
     case "quote": return <Quote g={graphic} style={style} />;
     case "map": return <MapG g={graphic} style={style} />;
-    case "globe": return <GlobeG g={graphic} style={style} />;
+    case "globe": return graphic.look === "vector" ? <GlobeG g={graphic} style={style} /> : <Earth3D g={graphic} style={style} dur={d} />;
     case "radar": return <RadarG g={graphic} style={style} dur={d} />;
     case "profile": return <ProfileG g={graphic} style={style} dur={d} />;
-    case "aircraft": return <AircraftG g={graphic} style={style} dur={d} />;
+    case "aircraft": return graphic.look === "vector" ? <AircraftG g={graphic} style={style} dur={d} /> : <Aircraft3D g={graphic} style={style} dur={d} />;
     case "list": return <ListG g={graphic} style={style} />;
     case "steps": return <StepsG g={graphic} style={style} />;
     case "compare": return <CompareG g={graphic} style={style} />;
