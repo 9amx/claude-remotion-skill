@@ -213,6 +213,18 @@ for (const [i, scene] of project.scenes.entries()) {
     delete shot.cuts;
     if (shot.type === "graphic" && shot.graphic) shot.graphic = withItemTimes(shot.graphic, vo.words, p.startMs, from, len);
     if (shot.type === "image") Object.assign(shot, { move: stillMove(shot, p, len / fps) }, p.focus ? { focus: p.focus } : {});
+    if (shot.type === "video" && shot.src) {
+      // Vertical video, wide source: footage that must stay whole (archival, official, your own
+      // files) is shown complete over a blurred copy of itself instead of cropped to the middle
+      // third. A beat can force it ("fit": true / false) and aim the crop ("focus": [x, y] in %).
+      if (p.focus) shot.focus = p.focus;
+      const keep = /^(dvids|nasa|wikimedia|file|archive)/.test(shot.assetId ?? "") || /^(file|archive):/.test(p.kw ?? "");
+      if (p.fit === true) shot.fit = true;
+      else if (p.fit !== false && keep && height > width) {
+        const size = probeSize(path.join(PUBLIC, shot.src));
+        if (size && size[0] > size[1] * 1.15) shot.fit = true;
+      }
+    }
     if (colorMatch && (shot.type === "video" || shot.type === "image") && shot.src && !/^adobe-/.test(shot.assetId ?? "")) {
       const cc = matchColor(clipStats(shot.src, (shot.trimBefore ?? 0) / fps, (len / fps) * (shot.playbackRate ?? 1), shot.type === "image"));
       if (cc) shot.cc = cc;

@@ -64,6 +64,25 @@ if (!hookOnScreen) warn("no on-screen hook text in scene 1 (emphasis, a text pop
 const tl = readJson(path.join(ROOT, "public", "timeline.json"), null);
 if (tl?.scenes?.[0]?.shots?.[0]?.type === "kinetic") bad("the very first shot has no picture (kinetic fallback) - the first frame must show the subject");
 
+// ---------- visuals: explain, don't fill ----------
+if (tl) {
+  const shots = tl.scenes.flatMap((sc) => sc.shots);
+  const stock = (sh) => (sh.type === "video" || sh.type === "image") && /^(pixabay|coverr|pexels)/.test(sh.assetId ?? "");
+  const graphics = shots.filter((sh) => sh.type === "graphic");
+  const sec = tl.durationInFrames / tl.fps;
+  if (sec >= 25 && graphics.length < 2) warn(`only ${graphics.length} explainer graphic(s) - use globe/map, radar, profile, aircraft, timeline or counter where footage can't show it (references/visuals.md)`);
+  let run = 0, maxRun = 0;
+  for (const sh of shots) { run = stock(sh) ? run + 1 : 0; maxRun = Math.max(maxRun, run); }
+  if (maxRun > 3) warn(`${maxRun} stock clips in a row - break them with an explainer or real footage`);
+  for (let i = 1; i < graphics.length; i++) {
+    const a = shots.indexOf(graphics[i - 1]), b = shots.indexOf(graphics[i]);
+    if (b === a + 1 && graphics[i].graphic?.type === graphics[i - 1].graphic?.type) warn(`two ${graphics[i].graphic.type} graphics back to back - vary them`);
+  }
+  if (stock(shots[0] ?? {})) warn("the Short opens on generic stock footage - open on the globe, a map or real footage of the event");
+  const kinetic = shots.filter((sh) => sh.type === "kinetic").length;
+  if (kinetic) bad(`${kinetic} shot(s) have no picture (kinetic fallback) - give them footage or an explainer graphic`);
+}
+
 // ---------- title ----------
 const title = yt.title ?? p.title ?? "";
 if (!title) bad('no "youtube.title"');

@@ -13,7 +13,8 @@
 //         { "url": "https://www.ntsb.gov/...", "publisher": "NTSB", "quote": "a sentence copied word for word from that page" },
 //         { "url": "https://apnews.com/...",   "publisher": "AP",   "quote": "..." } ] }
 //   ],
-//   "places": [ { "name": "Atlanta", "lat": 33.6407, "lon": -84.4277, "source": "https://..." } ]
+//   "places": [ { "name": "Atlanta", "lat": 33.6407, "lon": -84.4277, "source": "https://..." } ],
+//   "media": [ { "file": "footage/ntsb-site.mp4", "shows": "NTSB investigators at the site, Nov. 3", "source": "https://www.ntsb.gov/..." } ]
 // }
 //
 // Checks:
@@ -25,6 +26,7 @@
 //    YouTube title appears in the facts (spelled-out numbers count: "two" = 2)
 //  - every map/globe place is in "places" with coordinates (within ~30 km)
 //  - casualty and status facts are less than 24 hours old
+//  - every real-footage file shown (file: beats) is listed in "media" with what it shows and its source
 import fs from "node:fs";
 import path from "node:path";
 import { BUILD, cleanText, fail, fetchText, htmlToText, isOfficial, log, readJson, readProject, siteOf, squash, words, writeJson } from "./daily-lib.mjs";
@@ -146,6 +148,22 @@ project.scenes.forEach((sc, i) => (sc.broll || []).forEach((b) => {
     const k = known.find((x) => squash(x.name).startsWith(squash(name)) || squash(name).startsWith(squash(x.name)));
     if (!k) bad(`scene ${i + 1} ${g.type}: "${name}" is not in facts.json "places"`);
     else if (Math.abs(k.lat - p.lat) > 0.3 || Math.abs(k.lon - p.lon) > 0.3) bad(`scene ${i + 1} ${g.type}: "${name}" is at ${p.lat},${p.lon} but facts.json says ${k.lat},${k.lon}`);
+  }
+}));
+
+// ---------- 4. real footage of the event ----------
+// Footage shown as the event itself must be listed in facts.json "media" with its source.
+const media = facts.media || [];
+for (const m of media) if (!m.file || !/^https?:\/\//.test(m.source || "") || !m.shows) bad(`media ${JSON.stringify(m.file)}: needs "file", "shows" (what it shows, when) and a "source" URL`);
+project.scenes.forEach((sc, i) => (sc.broll || []).forEach((b) => {
+  const kws = typeof b === "string" ? [b] : [].concat(b.kw ?? []);
+  for (const k of kws) {
+    if (/^file:/.test(k)) {
+      const f = k.slice(5).replace(/^public\//, "");
+      if (!media.some((m) => String(m.file).replace(/^public\//, "") === f)) bad(`scene ${i + 1}: "${k}" is not in facts.json "media" - say what it shows and where it is from`);
+    } else if (/^archive:/.test(k)) {
+      warn(`scene ${i + 1}: "${k}" is picked automatically from the Internet Archive - use it only as neutral context, never as the event itself`);
+    }
   }
 }));
 

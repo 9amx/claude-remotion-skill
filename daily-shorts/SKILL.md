@@ -76,8 +76,19 @@ faceless-video-editor workflow, with:
 - `"format": "shorts"`, `"editStyle": "viral"` (breaking, by-the-numbers) or `"story"` (mystery,
   minute-by-minute, on-this-day), `"style": "documentary"`, `"loop": true`, `"outroMs": 300`.
 - `"voice": { "provider": "elevenlabs", "model": "eleven_v3" }` (voice ID from the environment).
-- Visual plan from `references/visuals.md`: open on the **globe** graphic (route or place) or the
-  strongest real image; then official imagery, map/timeline/counter where it explains, stock for mood.
+- Visuals: decide **beat by beat** with `references/visuals.md`. Use real footage or photos of the
+  event when they are exactly right and allowed. Download them to `public/footage/`, use `file:`
+  beats and list them in `facts.json` `"media"`. Where none exists, explain with the best-fitting
+  animation:
+  - `globe`/`map` for where and the route (3D/2D)
+  - `radar` for contact lost (instrument UI)
+  - `profile` for altitude/speed/wind over time (2D)
+  - `aircraft` for which part failed and how it banked or pitched (3D diagram)
+  - `timeline`/`counter`/`quote`/`statement` for sequence, numbers and official words
+
+  Use neutral stock only for context, never as the event. Keep everything 9:16: wide real footage
+  gets `"fit": true` (automatic for `file:`/official), or `"focus"` when cropping is safe.
+  Open on the globe or real footage.
 - Music: a fitting track from `../music/` copied into `public/music/`, `"music": { "file": ..., "volume": 0.1 }`;
   not the same track as yesterday. None there: `"music": { "mood": "tense" }`.
 - `"daily": { "format", "category", "topic" }` (for learning what works).

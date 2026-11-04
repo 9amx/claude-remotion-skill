@@ -118,6 +118,21 @@ so it is exactly right, and it counts as a pattern interrupt:
   as map; give exact `lat`/`lon` for airports and small towns. The fly-in takes
   about 3.5 s, so give it a beat of 3-5 s. Best opener for flights, storms, quakes:
   `{ "on": "Flight 2210", "graphic": { "type": "globe", "route": true, "places": [{ "name": "Atlanta", "lat": 33.64, "lon": -84.43 }, { "name": "Paris", "lat": 49.0, "lon": 2.55 }], "source": "FAA" } }`
+- **radar**: an air-traffic radar scope (instrument/UI style). `callsign` as ATC shows it
+  ("DAL2210"), `altitude` (ft; shown as FL above 18,000), `altitudeTo` (descends during the
+  shot), `speed` (kt), `heading` (deg), `vanish: true` makes the blip blink and drop off at
+  `vanishAt` (share of the shot, default 0.62) and shows `label` ("LAST CONTACT 11:42 PM").
+  For "lost from radar", "vanished", "stopped responding".
+- **profile**: a value over time as a line that draws itself with a plane (or `icon: "dot"`)
+  riding it and a live readout: `points` 2-8 `[label, number]` rows, `unit`, `highlight`
+  (row index that pulses), `title`. Altitude drops, speed, wind growth, water levels.
+- **aircraft**: a technical airliner drawing. `view: "top"` tilts into 3D (with a ground
+  shadow) and can bank (`roll`, degrees, negative = left wing down); `view: "side"` pitches
+  (`pitch`, degrees, negative = nose down) against a level horizon with a protractor and a
+  "NOSE DOWN 20°" badge. `highlight` parts glow; `labels` `[{ "part", "text" }]` point at
+  parts and follow the motion. Parts - top: fuselage, cockpit, wing-left, wing-right,
+  engine-left, engine-right, tail, fin; side: fuselage, cockpit, wing, engine, fin, tail,
+  door, gear. For "the left engine failed", "a door plug blew out", "it rolled left".
 - **timeline**: 2-6 `[date, what]` rows, `highlight`.
 - **quote**: `text`, `by` (who, where, when).
 - **list**: 2-6 `items` (strings, or `{ "text", "on", "icon" }`), `numbered` (default true).
@@ -162,3 +177,12 @@ cached in `build/search-cache/`, and a clip is never used twice in one video.
 
 Both are free for commercial use; `build/credits.txt` lists the creators so you
 can credit them in the description (appreciated, not required).
+
+## Wide footage in a vertical video
+
+A 16:9 clip in a 9:16 Short is cropped to its middle third by default. When the whole
+picture matters, set `"fit": true` on the beat: the full frame sits over a blurred copy of
+itself. Archival, official and your own files (`dvids`, `nasa`, `wikimedia`, `file:`,
+`archive:`) get it automatically in vertical videos; `"fit": false` turns it off. To keep the
+crop but move it to the subject, set `"focus": [x, y]` in % (`[25, 50]` = left side).
+

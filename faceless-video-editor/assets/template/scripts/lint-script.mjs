@@ -29,6 +29,29 @@ function graphicProblems(g) {
     for (const c of g.countries ?? []) if (COUNTRIES && !COUNTRIES.includes(c.toLowerCase())) out.push(`map: no country called "${c}" (names are English, e.g. "United States of America")`);
     for (const p of g.places ?? []) if (typeof p === "object" && !(num(p.lat) && num(p.lon))) out.push(`map place ${JSON.stringify(p)} needs lat and lon (or give just the name to geocode it)`);
   }
+  if (g.type === "radar") {
+    if (!g.callsign) out.push('radar needs "callsign" (as ATC shows it, e.g. "DAL2210")');
+    if (g.vanishAt != null && !(g.vanishAt > 0.2 && g.vanishAt < 0.95)) out.push("radar vanishAt is a share of the shot: 0.2-0.95");
+  }
+  if (g.type === "profile") {
+    if (!(Array.isArray(g.points) && g.points.length >= 2 && g.points.every((p) => Array.isArray(p) && typeof p[0] === "string" && num(p[1])))) out.push('profile needs "points": [["9:03", 35000], ["9:05", 12000], ...] with 2+ rows');
+    else if (g.points.length > 8) out.push("profile: more than 8 points won't read on a phone");
+  }
+  if (g.type === "aircraft") {
+    const top = ["fuselage", "cockpit", "wing-left", "wing-right", "engine-left", "engine-right", "tail", "tail-left", "tail-right", "fin"];
+    const side = ["fuselage", "cockpit", "wing", "engine", "fin", "tail", "door", "gear"];
+    const alias = { "left-engine": "engine-left", "right-engine": "engine-right", "left-wing": "wing-left", "right-wing": "wing-right", "landing-gear": "gear",
+      stabilizer: "tail", "horizontal-stabilizer": "tail", "vertical-stabilizer": "fin", rudder: "fin", nose: "cockpit", "door-plug": "door" };
+    const view = g.view ?? "top";
+    if (!["top", "side"].includes(view)) out.push('aircraft "view" is "top" or "side"');
+    const known = view === "side" ? side : top;
+    for (const n of [...(g.highlight ?? []), ...(g.labels ?? []).map((l) => l.part)]) {
+      const k = alias[String(n).toLowerCase().replace(/\s+/g, "-")] ?? String(n).toLowerCase().replace(/\s+/g, "-");
+      if (!known.includes(view === "side" ? k.replace(/-(left|right)$/, "") : k)) out.push(`aircraft (${view} view) has no part "${n}" - use ${known.join(", ")}`);
+    }
+    if (g.pitch != null && (view !== "side" || Math.abs(g.pitch) > 60)) out.push('aircraft "pitch" needs view "side" and a value within +-60 degrees');
+    if (g.roll != null && (view !== "top" || Math.abs(g.roll) > 70)) out.push('aircraft "roll" needs view "top" and a value within +-70 degrees');
+  }
   const itemsOk = (list) => Array.isArray(list) && list.every((it) => typeof it === "string" || typeof it?.text === "string");
   if (g.type === "list" || g.type === "steps") {
     if (!itemsOk(g.items) || g.items.length < 2) out.push(`${g.type} needs "items": ["...", {"text": "...", "on": "spoken words"}] with 2+ entries`);

@@ -89,7 +89,14 @@ A run takes about 1–3 hours.
    Causes need an official source. Casualty figures need to be less than 24 hours old.
 4. **Script:** one of six formats, rotated: breaking, minute-by-minute, mystery, what-went-wrong, on-this-day, by-the-numbers. It has a hook of 14 words or fewer and a loop ending.
 5. **Voice (gate 2, `voicecheck.mjs`):** every scene is transcribed again and compared with the script. A skipped, repeated or garbled phrase or a missing number means that scene is re-voiced.
-6. **Edit:** opens on a 3D globe that flies in to the place and draws the route with a moving plane. Then official imagery, maps, timelines, counters and captions.
+6. **Edit:** decided beat by beat. Real footage is used only when it really shows this event and is allowed; each file is listed with its source and checked by gate 1. Where there is none, an animation explains it:
+   - **3D globe:** the route, with a flying plane.
+   - **Radar scope:** contact lost.
+   - **Flight-profile chart:** altitude or speed over time.
+   - **3D aircraft diagram:** which part failed, banking, pitching.
+   - **Maps, timelines, counters, quotes.**
+
+   Neutral stock footage is used only for context. Everything is vertical 9:16, and wide real footage is shown whole over a blurred background, never cropped.
 7. **Quality (gate 3, `qa.mjs`):** checks for black frames, a frozen picture, dead air, clipping, loudness (−14 LUFS), audio/picture sync and length. Claude also looks at every second of the video. Fix and re-render, up to 5 rounds.
 8. **Packaging (gate 4, `package-check.mjs`):**
    - hook and length,
@@ -121,7 +128,7 @@ In approval mode, open the YouTube Studio app, watch the new private Short, then
 
 ## Limits
 - **Claude Pro:** the nightly run shares your usage limit with everything else you do in Claude. If the limit runs out mid-run, the task retries up to 3 times, 2 hours apart, and continues where it stopped.
-- **3D:** the globe opener is a 3D earth with a flying plane. 3D aircraft models are not included.
+- **3D:** the globe and the aircraft diagrams are 3D in a clean technical-drawing style (CSS/SVG 3D, fast on a laptop CPU). They are not photoreal 3D models.
 - **Accuracy:** the gates catch dead links, misquotes, unbacked numbers and names, voice mistakes and wrong places. They cannot judge whether a source itself is wrong. That is why agencies come first, and why approval mode is the default.
 - **Views:** demand checks, format rotation and the learning loop raise the odds. Nobody can promise views. Expect the first 2–4 weeks to be a test period while the channel builds its audience.
 - **YouTube API audit:** until Google approves your API project, every upload stays private. Publish by hand, or apply for the audit in Google Cloud. The audit is free and takes a few weeks.

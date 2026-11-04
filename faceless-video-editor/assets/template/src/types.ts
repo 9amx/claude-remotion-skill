@@ -15,6 +15,10 @@ export type GraphicSpec =
   | { type: "quote"; text: string; by?: string; source?: string }
   | { type: "map"; places: MapPlace[]; countries?: string[]; route?: boolean; title?: string; source?: string }
   | { type: "globe"; places: MapPlace[]; countries?: string[]; route?: boolean; marker?: number; title?: string; source?: string }
+  // Aviation explainers: an ATC radar scope, a data line over time, an aircraft diagram in 3D.
+  | { type: "radar"; callsign: string; altitude?: number; altitudeTo?: number; speed?: number; heading?: number; vanish?: boolean; vanishAt?: number; label?: string; title?: string; source?: string }
+  | { type: "profile"; points: [string, number][]; unit?: string; icon?: "plane" | "dot"; highlight?: number; title?: string; source?: string }
+  | { type: "aircraft"; view?: "top" | "side"; highlight?: string[]; pitch?: number; roll?: number; labels?: { part: string; text: string }[]; title?: string; source?: string }
   // Explainers: each item appears on its own words ("on"); build-timeline turns
   // that into `at` (frames from the shot's start) for every item.
   | { type: "list"; items: Item[]; title?: string; numbered?: boolean; at?: number[] }
@@ -41,7 +45,8 @@ export type Shot = {
   picked?: boolean; // chosen from a review sheet
   crossesCut?: boolean; // the clip's own internal cut is visible in this shot
   move?: StillMove; // camera move on a still (build-timeline picks one; a beat can set it)
-  focus?: [number, number]; // where "detail" / "push" head, % of the picture
+  focus?: [number, number]; // where "detail" / "push" head (stills) or where the crop sits (video), % of the picture
+  fit?: boolean; // video: show the whole frame over a blurred copy (wide footage in a vertical video)
   fadeIn?: number; // frames of crossfade from the previous shot
   cc?: { r: number; g: number; b: number; bright: number; contrast: number }; // color match to the rest of the edit
 };

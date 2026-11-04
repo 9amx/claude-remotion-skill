@@ -154,7 +154,7 @@ export const sceneId = (i) => `s${String(i + 1).padStart(3, "0")}`;
 // to the first word they share with the line (in order), else spread evenly.
 export const brollEntries = (scene) =>
   (scene.broll ?? []).map((e) => (typeof e === "string" ? { kw: [e] } : { ...e, kw: [].concat(e.kw ?? []).filter(Boolean) }));
-export const GRAPHIC_TYPES = ["counter", "bars", "timeline", "quote", "map", "globe", "list", "steps", "compare", "statement", "ui"];
+export const GRAPHIC_TYPES = ["counter", "bars", "timeline", "quote", "map", "globe", "radar", "profile", "aircraft", "list", "steps", "compare", "statement", "ui"];
 export const entryKeywords = (scene) => brollEntries(scene).flatMap((e) => e.kw);
 
 export const normWord = (w) => String(w).toLowerCase().replace(/[^\p{L}\p{M}\p{N}]/gu, "");
@@ -278,7 +278,7 @@ export function planShots(scene, vo, maxShotSeconds) {
     for (let j = 0; j < cuts.length - 1; j++) {
       shots.push({ kw: b.e.graphic ? null : b.e.kw[j % b.e.kw.length], alts: b.e.kw, entry: b.k, sub: j, on: b.e.on, startMs: cuts[j], endMs: cuts[j + 1],
         words: spoken(cuts[j], cuts[j + 1]), ...(b.e.graphic ? { graphic: b.e.graphic } : {}), ...(j === 0 && b.e.sfx ? { sfx: b.e.sfx } : {}),
-        ...(b.e.move ? { move: b.e.move } : {}), ...(b.e.focus ? { focus: b.e.focus } : {}), ...(j === 0 && b.e.text ? { text: b.e.text } : {}),
+        ...(b.e.move ? { move: b.e.move } : {}), ...(b.e.focus ? { focus: b.e.focus } : {}), ...(b.e.fit != null ? { fit: b.e.fit } : {}), ...(j === 0 && b.e.text ? { text: b.e.text } : {}),
         ...(b.e.credit ? { credit: b.e.credit } : {}) });
     }
   });

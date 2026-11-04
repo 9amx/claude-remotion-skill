@@ -1,6 +1,8 @@
 // Motion-graphics shots: facts drawn from data, so they are exactly right.
 // counter (a number), bars (a comparison), map (places, countries, a route),
 // globe (a 3D earth that flies in to the place, with a route and a moving plane),
+// radar (an ATC scope; a blip that drops off), profile (a value over time with a moving readout),
+// aircraft (a technical airliner drawing in 3D: parts light up, it banks or pitches),
 // timeline (dates), quote (someone's words); explainers for what footage can't
 // show: list, steps (a process), compare (two sides), statement (the key line),
 // ui (a screenshot in a browser / phone frame with a highlight). A beat in project.json:
@@ -440,6 +442,331 @@ const GlobeG: React.FC<{ g: Extract<GraphicSpec, { type: "globe" }>; style: Styl
 };
 
 
+// ---------- radar ----------
+// An ATC radar scope: rings, a turning sweep, the aircraft's blip with its data tag and
+// track. With "vanish" the blip blinks and drops off the scope (vanishAt: share of the
+// shot, default 0.62) and a "last contact" mark stays. altitude -> altitudeTo descends.
+const RadarG: React.FC<{ g: Extract<GraphicSpec, { type: "radar" }>; style: Style; dur: number }> = ({ g, style, dur }) => {
+  const frame = useCurrentFrame();
+  const { fps, width, height } = useVideoConfig();
+  const z = useZone();
+  const top = z.y + (g.title ? z.unit * 0.1 : 0);
+  const box = { x: z.x, y: top, w: z.w, h: z.h - (top - z.y) };
+  const cx = box.x + box.w / 2, cy = box.y + box.h / 2;
+  const R = Math.min(box.w, box.h) * 0.47;
+  const open = spring({ frame, fps, config: springs.smooth });
+  const sweep = ((frame / (fps * 2.2)) * 360) % 360; // degrees, clockwise from north
+  const vanishF = g.vanish ? Math.round(dur * (g.vanishAt ?? 0.62)) : Infinity;
+  const head = ((g.heading ?? 55) * Math.PI) / 180;
+  // The aircraft crawls across the scope along its heading, ending near the centre-right.
+  const travel = interpolate(frame, [0, Math.min(dur, vanishF)], [0, 1], clamp);
+  const start = { x: cx - Math.sin(head) * R * 0.55, y: cy + Math.cos(head) * R * 0.55 };
+  const pos = (t: number) => ({ x: start.x + Math.sin(head) * R * 0.5 * t, y: start.y - Math.cos(head) * R * 0.5 * t });
+  const now = pos(travel);
+  const lost = frame >= vanishF;
+  const blink = lost && frame < vanishF + 24 ? Math.floor((frame - vanishF) / 5) % 2 === 0 : !lost;
+  const alt = g.altitude != null ? Math.round(interpolate(frame, [0, Math.min(dur, vanishF)], [g.altitude, g.altitudeTo ?? g.altitude], clamp) / 100) * 100 : null;
+  const angleOf = (p: { x: number; y: number }) => ((Math.atan2(p.x - cx, -(p.y - cy)) * 180) / Math.PI + 360) % 360;
+  const since = (sweep - angleOf(now) + 360) % 360; // degrees since the sweep passed the blip
+  const glow = interpolate(since, [0, 120], [1, 0.45], clamp);
+  const ring = (i: number) => R * (i / 4);
+  const tagFont = z.unit * 0.04;
+  const lostColor = "#ff5a52";
+  const label = g.label ?? "LAST CONTACT";
+  return (
+    <Frame style={style} title={g.title} source={g.source}>
+      <svg width={width} height={height} style={{ position: "absolute", left: 0, top: 0, overflow: "visible" }}>
+        <defs>
+          <radialGradient id="radar-bg" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor={style.colors.primary} stopOpacity={0.12} />
+            <stop offset="100%" stopColor={style.colors.bg} stopOpacity={0.95} />
+          </radialGradient>
+          <linearGradient id="radar-sweep" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor={style.colors.primary} stopOpacity={0} />
+            <stop offset="100%" stopColor={style.colors.primary} stopOpacity={0.45} />
+          </linearGradient>
+        </defs>
+        <g opacity={open} transform={`translate(${cx} ${cy}) scale(${interpolate(open, [0, 1], [0.9, 1])}) translate(${-cx} ${-cy})`}>
+          <circle cx={cx} cy={cy} r={R} fill="url(#radar-bg)" stroke={style.colors.primary} strokeOpacity={0.6} strokeWidth={z.unit * 0.004} />
+          {[1, 2, 3].map((i) => <circle key={i} cx={cx} cy={cy} r={ring(i)} fill="none" stroke={style.colors.text} strokeOpacity={0.2} strokeWidth={2} />)}
+          <path d={`M${cx - R},${cy} L${cx + R},${cy} M${cx},${cy - R} L${cx},${cy + R}`} stroke={style.colors.text} strokeOpacity={0.1} strokeWidth={1.5} />
+          {Array.from({ length: 36 }, (_, i) => {
+            const a = (i * 10 * Math.PI) / 180, l = i % 3 === 0 ? 0.06 : 0.03;
+            return <line key={i} x1={cx + Math.sin(a) * R} y1={cy - Math.cos(a) * R} x2={cx + Math.sin(a) * R * (1 - l)} y2={cy - Math.cos(a) * R * (1 - l)}
+              stroke={style.colors.text} strokeOpacity={0.35} strokeWidth={1.5} />;
+          })}
+          {/* sweep: a fading wedge behind the beam */}
+          <g transform={`rotate(${sweep} ${cx} ${cy})`}>
+            {Array.from({ length: 10 }, (_, i) => {
+              const a0 = (-(i + 1) * 4 * Math.PI) / 180, a1 = (-i * 4 * Math.PI) / 180;
+              return <path key={i} d={`M${cx},${cy} L${cx + Math.sin(a0) * R},${cy - Math.cos(a0) * R} A${R},${R} 0 0 1 ${cx + Math.sin(a1) * R},${cy - Math.cos(a1) * R} Z`}
+                fill={style.colors.primary} opacity={0.22 * (1 - i / 10)} />;
+            })}
+            <line x1={cx} y1={cy} x2={cx} y2={cy - R} stroke={style.colors.primary} strokeWidth={z.unit * 0.004} opacity={0.9} />
+          </g>
+          {/* track history */}
+          {Array.from({ length: 7 }, (_, i) => {
+            const t = travel - (i + 1) * 0.07;
+            if (t < 0) return null;
+            const p = pos(t);
+            return <circle key={i} cx={p.x} cy={p.y} r={z.unit * 0.005} fill={style.colors.text} opacity={0.55 * (1 - i / 7)} />;
+          })}
+          {/* the aircraft */}
+          {blink ? (
+            <g>
+              <rect x={now.x - z.unit * 0.011} y={now.y - z.unit * 0.011} width={z.unit * 0.022} height={z.unit * 0.022} fill="none"
+                stroke={lost ? lostColor : style.colors.text} strokeWidth={z.unit * 0.004} opacity={lost ? 1 : glow} />
+              <line x1={now.x + z.unit * 0.011} y1={now.y - z.unit * 0.011} x2={now.x + z.unit * 0.05} y2={now.y - z.unit * 0.05} stroke={style.colors.text} strokeOpacity={0.7} strokeWidth={1.5} />
+              <g transform={`translate(${now.x + z.unit * 0.055} ${now.y - z.unit * 0.06})`} fontFamily={style.fonts.label ?? style.fonts.caption} fontSize={tagFont}
+                fill={lost ? lostColor : style.colors.text} fontWeight={700}>
+                <text>{g.callsign}</text>
+                {alt != null ? <text y={tagFont * 1.15} fontWeight={500} opacity={0.85}>{alt >= 18000 ? `FL${Math.round(alt / 100)}` : `${alt.toLocaleString("en-US")} ft`}</text> : null}
+                {g.speed != null ? <text y={tagFont * (alt != null ? 2.3 : 1.15)} fontWeight={500} opacity={0.85}>{`${g.speed} kt`}</text> : null}
+              </g>
+            </g>
+          ) : null}
+          {lost ? (
+            <g opacity={interpolate(frame, [vanishF + 18, vanishF + 30], [0, 1], clamp)} fontFamily={style.fonts.caption}>
+              <path d={`M${now.x - 12},${now.y - 12} L${now.x + 12},${now.y + 12} M${now.x + 12},${now.y - 12} L${now.x - 12},${now.y + 12}`} stroke={lostColor} strokeWidth={z.unit * 0.004} />
+              <text x={cx} y={cy + R * 0.62} textAnchor="middle" fill={lostColor} fontWeight={800} fontSize={z.unit * 0.05} letterSpacing="0.06em"
+                stroke={style.colors.outline} strokeWidth={z.unit * 0.01} paintOrder="stroke">{label}</text>
+            </g>
+          ) : null}
+        </g>
+      </svg>
+    </Frame>
+  );
+};
+
+// ---------- profile ----------
+// A value over time as a line that draws itself (altitude, speed, wind, water level),
+// a plane or dot riding its head and a live readout. points: [["9:03", 35000], ...].
+const ProfileG: React.FC<{ g: Extract<GraphicSpec, { type: "profile" }>; style: Style; dur: number }> = ({ g, style, dur }) => {
+  const frame = useCurrentFrame();
+  const { fps, width, height } = useVideoConfig();
+  const z = useZone();
+  const top = z.y + (g.title ? z.unit * 0.12 : z.unit * 0.04);
+  const pad = { l: z.unit * 0.15, r: z.unit * 0.06, t: z.unit * 0.1, b: z.unit * 0.1 };
+  const box = { x: z.x + pad.l, y: top + pad.t, w: z.w - pad.l - pad.r, h: z.h - (top - z.y) - pad.t - pad.b };
+  const vals = g.points.map((p) => p[1]);
+  const lo = Math.min(0, ...vals), hi = Math.max(...vals) * 1.12 || 1;
+  const X = (i: number) => box.x + (g.points.length > 1 ? (i / (g.points.length - 1)) * box.w : box.w / 2);
+  const Y = (v: number) => box.y + box.h - ((v - lo) / (hi - lo)) * box.h;
+  const pts = g.points.map((p, i) => [X(i), Y(p[1])] as [number, number]);
+  const seg = pts.slice(1).map((p, i) => Math.hypot(p[0] - pts[i][0], p[1] - pts[i][1]));
+  const total = seg.reduce((a, b) => a + b, 0) || 1;
+  const prog = interpolate(frame, [fps * 0.4, Math.max(fps * 1.2, dur * 0.82)], [0, 1], { ...clamp, easing: ease.inOut });
+  // head position and value along the polyline
+  let left = prog * total, k = 0;
+  while (k < seg.length - 1 && left > seg[k]) { left -= seg[k]; k++; }
+  const f = seg.length ? Math.min(1, left / (seg[k] || 1)) : 0;
+  const hx = pts.length > 1 ? lerp(pts[k][0], pts[k + 1][0], f) : pts[0][0];
+  const hy = pts.length > 1 ? lerp(pts[k][1], pts[k + 1][1], f) : pts[0][1];
+  const hv = pts.length > 1 ? lerp(vals[k], vals[k + 1], f) : vals[0];
+  const ang = pts.length > 1 ? (Math.atan2(pts[k + 1][1] - pts[k][1], pts[k + 1][0] - pts[k][0]) * 180) / Math.PI : 0;
+  const line = pts.map((p, i) => `${i ? "L" : "M"}${p[0]},${p[1]}`).join(" ");
+  const area = `${line} L${pts[pts.length - 1][0]},${box.y + box.h} L${pts[0][0]},${box.y + box.h} Z`;
+  const grid = [0, 0.5, 1].map((t) => lo + (hi / 1.12 - lo) * t);
+  const fmt = (v: number) => `${formatNumber(Math.round(v), 0)}${g.unit ? ` ${g.unit}` : ""}`;
+  const axis = useEnter(0);
+  const reached = (i: number) => prog * total >= seg.slice(0, i).reduce((a, b) => a + b, 0) - 0.5;
+  return (
+    <Frame style={style} title={g.title} source={g.source}>
+      <svg width={width} height={height} style={{ position: "absolute", left: 0, top: 0, overflow: "visible" }}>
+        <defs>
+          <linearGradient id="profile-fill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={style.colors.primary} stopOpacity={0.4} />
+            <stop offset="100%" stopColor={style.colors.primary} stopOpacity={0} />
+          </linearGradient>
+          <clipPath id="profile-reveal"><rect x={box.x - 4} y={box.y - z.unit * 0.2} width={Math.max(0, hx - box.x + 4)} height={box.h + z.unit * 0.4} /></clipPath>
+        </defs>
+        <g opacity={axis}>
+          {grid.map((v, i) => (
+            <g key={i}>
+              <line x1={box.x} x2={box.x + box.w} y1={Y(v)} y2={Y(v)} stroke={style.colors.text} strokeOpacity={i === 0 ? 0.4 : 0.12} strokeWidth={1.5} strokeDasharray={i === 0 ? undefined : "6 8"} />
+              <text x={box.x - z.unit * 0.02} y={Y(v) + z.unit * 0.012} textAnchor="end" fill={style.colors.text} fillOpacity={0.7} fontFamily={style.fonts.caption} fontSize={z.unit * 0.034} fontWeight={600}>
+                {formatNumber(Math.round(v), 0)}
+              </text>
+            </g>
+          ))}
+          {g.points.map((p, i) => (
+            <text key={i} x={X(i)} y={box.y + box.h + z.unit * 0.055} textAnchor="middle" fill={style.colors.text} fontFamily={style.fonts.caption} fontSize={z.unit * 0.036}
+              fontWeight={600} opacity={reached(i) ? 0.9 : 0.25}>{p[0]}</text>
+          ))}
+        </g>
+        <g clipPath="url(#profile-reveal)">
+          <path d={area} fill="url(#profile-fill)" />
+          <path d={line} fill="none" stroke={style.colors.primary} strokeWidth={z.unit * 0.008} strokeLinejoin="round" strokeLinecap="round" />
+        </g>
+        {g.highlight != null && reached(g.highlight) ? (() => {
+          const [x, y] = pts[g.highlight];
+          const r = ((frame % 30) / 30);
+          return <g><circle cx={x} cy={y} r={z.unit * (0.014 + r * 0.04)} fill="none" stroke={style.colors.primary} strokeWidth={3} opacity={1 - r} />
+            <circle cx={x} cy={y} r={z.unit * 0.012} fill={style.colors.primary} /></g>;
+        })() : null}
+        {prog > 0 ? (
+          <g transform={`translate(${hx} ${hy})`}>
+            {g.icon === "dot" ? <circle r={z.unit * 0.014} fill={style.colors.text} stroke={style.colors.outline} strokeWidth={3} />
+              : <g transform={`rotate(${ang + 90}) scale(${z.unit * 0.0034})`}><path d={PLANE} fill={style.colors.text} stroke={style.colors.outline} strokeWidth={1.2} /></g>}
+            <g transform={`translate(0 ${-z.unit * 0.06})`}>
+              <text textAnchor={hx > box.x + box.w * 0.7 ? "end" : hx < box.x + box.w * 0.3 ? "start" : "middle"} fill={style.colors.text} fontFamily={style.fonts.caption}
+                fontWeight={800} fontSize={z.unit * 0.05} stroke={style.colors.outline} strokeWidth={z.unit * 0.01} paintOrder="stroke">{fmt(hv)}</text>
+            </g>
+          </g>
+        ) : null}
+      </svg>
+    </Frame>
+  );
+};
+
+// ---------- aircraft ----------
+// A clean technical drawing of an airliner that explains a mechanism: parts light up
+// ("engine-left", "wing-right", "tail", "fin", "cockpit", "door", "gear"...), the top view
+// tilts into 3D and can bank ("roll"), the side view pitches nose up/down ("pitch") against
+// a level horizon with the angle read out. Labels point at parts.
+type Part = { d: string; at: [number, number]; stroke?: boolean };
+const TOP: Record<string, Part> = {
+  fuselage: { d: "M100,8 C106,8 109,20 109,34 L109,180 C109,192 104,204 100,208 C96,204 91,192 91,180 L91,34 C91,20 94,8 100,8 Z", at: [100, 60] },
+  cockpit: { d: "M95,20 L105,20 L104,29 L96,29 Z", at: [100, 24] },
+  "wing-left": { d: "M91,86 L16,126 L16,137 L91,117 Z", at: [40, 124] },
+  "wing-right": { d: "M109,86 L184,126 L184,137 L109,117 Z", at: [160, 124] },
+  "engine-left": { d: "M51,96 h11 v27 h-11 Z", at: [56, 110] },
+  "engine-right": { d: "M138,96 h11 v27 h-11 Z", at: [144, 110] },
+  "tail-left": { d: "M93,176 L62,195 L62,202 L93,191 Z", at: [72, 196] },
+  "tail-right": { d: "M107,176 L138,195 L138,202 L107,191 Z", at: [128, 196] },
+  fin: { d: "M98.5,168 h3 v40 h-3 Z", at: [100, 190] },
+};
+const SIDE: Record<string, Part> = {
+  fuselage: { d: "M18,54 C18,45 24,40 38,40 L208,40 C228,40 246,46 254,56 C246,65 230,68 208,68 L38,68 C24,68 18,63 18,54 Z", at: [130, 44] },
+  cockpit: { d: "M229,47 L241,50 L239,54 L227,52 Z", at: [235, 50] },
+  wing: { d: "M108,57 L162,57 L152,63 L102,63 Z", at: [130, 60] },
+  engine: { d: "M116,64 h36 a6,6 0 0 1 0,12 h-36 a6,6 0 0 1 0,-12 Z", at: [134, 70] },
+  fin: { d: "M22,42 L8,6 L28,6 L58,40 Z", at: [26, 20] },
+  tail: { d: "M10,47 L46,47 L42,52 L8,52 Z", at: [26, 50] },
+  door: { d: "M66,44 h7 v19 h-7 Z", at: [70, 52] },
+  gear: { d: "M126,76 v14 M200,68 v22 M120,92 a5,5 0 1 0 12,0 a5,5 0 1 0 -12,0 M194,92 a5,5 0 1 0 12,0 a5,5 0 1 0 -12,0", at: [200, 86], stroke: true },
+};
+const PART_ALIAS: Record<string, string> = { "left-engine": "engine-left", "right-engine": "engine-right", "left-wing": "wing-left", "right-wing": "wing-right",
+  "landing-gear": "gear", stabilizer: "tail", "horizontal-stabilizer": "tail", "vertical-stabilizer": "fin", rudder: "fin", nose: "cockpit", "door-plug": "door" };
+const AircraftG: React.FC<{ g: Extract<GraphicSpec, { type: "aircraft" }>; style: Style; dur: number }> = ({ g, style, dur }) => {
+  const frame = useCurrentFrame();
+  const { fps, width, height } = useVideoConfig();
+  const z = useZone();
+  const side = g.view === "side";
+  const parts = side ? SIDE : TOP;
+  const norm = (n: string) => { const k = n.toLowerCase().replace(/\s+/g, "-"); return PART_ALIAS[k] ?? k; };
+  const lit = new Set((g.highlight ?? []).map(norm).flatMap((k) => (side ? [k.replace(/-(left|right)$/, "")] : k === "tail" ? ["tail-left", "tail-right"] : [k])));
+  const top = z.y + (g.title ? z.unit * 0.1 : 0);
+  const box = { x: z.x, y: top, w: z.w, h: z.h - (top - z.y) };
+  const [vw, vh] = side ? [262, 100] : [200, 216];
+  const k = Math.min((box.w * (side ? 0.9 : 0.8)) / vw, (box.h * (side ? 0.78 : 0.95)) / vh);
+  const ox = box.x + (box.w - vw * k) / 2, oy = box.y + (box.h - vh * k) / 2;
+  const draw = interpolate(frame, [0, fps * 0.9], [0, 1], { ...clamp, easing: ease.out });
+  const tilt = side ? 0 : interpolate(spring({ frame: frame - fps * 0.5, fps, config: { damping: 30, stiffness: 40 } }), [0, 1], [0, 52]);
+  const spin = side ? 0 : interpolate(frame, [0, dur], [-8, 10]);
+  const rollNow = g.roll ? interpolate(frame, [fps * 1.4, fps * 2.6], [0, g.roll], { ...clamp, easing: ease.inOut }) : 0;
+  const pitchNow = g.pitch ? interpolate(frame, [fps * 1.1, fps * 2.4], [0, g.pitch], { ...clamp, easing: ease.inOut }) : 0;
+  const pulse = 0.55 + 0.45 * Math.sin(frame / 5);
+  const litOn = interpolate(frame, [fps * 0.9, fps * 1.3], [0, 1], clamp);
+  const S = (p: [number, number]) => [ox + p[0] * k, oy + p[1] * k] as [number, number];
+  // Where a part is on screen after the motion (so label lines stay on their part).
+  const deg = Math.PI / 180;
+  const place = (p: [number, number]): [number, number] => {
+    if (side) {
+      const [cx0, cy0] = S([136, 54]), [x, y] = S(p), a = -pitchNow * deg;
+      return [cx0 + (x - cx0) * Math.cos(a) - (y - cy0) * Math.sin(a), cy0 + (x - cx0) * Math.sin(a) + (y - cy0) * Math.cos(a)];
+    }
+    // CSS: rotateX(tilt) rotateZ(spin) rotateY(roll) around 50% 55%, then perspective from the box centre
+    const o = [ox + vw * k * 0.5, oy + vh * k * 0.55], c = [ox + vw * k * 0.5, oy + vh * k * 0.5];
+    let x = ox + p[0] * k - o[0], y = oy + p[1] * k - o[1], zz = 0;
+    const ry = rollNow * deg, rz = spin * deg, rx = tilt * deg;
+    [x, zz] = [x * Math.cos(ry) + zz * Math.sin(ry), -x * Math.sin(ry) + zz * Math.cos(ry)];
+    [x, y] = [x * Math.cos(rz) - y * Math.sin(rz), x * Math.sin(rz) + y * Math.cos(rz)];
+    [y, zz] = [y * Math.cos(rx) - zz * Math.sin(rx), y * Math.sin(rx) + zz * Math.cos(rx)];
+    const X = o[0] + x, Y = o[1] + y, d = z.unit * 2.2, f = d / (d - zz);
+    return [c[0] + (X - c[0]) * f, c[1] + (Y - c[1]) * f];
+  };
+  const labels = (g.labels ?? []).map((l, i) => ({ ...l, key: norm(l.part), i }));
+  const labelOn = (i: number) => interpolate(frame, [fps * (1.3 + i * 0.25), fps * (1.6 + i * 0.25)], [0, 1], clamp);
+  const model = (
+    <svg width={vw * k} height={vh * k} viewBox={`0 0 ${vw} ${vh}`} style={{ overflow: "visible" }}>
+      <defs>
+        <filter id="ac-glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.4" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+      </defs>
+      {side ? <g opacity={0.5}>{Array.from({ length: 20 }, (_, i) => <circle key={i} cx={84 + i * 7} cy={48} r={1.3} fill={style.colors.text} />)}</g> : null}
+      {Object.entries(parts).map(([name, part]) => {
+        const on = lit.has(name);
+        return (
+          <path key={name} d={part.d} pathLength={1} strokeDasharray="1" strokeDashoffset={1 - draw}
+            fill={part.stroke ? "none" : on ? style.colors.primary : style.colors.text} fillOpacity={part.stroke ? 0 : on ? (0.35 + 0.5 * pulse) * litOn + 0.08 * (1 - litOn) : 0.08 * draw}
+            stroke={on ? style.colors.primary : style.colors.text} strokeOpacity={on ? 1 : 0.75} strokeWidth={on ? 1.6 : 1}
+            filter={on && litOn > 0.5 ? "url(#ac-glow)" : undefined} strokeLinejoin="round" />
+        );
+      })}
+    </svg>
+  );
+  const pivot = side ? S([136, 54]) : S([100, 108]);
+  return (
+    <Frame style={style} title={g.title} source={g.source}>
+      {side ? (
+        <svg width={width} height={height} style={{ position: "absolute", left: 0, top: 0 }}>
+          <line x1={box.x} x2={box.x + box.w} y1={pivot[1]} y2={pivot[1]} stroke={style.colors.text} strokeOpacity={0.35} strokeWidth={2} strokeDasharray="10 10" />
+          {g.pitch ? (() => {
+            // a protractor at the nose: the level line, the nose line, the angle between them
+            const r = 118 * k, a = (pitchNow * Math.PI) / 180;
+            const nose = [pivot[0] + Math.cos(a) * r, pivot[1] - Math.sin(a) * r];
+            return <g>
+              <line x1={pivot[0]} y1={pivot[1]} x2={nose[0]} y2={nose[1]} stroke={style.colors.primary} strokeWidth={3} strokeDasharray="8 8" opacity={0.8} />
+              <path d={`M${pivot[0] + r},${pivot[1]} A${r},${r} 0 0 ${pitchNow > 0 ? 0 : 1} ${nose[0]},${nose[1]}`} fill="none" stroke={style.colors.primary} strokeWidth={6} />
+            </g>;
+          })() : null}
+        </svg>
+      ) : null}
+      <div style={{ position: "absolute", left: ox, top: oy, width: vw * k, height: vh * k, perspective: z.unit * 2.2 }}>
+        <div style={{ transformOrigin: side ? `${136 * k}px ${54 * k}px` : "50% 55%",
+          transform: side ? `rotate(${-pitchNow}deg)` : `rotateX(${tilt}deg) rotateZ(${spin}deg) rotateY(${rollNow}deg)`, transformStyle: "preserve-3d" }}>
+          {!side ? (
+            // the shadow on the "ground" sells the 3D tilt
+            <div style={{ position: "absolute", inset: 0, transform: `translateZ(${-z.unit * 0.12}px)`, opacity: 0.35 * (tilt / 52), filter: "blur(10px)" }}>
+              <svg width={vw * k} height={vh * k} viewBox={`0 0 ${vw} ${vh}`}>{Object.values(parts).map((p, i) => <path key={i} d={p.d} fill="#000" />)}</svg>
+            </div>
+          ) : null}
+          {model}
+        </div>
+      </div>
+      {side && g.pitch ? (
+        <div style={{ position: "absolute", left: box.x, width: box.w, top: box.y + box.h * 0.84, display: "flex", justifyContent: "center",
+          opacity: interpolate(frame, [fps * 1.1, fps * 1.4], [0, 1], clamp) }}>
+          <div style={{ background: style.colors.primary, color: style.colors.outline, borderRadius: z.unit, padding: `${z.unit * 0.012}px ${z.unit * 0.035}px`,
+            fontFamily: style.fonts.caption, fontWeight: 800, fontSize: z.unit * 0.05, letterSpacing: "0.02em" }}>
+            {`NOSE ${pitchNow < 0 ? "DOWN" : "UP"} ${Math.abs(Math.round(pitchNow))}°`}
+          </div>
+        </div>
+      ) : null}
+      <svg width={width} height={height} style={{ position: "absolute", left: 0, top: 0, overflow: "visible" }}>
+        {labels.map((l) => {
+          const part = parts[l.key] ?? (side ? parts[l.key.replace(/-(left|right)$/, "")] : undefined);
+          if (!part) return null;
+          const [px, py] = place(part.at);
+          const right = px > box.x + box.w / 2;
+          const ty = box.y + box.h * (0.12 + 0.22 * (l.i % 4)) + (side ? box.h * 0.1 : 0);
+          const tx = right ? box.x + box.w - z.unit * 0.02 : box.x + z.unit * 0.02;
+          const o = labelOn(l.i);
+          return (
+            <g key={l.i} opacity={o}>
+              <path d={`M${px},${py} L${right ? tx - z.unit * 0.2 : tx + z.unit * 0.2},${ty}`} stroke={style.colors.primary} strokeWidth={2.5} fill="none" pathLength={1} strokeDasharray="1" strokeDashoffset={1 - o} />
+              <circle cx={px} cy={py} r={z.unit * 0.008} fill={style.colors.primary} />
+              <text x={tx} y={ty - z.unit * 0.01} textAnchor={right ? "end" : "start"} fill={style.colors.text} fontFamily={style.fonts.caption} fontWeight={800}
+                fontSize={z.unit * 0.04} stroke={style.colors.outline} strokeWidth={z.unit * 0.009} paintOrder="stroke">{l.text}</text>
+            </g>
+          );
+        })}
+      </svg>
+    </Frame>
+  );
+};
+
+
 // ---------- explainers ----------
 // Each item lands on its own words: `at` holds frames from the shot's start
 // (build-timeline fills it from the items' "on" phrases, or spreads them evenly).
@@ -726,7 +1053,9 @@ const UiG: React.FC<{ g: Extract<GraphicSpec, { type: "ui" }>; style: Style }> =
   );
 };
 
-export const Graphic: React.FC<{ graphic: GraphicSpec; style: Style }> = ({ graphic, style }) => {
+export const Graphic: React.FC<{ graphic: GraphicSpec; style: Style; dur?: number }> = ({ graphic, style, dur }) => {
+  const { fps } = useVideoConfig();
+  const d = dur ?? fps * 4;
   switch (graphic.type) {
     case "counter": return <Counter g={graphic} style={style} />;
     case "bars": return <Bars g={graphic} style={style} />;
@@ -734,6 +1063,9 @@ export const Graphic: React.FC<{ graphic: GraphicSpec; style: Style }> = ({ grap
     case "quote": return <Quote g={graphic} style={style} />;
     case "map": return <MapG g={graphic} style={style} />;
     case "globe": return <GlobeG g={graphic} style={style} />;
+    case "radar": return <RadarG g={graphic} style={style} dur={d} />;
+    case "profile": return <ProfileG g={graphic} style={style} dur={d} />;
+    case "aircraft": return <AircraftG g={graphic} style={style} dur={d} />;
     case "list": return <ListG g={graphic} style={style} />;
     case "steps": return <StepsG g={graphic} style={style} />;
     case "compare": return <CompareG g={graphic} style={style} />;
