@@ -112,6 +112,36 @@ so it is exactly right, and it counts as a pattern interrupt:
   OpenStreetMap and cached; the log says what each resolved to, check it) or
   `{ "name", "lat", "lon", "label" }`, `route: true` draws a great-circle line
   through the places in order. The map frames what you name.
+- **globe**: a cinematic 3D Earth (WebGL): NASA Blue Marble day side, city lights at
+  night, moving clouds, atmosphere glow, stars. The camera descends from space onto the
+  `places`; with `route: true` a glowing route draws itself (origin first) and an aircraft
+  flies along it, turned to run up the vertical frame; the end point (or `marker`) pulses with
+  a beam of light. `light: "night"` puts the place on the night side (city lights) for events
+  that happened at night. Give exact `lat`/`lon`. The descent takes about 3.5 s: give it a
+  beat of 4-6 s. `look: "vector"` falls back to the flat line-drawing globe. Textures are
+  copied into `public/earth/` automatically (from the three-globe package).
+  `{ "on": "Flight 2210", "graphic": { "type": "globe", "route": true, "light": "night", "places": [{ "name": "Atlanta", "lat": 33.64, "lon": -84.43 }, { "name": "Paris", "lat": 49.0, "lon": 2.55 }], "source": "FAA" } }`
+- **radar**: an air-traffic radar scope (instrument/UI style). `callsign` as ATC shows it
+  ("DAL2210"), `altitude` (ft; shown as FL above 18,000), `altitudeTo` (descends during the
+  shot), `speed` (kt), `heading` (deg), `vanish: true` makes the blip blink and drop off at
+  `vanishAt` (share of the shot, default 0.62) and shows `label` ("LAST CONTACT 11:42 PM").
+  For "lost from radar", "vanished", "stopped responding".
+- **profile**: a value over time as a line that draws itself with a plane (or `icon: "dot"`)
+  riding it and a live readout: `points` 2-8 `[label, number]` rows, `unit`, `highlight`
+  (row index that pulses), `title`. Altitude drops, speed, wind growth, water levels.
+- **aircraft**: a 3D airliner (WebGL) filmed like an air-to-air shot: it flies over a sea
+  of clouds under a real sky, lit by the sun and reflecting the sky, nav lights, strobes and
+  beacon on, engines turning, a little turbulence. `light`: `day` (default), `dusk` or `night`
+  (moonlit clouds, stars) - match the local time of the event; `studio` is the old dark
+  product look. Neutral paint (grey cheatline, charcoal tail, no logo), so it never suggests
+  an airline that was not involved. `view: "top"` is a high three-quarter view from above
+  that can bank (`roll`, degrees, negative = left wing down) with a "BANK 25° LEFT" badge;
+  `view: "side"` is level with the aircraft and pitches (`pitch`, degrees, negative = nose
+  down) against the real horizon with a "NOSE DOWN 20°" badge. `highlight` parts glow with an
+  outline; `labels` `[{ "part", "text" }]` point at parts from sharp 2D text. The camera
+  looks from the side of the parts you name (a left engine from the left). Parts: fuselage,
+  cockpit, wing-left, wing-right, engine-left, engine-right, tail, fin, door, gear.
+  `look: "vector"` falls back to the flat technical drawing.
 - **timeline**: 2-6 `[date, what]` rows, `highlight`.
 - **quote**: `text`, `by` (who, where, when).
 - **list**: 2-6 `items` (strings, or `{ "text", "on", "icon" }`), `numbered` (default true).
@@ -156,3 +186,12 @@ cached in `build/search-cache/`, and a clip is never used twice in one video.
 
 Both are free for commercial use; `build/credits.txt` lists the creators so you
 can credit them in the description (appreciated, not required).
+
+## Wide footage in a vertical video
+
+A 16:9 clip in a 9:16 Short is cropped to its middle third by default. When the whole
+picture matters, set `"fit": true` on the beat: the full frame sits over a blurred copy of
+itself. Archival, official and your own files (`dvids`, `nasa`, `wikimedia`, `file:`,
+`archive:`) get it automatically in vertical videos; `"fit": false` turns it off. To keep the
+crop but move it to the subject, set `"focus": [x, y]` in % (`[25, 50]` = left side).
+

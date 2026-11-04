@@ -6,6 +6,7 @@
 |---|---|---|---|
 | `edge` | free | real, per word | `pip install edge-tts` |
 | `elevenlabs` | paid, best quality | real (character alignment) | `ELEVENLABS_API_KEY`, `voice` = voice ID |
+| `elevenlabs` + `"model": "eleven_v3"` | paid, most expressive | real (alignment, or ElevenLabs Speech-to-Text when the model gives none) | as above; put audio tags in the text: `"[tense] The tower lost contact. [softly] No mayday was sent."` Tags shape the delivery and never reach captions, timing or lint |
 | `openai` | paid, cheap | estimated from length (shots and captions can drift; prefer edge/elevenlabs when sync matters) | `OPENAI_API_KEY`, `voice` = alloy/onyx/nova/..., optional `instructions` |
 | `file` | free (local) or per-minute (API) | real: whisper.cpp, ElevenLabs Scribe, OpenAI, or your transcript | user recording in `public/`, `voice.file` |
 | `none` | free | estimated (`wpm`) | text + music only videos |
@@ -75,7 +76,7 @@ The user records (or exports from ElevenLabs etc.) and puts the file in `public/
   at a file in `public/`, e.g. `public/music/track.mp3`. Normalized to -14 LUFS
   into `public/audio/user/` before rendering.
 - SFX: files in `public/sfx/` named after a slot (`whoosh`, `hit`, `riser`,
-  `pop`, `scratch`, `glitch`, `tick`), optionally numbered (`whoosh-1.mp3`,
+  `pop`, `scratch`, `glitch`, `tick`, `ping`, `data`), optionally numbered (`whoosh-1.mp3`,
   `whoosh-2.mp3`) to rotate variants. Peak-normalized to -1 dB. Files with other
   names are ignored. Slots without a file fall back to the synthesized kit.
 - With the Epidemic Sound connector in Claude, see "Music and SFX from a pro
@@ -83,11 +84,16 @@ The user records (or exports from ElevenLabs etc.) and puts the file in `public/
 
 ## SFX
 
-Synthesized into `public/audio/`: `hit.wav` (frame 0), `whoosh.wav` (scene
-changes), `pop.wav` (emphasis lands). `"sfx": false` disables all.
+Synthesized in stereo into `public/audio/`: `hit.wav` / `hit-2.wav` (frame 0,
+reveals, contact lost), `whoosh.wav` x3 (scene changes), `riser.wav`, `pop.wav`
+(emphasis lands), `glitch.wav`, `scratch.wav`, `tick.wav`, `ping.wav` (radar),
+`data.wav` (graphics building). `"sfx": false` disables all; `"graphicSfx": false`
+keeps the cut sounds but silences the graphics.
 
 ## Loudness
 
-The `master` step runs `loudnorm` to -14 LUFS integrated, -1.5 dBTP - what
-YouTube, TikTok and Instagram normalize to. `check` reports the measured value and
+The `master` step brings the mix to -14 LUFS integrated (what YouTube, TikTok and
+Instagram normalize to) with an oversampled true-peak limiter, measured after the
+AAC encode and corrected until it is within 0.7 LU and under -1.2 dBTP; a mix that
+needs heavy limiting is compressed gently first. `check` reports the measured value and
 warns outside -17..-11.

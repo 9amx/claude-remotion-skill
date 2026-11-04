@@ -115,7 +115,7 @@ export const Shot: React.FC<{ shot: ShotT; style: Style; seed: number; motion?: 
   const { fps } = useVideoConfig();
   const fade = shot.fadeIn ? interpolate(frame, [0, shot.fadeIn], [0, 1], { ...clamp, easing: ease.inOut }) : 1;
   // Graphics have their own motion; no Ken Burns or cut punch on top of a chart.
-  if (shot.type === "graphic" && shot.graphic) return <Graphic graphic={shot.graphic} style={style} />;
+  if (shot.type === "graphic" && shot.graphic) return <Graphic graphic={shot.graphic} style={style} dur={shot.durationInFrames} />;
   if (shot.type !== "video" && shot.type !== "image" || !shot.src) return <Kinetic style={style} seed={seed} words={shot.words} />;
   const punch = motion === "punchy" ? interpolate(spring({ frame, fps, config: springs.punch }), [0, 1], [1.06, 1]) : 1;
   if (shot.type === "image") {
@@ -124,17 +124,37 @@ export const Shot: React.FC<{ shot: ShotT; style: Style; seed: number; motion?: 
   // Footage already moves: in punchy edits only a slight push so held clips don't feel parked.
   const t = interpolate(frame, [0, shot.durationInFrames], [0, 1], { ...clamp, easing: ease.inOut });
   const scale = motion === "punchy" ? interpolate(t, [0, 1], shot.zoomIn ? [1, 1.04] : [1.04, 1]) : 1;
+  const video = (css: React.CSSProperties) => (
+    <OffthreadVideo
+      src={staticFile(shot.src!)}
+      muted
+      playbackRate={shot.playbackRate ?? 1}
+      trimBefore={shot.trimBefore || undefined}
+      style={css}
+    />
+  );
+  if (shot.fit) {
+    // Wide footage in a vertical frame, kept whole: the clip over its own blurred,
+    // darkened copy (the blur runs on a quarter-size layer scaled up).
+    return (
+      <AbsoluteFill style={{ overflow: "hidden", opacity: fade, background: "#000" }}>
+        <CcFilter shot={shot} seed={seed} />
+        <div style={{ position: "absolute", left: 0, top: 0, width: "25%", height: "25%", transform: "scale(4.6)", transformOrigin: "0 0" }}>
+          {video({ width: "100%", height: "100%", objectFit: "cover", filter: "blur(5px) brightness(0.38) saturate(0.7)" })}
+        </div>
+        <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", transform: `scale(${punch * scale})` }}>
+          {video({ width: "100%", height: "auto", maxHeight: "100%", objectFit: "contain", filter: ccCss(shot, seed, "saturate(1.08) contrast(1.06)"),
+            boxShadow: "0 30px 80px rgba(0,0,0,0.6)" })}
+        </AbsoluteFill>
+      </AbsoluteFill>
+    );
+  }
+  const [fx, fy] = shot.focus ?? [50, 50];
   return (
     <AbsoluteFill style={{ overflow: "hidden", opacity: fade }}>
       <CcFilter shot={shot} seed={seed} />
       <AbsoluteFill style={{ transform: `scale(${punch * scale})` }}>
-        <OffthreadVideo
-          src={staticFile(shot.src)}
-          muted
-          playbackRate={shot.playbackRate ?? 1}
-          trimBefore={shot.trimBefore || undefined}
-          style={{ width: "100%", height: "100%", objectFit: "cover", filter: ccCss(shot, seed, "saturate(1.08) contrast(1.06)") }}
-        />
+        {video({ width: "100%", height: "100%", objectFit: "cover", objectPosition: `${fx}% ${fy}%`, filter: ccCss(shot, seed, "saturate(1.08) contrast(1.06)") })}
       </AbsoluteFill>
     </AbsoluteFill>
   );

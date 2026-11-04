@@ -244,6 +244,8 @@ is available in this session, or the user supplies files, use real sound:
    | `scratch` | freeze frames | "record scratch" |
    | `glitch` | glitch transitions | "glitch digital short" |
    | `tick` | highlighted words | "click soft ui" |
+   | `ping` | radar graphics (contact ping) | "radar ping sonar" |
+   | `data` | counters, charts, diagrams building | "ui data computing blips" |
    Prefer short, punchy files (whoosh/pop/tick under ~1.5s, riser ~1-2s). The
    pipeline measures each file's loudest moment and lines THAT up with the
    cut / word / reveal, so where the peak sits inside the file doesn't matter.
@@ -394,6 +396,12 @@ approve; render the whole video only after that, so the first full render is
 the one they keep.
 
 ## Step 4 - VERIFY (mandatory, never skip)
+
+`npm run qa` (runs after `check` in `auto`) is a hard gate: it FAILS on unintended
+black frames, a frozen picture (3 s+), dead air, clipping, loudness outside -14 LUFS +-1,
+true peak above -1 dBTP, audio/picture length mismatch, wrong size, or a Short over 60 s,
+and `auto` stops before upload. It also writes `out/qa/hook.jpg` and `out/qa/sheet-*.jpg`
+(one frame per second, time-stamped). Never upload a video that has not passed it.
 
 `npm run check` (last step of `auto`) writes `out/check/contact.jpg` (hook frames +
 the middle of every shot) and lints the timeline and loudness. **Open

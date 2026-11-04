@@ -501,9 +501,22 @@ const countryNames = () => {
   }
   return (geoNames = JSON.parse(fs.readFileSync(src, "utf8")).objects.countries.geometries.map((g) => g.properties.name));
 };
+// The 3D globe needs NASA Blue Marble / Black Marble / cloud textures in public/earth/.
+// They ship with the three-globe package (public domain NASA imagery).
+function earthTextures() {
+  const dest = path.join(PUBLIC, "earth");
+  const files = ["earth-blue-marble.jpg", "earth-night.jpg", "earth-water.png", "earth-topology.png", "night-sky.png"];
+  if (files.every((f) => fs.existsSync(path.join(dest, f))) && fs.existsSync(path.join(dest, "clouds.png"))) return;
+  const src = path.join(ROOT, "node_modules", "three-globe", "example");
+  if (!fs.existsSync(src)) fail("The 3D globe needs its textures: run npm install (package three-globe)");
+  fs.mkdirSync(dest, { recursive: true });
+  for (const f of files) fs.copyFileSync(path.join(src, "img", f), path.join(dest, f));
+  fs.copyFileSync(path.join(src, "clouds", "clouds.png"), path.join(dest, "clouds.png"));
+}
 async function resolveGraphic(g, label) {
+  if (g.type === "globe" && g.look !== "vector") earthTextures();
   if (!GRAPHIC_TYPES.includes(g.type)) fail(`${label}: graphic type "${g.type}" - use ${GRAPHIC_TYPES.join(", ")}`);
-  if (g.type !== "map") return g;
+  if (g.type !== "map" && g.type !== "globe") return g;
   const names = countryNames();
   for (const c of g.countries ?? []) {
     if (!names.some((n) => n.toLowerCase() === c.toLowerCase())) {
@@ -518,6 +531,7 @@ async function resolveGraphic(g, label) {
     places.push({ name: name.split(",")[0], lat: at.lat, lon: at.lon, ...(p.label ? { label: p.label } : {}) });
   }
   if (!places.length && !(g.countries ?? []).length) fail(`${label}: a map needs "places" or "countries"`);
+  if (g.type === "globe" && !places.length) fail(`${label}: a globe needs at least one place in "places"`);
   return { ...g, places };
 }
 

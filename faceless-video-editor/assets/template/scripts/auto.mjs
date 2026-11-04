@@ -1,6 +1,6 @@
 // One command, script to finished video:
 //   lint -> voiceover -> b-roll -> timeline -> storyboard -> audio -> render -> loudness master -> check
-//   -> thumbnail [-> YouTube upload, only with --upload]
+//   -> thumbnail -> qa (hard gate) [-> YouTube upload, only with --upload]
 // Usage: node scripts/auto.mjs [--review] [--from=broll] [--only=voice] [--no-render] [--upload]
 //   --review  lint + voice, then B-roll candidate sheets for every shot, with the
 //             words spoken over it (build/review/), and stop. Pick, then continue with --from=broll.
@@ -37,24 +37,50 @@ const steps = [
   ["render", () => run("node", ["scripts/render.mjs"])], // chunked + resumable for long videos
   ["master", () => {
     // Platforms normalise to about -14 LUFS; mastering there keeps the VO punchy.
-    // Two-pass loudnorm: measure, then apply linearly (single pass undershoots).
-    const target = "I=-14:TP=-1.5:LRA=11";
-    const m = ffmpeg(["-i", "out/video.mp4", "-af", `loudnorm=${target}:print_format=json`, "-f", "null", "-"], { capture: true });
-    const json = /\{[^{}]*"input_i"[^{}]*\}/.exec(m.stderr || "");
-    let af = `loudnorm=${target}`;
-    if (json) {
-      const v = JSON.parse(json[0]);
-      af += `:measured_I=${v.input_i}:measured_TP=${v.input_tp}:measured_LRA=${v.input_lra}:measured_thresh=${v.input_thresh}:offset=${v.target_offset}:linear=true`;
+    // Gain to the target, then a true-peak-safe limiter (oversampled, delay compensated)
+    // so impacts and transients can't clip on phones; measured after the AAC encode, the
+    // same way the qa gate measures, and corrected up to 4 times.
+    const TARGET = project.qa?.lufs ?? -14;
+    const measure = (file) => {
+      const m = ffmpeg(["-i", file, "-vn", "-af", "ebur128=peak=true", "-f", "null", "-"], { capture: true });
+      const sum = (m.stderr || "").split("Summary:").pop();
+      const i = Number(/I:\s+(-?[\d.]+) LUFS/.exec(sum)?.[1]), tp = Number(/Peak:\s+(-?[\d.]+) dBFS/.exec(sum)?.[1]);
+      return Number.isFinite(i) ? { i, tp: Number.isFinite(tp) ? tp : 0 } : null;
+    };
+    const src = measure("out/video.mp4");
+    const encode = (af) => ffmpeg(["-y", "-i", "out/video.mp4", "-c:v", "copy", "-af", af, "-ar", "48000",
+      "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", "out/final.mp4"]).status === 0;
+    let ok = false;
+    if (src) {
+      let gain = TARGET - src.i, ceil = -2.0;
+      // A mix that needs a lot of limiting (a quiet voice under loud impacts, or no voice at all)
+      // gets a gentle compressor first: hard-limited peaks turn into overshoot in the AAC encode.
+      const comp = src.tp + gain - ceil > 3;
+      const pre = gain; // into the compressor; corrections after it (make-up gain) act one to one
+      if (comp) log("master", `peaks would need ${(src.tp + gain - ceil).toFixed(1)} dB of limiting - compressing gently first`);
+      for (let k = 0; k < 5; k++) {
+        const lim = Math.pow(10, ceil / 20).toFixed(4);
+        ok = encode(`volume=${pre.toFixed(2)}dB,${comp ? "acompressor=threshold=-14dB:ratio=4:attack=3:release=150:knee=4," : ""}volume=${(gain - pre).toFixed(2)}dB,aresample=192000,alimiter=limit=${lim}:attack=2:release=80:level=false:latency=true,aresample=48000`);
+        if (!ok) break;
+        const out = measure("out/final.mp4");
+        if (!out) break;
+        log("master", `pass ${k + 1}: ${out.i.toFixed(1)} LUFS, true peak ${out.tp.toFixed(1)} dBTP`);
+        const loudOk = Math.abs(out.i - TARGET) <= 0.7, peakOk = out.tp <= -1.2;
+        if (loudOk && peakOk) break;
+        // fix the peak first (lower the ceiling), the loudness only while the peak is safe
+        if (!peakOk) ceil -= out.tp + 1.2 + 0.3;
+        else gain += TARGET - out.i;
+      }
     }
-    const r = ffmpeg(["-i", "out/video.mp4", "-c:v", "copy", "-af", af, "-ar", "48000",
-      "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", "out/final.mp4"]);
-    if (r.status !== 0) {
+    if (!ok) {
       fs.copyFileSync(path.join(ROOT, "out/video.mp4"), path.join(ROOT, "out/final.mp4"));
-      log("master", "loudnorm unavailable, copied video.mp4 -> final.mp4 unmastered");
+      log("master", "could not master the audio, copied video.mp4 -> final.mp4 unmastered");
     }
   }],
   ["check", () => run("node", ["scripts/check.mjs"])],
   ["thumbnail", () => run("node", ["scripts/thumbnail.mjs"])],
+  // Hard gate: black frames, frozen picture, dead air, clipping, loudness, sync. A failure stops here, before upload.
+  ["qa", () => run("node", ["scripts/qa.mjs"])],
   ["upload", () => run("node", ["scripts/youtube.mjs"])],
 ];
 
@@ -62,10 +88,10 @@ const steps = [
 const DOING = {
   lint: "Checking the script", voice: "Cleaning the voice and finding every word's timing", broll: "Finding footage for every shot",
   timeline: "Laying the edit out on the words", storyboard: "Drawing the storyboard", audio: "Music and sound effects",
-  render: "Rendering the video", master: "Setting the loudness", check: "Checking the finished video", thumbnail: "Making the thumbnail", upload: "Uploading",
+  render: "Rendering the video", master: "Setting the loudness", check: "Checking the finished video", thumbnail: "Making the thumbnail", qa: "Final quality check", upload: "Uploading",
 };
 const planned = steps.map(([n]) => n).filter((n) => (n !== "upload" || uploadAfter) && !(reviewMode && !["lint", "voice", "broll"].includes(n)) &&
-  !(noRender && ["render", "master", "check", "thumbnail", "upload"].includes(n)) && (!only || n === only));
+  !(noRender && ["render", "master", "check", "thumbnail", "qa", "upload"].includes(n)) && (!only || n === only));
 status({ title: project.title ?? "Video", steps: planned, done: from ? planned.slice(0, Math.max(0, planned.indexOf(from))) : [],
   step: null, doing: "Starting", progress: null, etaSec: null, finished: false, failed: null, ...(from ? {} : { issues: [], stats: {} }) });
 log("auto", `live status: ${path.join(ROOT, "build", "status.html")} (open it in a browser)`);
@@ -86,7 +112,7 @@ for (const [name, fn] of steps) {
   if (name === from) started = true;
   if (!started || (only && name !== only)) continue;
   if (reviewMode && !["lint", "voice", "broll"].includes(name)) break;
-  if (noRender && ["render", "master", "check", "thumbnail", "upload"].includes(name)) continue;
+  if (noRender && ["render", "master", "check", "thumbnail", "qa", "upload"].includes(name)) continue;
   if (name === "upload" && !uploadAfter && only !== "upload") continue;
   log("auto", `--- ${name} ---`);
   status({ step: name, doing: DOING[name] ?? name, progress: null, etaSec: null });

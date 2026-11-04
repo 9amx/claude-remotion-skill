@@ -23,10 +23,38 @@ function graphicProblems(g) {
   if (g.type === "timeline" && !(Array.isArray(g.events) && g.events.length >= 2 && g.events.every((e) => Array.isArray(e) && e.length === 2))) out.push('timeline needs "events": [["1969", "what happened"], ...] with 2+ rows');
   if (g.type === "timeline" && g.events?.length > 6) out.push("timeline: more than 6 events won't read on a phone");
   if (g.type === "quote" && !g.text) out.push('quote needs "text" (and "by")');
-  if (g.type === "map") {
+  if (g.type === "map" || g.type === "globe") {
+    if (g.type === "globe" && !g.places?.length) out.push('globe needs "places" (one place, or a route: origin first)');
     if (!(g.places?.length || g.countries?.length)) out.push('map needs "places" and/or "countries"');
     for (const c of g.countries ?? []) if (COUNTRIES && !COUNTRIES.includes(c.toLowerCase())) out.push(`map: no country called "${c}" (names are English, e.g. "United States of America")`);
     for (const p of g.places ?? []) if (typeof p === "object" && !(num(p.lat) && num(p.lon))) out.push(`map place ${JSON.stringify(p)} needs lat and lon (or give just the name to geocode it)`);
+  }
+  if (g.type === "radar") {
+    if (!g.callsign) out.push('radar needs "callsign" (as ATC shows it, e.g. "DAL2210")');
+    if (g.vanishAt != null && !(g.vanishAt > 0.2 && g.vanishAt < 0.95)) out.push("radar vanishAt is a share of the shot: 0.2-0.95");
+  }
+  if (g.type === "profile") {
+    if (!(Array.isArray(g.points) && g.points.length >= 2 && g.points.every((p) => Array.isArray(p) && typeof p[0] === "string" && num(p[1])))) out.push('profile needs "points": [["9:03", 35000], ["9:05", 12000], ...] with 2+ rows');
+    else if (g.points.length > 8) out.push("profile: more than 8 points won't read on a phone");
+  }
+  if (g.type === "aircraft") {
+    const vector = g.look === "vector";
+    const top = vector ? ["fuselage", "cockpit", "wing-left", "wing-right", "engine-left", "engine-right", "tail", "tail-left", "tail-right", "fin"]
+      : ["fuselage", "cockpit", "wing-left", "wing-right", "engine-left", "engine-right", "tail", "fin", "door", "gear"];
+    const side = vector ? ["fuselage", "cockpit", "wing", "engine", "fin", "tail", "door", "gear"] : top;
+    const alias = { "left-engine": "engine-left", "right-engine": "engine-right", "left-wing": "wing-left", "right-wing": "wing-right", "landing-gear": "gear",
+      stabilizer: "tail", "horizontal-stabilizer": "tail", "vertical-stabilizer": "fin", rudder: "fin", nose: "cockpit", "door-plug": "door" };
+    const view = g.view ?? "top";
+    if (!["top", "side"].includes(view)) out.push('aircraft "view" is "top" or "side"');
+    if (g.light != null && !["day", "dusk", "night", "studio"].includes(g.light)) out.push('aircraft "light" is day, dusk, night or studio');
+    const known = view === "side" ? side : top;
+    for (const n of [...(g.highlight ?? []), ...(g.labels ?? []).map((l) => l.part)]) {
+      const k = alias[String(n).toLowerCase().replace(/\s+/g, "-")] ?? String(n).toLowerCase().replace(/\s+/g, "-");
+      const k3 = !vector && (k === "engine" || k === "wing") ? `${k}-left` : k;
+      if (!known.includes(vector && view === "side" ? k3.replace(/-(left|right)$/, "") : k3)) out.push(`aircraft (${view} view) has no part "${n}" - use ${known.join(", ")}`);
+    }
+    if (g.pitch != null && (view !== "side" || Math.abs(g.pitch) > 60)) out.push('aircraft "pitch" needs view "side" and a value within +-60 degrees');
+    if (g.roll != null && (view !== "top" || Math.abs(g.roll) > 70)) out.push('aircraft "roll" needs view "top" and a value within +-70 degrees');
   }
   const itemsOk = (list) => Array.isArray(list) && list.every((it) => typeof it === "string" || typeof it?.text === "string");
   if (g.type === "list" || g.type === "steps") {
@@ -41,7 +69,7 @@ function graphicProblems(g) {
     else if (!fs.existsSync(path.join(PUBLIC, g.image))) out.push(`ui image ${g.image} is not in public/ yet`);
     if (g.highlight && !(Array.isArray(g.highlight) && g.highlight.length === 4 && g.highlight.every(num))) out.push('ui "highlight" is [x, y, width, height] in % of the screenshot');
   }
-  if (["counter", "bars", "map"].includes(g.type) && !g.source) out.push(`${g.type}: add "source" - a number or map on screen should say where it comes from`);
+  if (["counter", "bars", "map", "globe"].includes(g.type) && !g.source) out.push(`${g.type}: add "source" - a number or map on screen should say where it comes from`);
   return out;
 }
 

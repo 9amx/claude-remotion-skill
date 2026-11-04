@@ -7,7 +7,10 @@ Words keep the script's *highlight* markup; the voice never hears the asterisks.
 
 Providers (project.json -> voice.provider):
   edge        free Microsoft neural voices, real word timestamps   (pip install edge-tts)
-  elevenlabs  ELEVENLABS_API_KEY, real timestamps from character alignment
+  elevenlabs  ELEVENLABS_API_KEY, real timestamps from character alignment.
+              voice.model "eleven_v3" understands audio tags in the script, e.g.
+              "[tense] The engines went quiet. [whispers] Then nothing." The tags shape
+              the delivery and never reach captions or timing.
   openai      OPENAI_API_KEY, timestamps estimated from audio length
   none        no audio; timing estimated from reading speed (text/music-only videos)
   file        your own recording -> use `npm run transcribe` instead of this script
@@ -26,6 +29,7 @@ import shutil
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
@@ -54,6 +58,13 @@ def tokens(text):
 def norm(word):
     # Strip punctuation only; keeps combining vowel signs of Indic scripts intact.
     return re.sub(r"[\s.,!?;:\"'“”‘’()\[\]…—–\-।॥*]", "", word.lower())
+
+
+AUDIO_TAG = re.compile(r"\[[a-z][a-z' -]{0,38}\]\s*", re.I)
+
+
+def strip_tags(text):
+    return re.sub(r"\s{2,}", " ", AUDIO_TAG.sub("", text)).strip()
 
 
 def probe_duration_ms(path):
@@ -153,21 +164,15 @@ def post_json(url, body, headers):
         return r.read()
 
 
-def elevenlabs(text, voice_cfg, mp3_path):
-    key = os.environ.get("ELEVENLABS_API_KEY") or die("Set ELEVENLABS_API_KEY.")
-    voice_id = voice_cfg.get("voice", "JBFqnCBsd6RMkjVDRZzb")
-    raw = post_json(
-        f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/with-timestamps?output_format=mp3_44100_128",
-        {"text": text, "model_id": voice_cfg.get("model", "eleven_multilingual_v2"),
-         "voice_settings": {"stability": 0.45, "similarity_boost": 0.8, "style": 0.3}},
-        {"xi-api-key": key},
-    )
-    data = json.loads(raw)
-    with open(mp3_path, "wb") as f:
-        f.write(base64.b64decode(data["audio_base64"]))
-    a = data["alignment"]
-    timed, cur = [], None
+def _el_words_from_alignment(a):
+    timed, cur, in_tag = [], None, False
     for ch, s, e in zip(a["characters"], a["character_start_times_seconds"], a["character_end_times_seconds"]):
+        if ch == "[":
+            in_tag = True
+        if in_tag:  # audio tags are not spoken: skip them
+            if ch == "]":
+                in_tag = False
+            continue
         if ch.isspace():
             if cur:
                 timed.append(cur)
@@ -179,7 +184,57 @@ def elevenlabs(text, voice_cfg, mp3_path):
             cur["endMs"] = round(e * 1000)
     if cur:
         timed.append(cur)
-    return align_to_script(text, timed)
+    return timed
+
+
+def _el_scribe_words(key, mp3_path):
+    """Word timings from ElevenLabs Speech-to-Text, for models without alignment."""
+    boundary = "----fv" + hashlib.sha1(os.urandom(8)).hexdigest()
+    with open(mp3_path, "rb") as f:
+        audio = f.read()
+    parts = []
+    for name, value in (("model_id", "scribe_v1"), ("timestamps_granularity", "word"), ("tag_audio_events", "false")):
+        parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n{value}\r\n'.encode())
+    parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="vo.mp3"\r\nContent-Type: audio/mpeg\r\n\r\n'.encode() + audio + b"\r\n")
+    parts.append(f"--{boundary}--\r\n".encode())
+    req = urllib.request.Request("https://api.elevenlabs.io/v1/speech-to-text", data=b"".join(parts), method="POST",
+                                 headers={"xi-api-key": key, "Content-Type": f"multipart/form-data; boundary={boundary}"})
+    with urllib.request.urlopen(req, timeout=300) as r:
+        data = json.loads(r.read())
+    return [{"text": w["text"], "startMs": round(w["start"] * 1000), "endMs": round(w["end"] * 1000)}
+            for w in data.get("words", []) if w.get("type", "word") == "word"]
+
+
+def elevenlabs(text, voice_cfg, mp3_path):
+    key = os.environ.get("ELEVENLABS_API_KEY") or die("Set ELEVENLABS_API_KEY.")
+    voice_id = voice_cfg.get("voice") or os.environ.get("ELEVENLABS_VOICE_ID") or "JBFqnCBsd6RMkjVDRZzb"
+    model = voice_cfg.get("model", "eleven_multilingual_v2")
+    v3 = model.startswith("eleven_v3")
+    if not v3:
+        text = strip_tags(text)  # older models would read the tags out loud
+    settings = voice_cfg.get("settings") or (
+        {"stability": 0.5} if v3 else {"stability": 0.45, "similarity_boost": 0.8, "style": 0.3})
+    body = {"text": text, "model_id": model, "voice_settings": settings}
+    if voice_cfg.get("seed") is not None:
+        body["seed"] = voice_cfg["seed"]
+    try:
+        raw = post_json(
+            f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/with-timestamps?output_format=mp3_44100_192",
+            body, {"xi-api-key": key})
+        data = json.loads(raw)
+        with open(mp3_path, "wb") as f:
+            f.write(base64.b64decode(data["audio_base64"]))
+        timed = _el_words_from_alignment(data.get("alignment") or data.get("normalized_alignment"))
+    except urllib.error.HTTPError as e:
+        if not v3 or e.code not in (400, 404, 422):
+            raise
+        # A model without timestamp support: plain speech, then timings from Speech-to-Text.
+        audio = post_json(f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}?output_format=mp3_44100_192",
+                          body, {"xi-api-key": key})
+        with open(mp3_path, "wb") as f:
+            f.write(audio)
+        timed = _el_scribe_words(key, mp3_path)
+    return align_to_script(strip_tags(text), timed)
 
 
 def openai(text, voice_cfg, mp3_path):
@@ -222,8 +277,11 @@ def main():
 
     def voice_scene(i, scene):
         sid = scene_id(i)
-        text = scene["text"].strip()  # may contain *highlight* markup
-        spoken = text.replace("*", "")
+        raw = scene["text"].strip()  # may contain *highlight* markup and [audio tags]
+        spoken = raw.replace("*", "")  # what the voice gets (tags kept for eleven_v3)
+        text = strip_tags(raw)         # what captions and timing use
+        if provider != "elevenlabs":
+            spoken = strip_tags(spoken)
         key = hashlib.sha1(json.dumps([voice_cfg, spoken], sort_keys=True).encode()).hexdigest()[:12]
         data_path = os.path.join(VO_DATA, f"{sid}.json")
         mp3_path = os.path.join(VO_AUDIO, f"{sid}.mp3")

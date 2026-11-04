@@ -48,8 +48,9 @@
   "progressBar": true,               // default true for shorts
   "sfx": true,                       // false = no SFX at all
   "sfxLevel": 1,                     // 0-1 scales every SFX (default from editStyle)
+  "graphicSfx": true,                // explainers make their sound (radar ping + impact when contact is lost, data blips on counters/charts/diagrams); false = off
   "transitions": "scene",            // WHERE: scene | chapter | none; default chapter when chapters exist
-  "transitionStyle": "auto",         // WHICH: auto (by meaning: flash->reveal, dip->flashback/chapter, whip->list item, else whip/zoom) | whip | zoom | glitch | flash | dip | fade | cut
+  "transitionStyle": "auto",         // WHICH: auto (by meaning: flash->reveal, dip->flashback/chapter, whip->list item, else whip/zoom; story: zoom/light) | whip | zoom | glitch | flash | light | dip | fade | cut
   "punchIns": true,                  // punch-in zoom on highlighted words (default from editStyle)
   "hookShake": true,                 // impact shake on the hook (default: viral only)
   "loop": false,                     // true = the last line loops into the first (silences the CTA note)
@@ -75,13 +76,13 @@
       "badge": "#3",                 // corner tag: list numbers, steps, dates
       "layout": "split",             // two broll clips side by side with a VS divider
       "look": "flashback",           // normal | flashback | dramatic | night | vhs | dream
-      "transition": "whip",          // how this scene enters: whip | zoom | glitch | flash | dip | fade | cut
+      "transition": "whip",          // how this scene enters: whip | zoom | glitch | flash | light | dip | fade | cut
       "fx": ["reveal"],              // reveal (riser + silence + hit) | freeze | shake | punch
       "broll": [                     // beats: each shot starts on its words (broll-keywords.md)
         { "on": "words from the line", "kw": ["keyword", "second angle"], "sfx": "sfx/spot/door.mp3" },
         { "on": "first image", "kw": ["file:clips/press.mp4#12.5-16"], "credit": "\"Title\" by ESO, CC BY 4.0 - <link>" },  // part of a file + attribution
         { "on": "later words", "kw": ["photo:keyword"] },
-        { "on": "173 million", "graphic": { "type": "bars", "data": [["A", 1], ["B", 2]], "source": "..." } },  // counter | bars | map | timeline | quote | list | steps | compare | statement | ui (broll-keywords.md)
+        { "on": "173 million", "graphic": { "type": "bars", "data": [["A", 1], ["B", 2]], "source": "..." } },  // counter | bars | map | globe | radar | profile | aircraft | timeline | quote | list | steps | compare | statement | ui (broll-keywords.md)
         "plain keyword"              // also fine: matched to the line automatically
       ],                             // kw prefixes: photo: archive: ai: file: adobe:; sfx: a file in public/ or a kit sound (hit, whoosh, pop, ...),
                                      //   or { "file": "...", "volume": 0.45 }

@@ -96,6 +96,10 @@ Try it: *"Make a 40 second Short about why octopuses are so smart"*, *"Make a 20
 
 Install it the same way as the main skill (folder name `faceless-video-editor`, or upload `faceless-video-editor.skill` on Desktop). It works on its own, and it follows the motion rules of `remotion-motion-graphics` when you customise visuals.
 
+### daily-shorts: one Short every night, unattended
+
+A third skill, [`daily-shorts/`](daily-shorts/), runs `faceless-video-editor` on a schedule. Every night it researches a recent real event (aviation incidents, natural disasters), verifies the facts against two sources, writes and voices the script (ElevenLabs v3 with expression tags), edits it, passes a hard quality gate (`scripts/qa.mjs`) and uploads it. Setup for a Windows laptop is in [`daily-shorts/README.md`](daily-shorts/README.md).
+
 ### Faceless videos on your own computer (Windows, macOS, Linux)
 
 1. Install [Node.js 20+](https://nodejs.org), [Python 3.10+](https://www.python.org/downloads/) (Windows: tick "Add python.exe to PATH"), [Git](https://git-scm.com) and [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
