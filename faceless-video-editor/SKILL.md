@@ -244,6 +244,8 @@ is available in this session, or the user supplies files, use real sound:
    | `scratch` | freeze frames | "record scratch" |
    | `glitch` | glitch transitions | "glitch digital short" |
    | `tick` | highlighted words | "click soft ui" |
+   | `ping` | radar graphics (contact ping) | "radar ping sonar" |
+   | `data` | counters, charts, diagrams building | "ui data computing blips" |
    Prefer short, punchy files (whoosh/pop/tick under ~1.5s, riser ~1-2s). The
    pipeline measures each file's loudest moment and lines THAT up with the
    cut / word / reveal, so where the peak sits inside the file doesn't matter.

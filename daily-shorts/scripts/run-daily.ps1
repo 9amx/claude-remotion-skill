@@ -74,6 +74,17 @@ function Invoke-Daily {
   if (-not (Get-ChildItem -Path $ytDir -Filter "youtube-token-*.json" -ErrorAction SilentlyContinue)) {
     Log "WARNING: no YouTube sign-in found in $ytDir - the Short will be made but not uploaded (run: node scripts/youtube.mjs --auth once)"
   }
+  # Epidemic Sound (music + SFX each night): a claude.ai connector, or an MCP server added to Claude Code.
+  # Not connected = the run uses the local music/ and sfx/ folders instead (and says so).
+  $ErrorActionPreference = "Continue"
+  $mcp = (& $Claude mcp list 2>&1 | Out-String)
+  $ErrorActionPreference = "Stop"
+  $epi = ($mcp -split "`n") | Where-Object { $_ -match "(?i)epidemic" } | Select-Object -First 1
+  if (-not $epi) { Log "NOTE: Epidemic Sound connector not found in Claude Code - using the local music/ and sfx/ folders" }
+  elseif ($epi -match "(?i)auth|fail|error|disconnect") {
+    Log "WARNING: Epidemic Sound needs sign-in: $($epi.Trim())"
+    Notify "Epidemic Sound needs sign-in" "Open Claude Code, run /mcp and sign in to Epidemic Sound. Tonight's Short uses the local music and SFX folders." "warning"
+  } else { Log "Epidemic Sound: $($epi.Trim())" }
   $drive = (Get-Item $Root).PSDrive
   if ($drive -and $drive.Free -lt 10GB) { throw ("only {0:N1} GB free on {1}: - free up at least 10 GB" -f ($drive.Free / 1GB), $drive.Name) }
 
@@ -120,7 +131,8 @@ function Invoke-Daily {
   $nm = Join-Path $day "node_modules"
   if (-not (Test-Path $nm)) { New-Item -ItemType Junction -Path $nm -Target (Join-Path $base "node_modules") | Out-Null }
   New-Item -ItemType Directory -Force -Path (Join-Path $Root "music") | Out-Null
-  # The owner's own sound-effect library (Epidemic Sound downloads), named by slot: whoosh-1.mp3, hit-2.wav ...
+  # The sound-effect library, named by slot (whoosh-1.mp3, hit-2.wav ...): filled automatically from
+  # Epidemic Sound by the run when the connector works, or by hand; kept for nights it doesn't.
   $sfxLib = Join-Path $Root "sfx"
   New-Item -ItemType Directory -Force -Path $sfxLib | Out-Null
   if (Get-ChildItem -Path $sfxLib -File -ErrorAction SilentlyContinue) {
@@ -151,7 +163,10 @@ step and write each decision in build/daily-log.md. Take the time the skill asks
 carefully, verify facts, and repeat the review until the quality checks pass.
 End by writing build/daily-result.json.
 "@
-  $tools = "Bash,Read,Write,Edit,Glob,Grep,WebSearch,WebFetch,TodoWrite,Skill"
+  # Epidemic Sound tools under the names Claude Code may give them (claude.ai connector or an added server);
+  # names that don't exist are ignored. DAILY_EXTRA_TOOLS adds more (comma separated).
+  $tools = "Bash,Read,Write,Edit,Glob,Grep,WebSearch,WebFetch,TodoWrite,Skill,mcp__claude_ai_Epidemic_Sound,mcp__Epidemic_Sound,mcp__epidemic-sound,mcp__epidemic_sound"
+  if ($env:DAILY_EXTRA_TOOLS) { $tools = "$tools,$($env:DAILY_EXTRA_TOOLS)" }
   Log "Starting Claude (mode: $mode)"
   Push-Location $day
   $ErrorActionPreference = "Continue"

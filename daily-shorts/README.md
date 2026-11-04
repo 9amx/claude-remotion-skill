@@ -59,16 +59,29 @@ Until Google approves your API project (the "audit"), YouTube keeps API uploads 
    ```
 You get a push for every finished Short (with its link), every held Short (with the reason), and every failed or paused run.
 
-### 5. Music (optional, recommended)
-Download 20–30 tracks from your Epidemic Sound subscription (dark, tense, documentary) into `D:\Faceless\daily\music\`. The run picks a fitting track each night. If the folder is empty, it uses a built-in music bed.
+### 5. Music and sound effects from Epidemic Sound (automatic)
+Each night the run takes its music and sound effects from your Epidemic Sound subscription by itself:
+- a fresh background track that fits the story, cut to the Short's length
+- the cut and graphic sounds (whoosh, impact, riser, radar ping …)
+- quiet scene sound where it fits (wind, rain, airport hum)
 
-### 5b. Sound effects (recommended: this is what makes cuts feel premium)
-From your Epidemic Sound subscription, download short sound effects into `D:\Faceless\daily\sfx\`. Name each file after its slot, and number the variants:
+It saves everything it downloads into `D:\Faceless\daily\music\` and `D:\Faceless\daily\sfx\`, so the library grows. On a night Epidemic Sound can't be reached, the run uses those folders, and you get a push about it.
 
-| Slot | What to download | Files |
+Set it up once:
+1. In claude.ai: **Settings → Connectors**. Connect **Epidemic Sound** and sign in. Use the same Claude account Claude Code uses on the laptop.
+2. On the laptop, check that Claude Code sees it:
+   ```powershell
+   claude mcp list
+   ```
+   Epidemic Sound should be in the list as connected. If it says it needs sign-in, run `claude`, type `/mcp`, choose Epidemic Sound and sign in.
+3. In your Epidemic Sound account, **connect your YouTube channel**. Without this, YouTube can put copyright claims on the Shorts.
+
+If Epidemic Sound isn't in `claude mcp list` at all, the run still works with the local folders. You can also fill them by hand. Name sound effects after their slot and number the variants:
+
+| Slot | What it is | Files |
 |---|---|---|
-| `whoosh` | fast cinematic whooshes / swishes (0.3–0.8 s) | `whoosh-1.mp3` … `whoosh-5.mp3` |
-| `hit` | deep cinematic impacts / boom hits | `hit-1.mp3` … `hit-3.mp3` |
+| `whoosh` | fast cinematic whooshes / swishes (0.3–0.8 s) | `whoosh-1.mp3` … `whoosh-3.mp3` |
+| `hit` | deep cinematic impacts / boom hits | `hit-1.mp3`, `hit-2.mp3` |
 | `riser` | tension risers (1–2 s) | `riser-1.mp3`, `riser-2.mp3` |
 | `glitch` | short digital glitches | `glitch-1.mp3` |
 | `tick` | clock tick / UI blip | `tick-1.mp3` |
@@ -76,7 +89,7 @@ From your Epidemic Sound subscription, download short sound effects into `D:\Fac
 | `ping` | sonar / radar ping | `ping-1.mp3` |
 | `data` | short UI data / computing blips | `data-1.mp3` |
 
-Every Short uses them on cuts, reveals and graphics, rotating the variants so no two cuts sound the same. Without them, a built-in kit is used. It is synthesized in stereo (whooshes, impacts, risers, a radar ping). It sounds decent, but a real library sounds better.
+Any slot left empty uses the built-in stereo kit.
 
 ### 6. Turn on the nightly run
 ```powershell

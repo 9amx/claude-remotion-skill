@@ -24,7 +24,7 @@ package it for Shorts, and adds four gates. `<skill>` below means this skill's f
 | Mode | env `DAILY_MODE`: `approval` (default: upload **private**, the owner publishes) or `auto` (public at the next US peak slot) |
 | Voice | env `ELEVENLABS_VOICE_ID`, `ELEVENLABS_API_KEY` |
 | Footage keys | env `PIXABAY_API_KEY`, `COVERR_API_KEY`, `DVIDS_API_KEY` |
-| Music | `../music/` (the owner's own Epidemic Sound downloads) |
+| Music and SFX | the Epidemic Sound connector when its tools are available; else `../music/` and `../sfx/` (the library the runs build up, plus the owner's own downloads) |
 
 Never print, log or commit keys or tokens.
 
@@ -90,8 +90,7 @@ faceless-video-editor workflow, with:
   Use neutral stock only for context, never as the event. Keep everything 9:16: wide real footage
   gets `"fit": true` (automatic for `file:`/official), or `"focus"` when cropping is safe.
   Open on the globe or real footage.
-- Music: a fitting track from `../music/` copied into `public/music/`, `"music": { "file": ..., "volume": 0.1 }`;
-  not the same track as yesterday. None there: `"music": { "mood": "tense" }`.
+- Sound: see "Sound" below (music, the SFX kit, scene ambience).
 - `"daily": { "format", "category", "topic" }` (for learning what works).
 - `"youtube"`: see `references/packaging.md` - title, description with "Sources:", tags,
   hashtags incl. `shorts`, `"syntheticMedia": true`, `"categoryId": 25` (news) or `27` (history),
@@ -99,6 +98,32 @@ faceless-video-editor workflow, with:
   `"publishAt"` = the output of `node <skill>/scripts/package-check.mjs --slot`.
 
 Run `node scripts/auto.mjs --no-render` first (lint, voice, footage, timeline).
+
+#### Sound (Epidemic Sound first, the local library as backup)
+Check whether Epidemic Sound tools are available (their names contain `Epidemic`). Log which
+source you used.
+- **Music, with the connector:** search recordings that fit the format and the event, with
+  no vocals. Examples: "dark suspense documentary underscore" (mystery, minute-by-minute),
+  "tense investigative pulse" (breaking, what-went-wrong), "somber ambient piano" (loss of
+  life). Skip any track in `../history.json` from the last 14 days. Make an edit at the
+  video's length (`targetDurationMs`, poll the job), then download it right away; the links
+  expire. Save it to `public/music/` and copy it to `../music/` so the library grows for
+  nights the connector is down. Set `"music": { "file": "music/<name>.mp3", "volume": 0.1 }`.
+- **Music, without the connector:** a fitting track from `../music/` that was not used
+  yesterday. Nothing there: `"music": { "mood": "tense" }` (built-in bed).
+- **SFX kit:** if `../sfx/` lacks a slot (`whoosh` x3, `hit` x2, `riser` x2, `glitch`, `tick`,
+  `pop`, `ping`, `data`), fill it from the connector. Searches are in the
+  faceless-video-editor SKILL.md table. Add "radar ping sonar" for ping and "ui data
+  computing blips" for data. Keep each file short and name it by slot (`whoosh-2.mp3`).
+  Save it in `../sfx/` (kept for later runs) and copy it into `public/sfx/`. Slots still
+  empty use the built-in stereo kit.
+- **Scene sound:** after the timeline step, run `node scripts/sound-plan.mjs`. Fill only the
+  entries that fit, from the connector. Use neutral context only: wind, rain, thunder for a
+  storm, airport or cabin hum, engine drone. Never a crash, explosion, scream, crying or
+  alarm that would make the Short sound like a recording of the event. Silence under a
+  serious line is fine. Then `--apply` and `node scripts/auto.mjs --from=timeline`.
+- The owner's YouTube channel must be connected in their Epidemic account (README). Never
+  use tracks from anywhere else.
 
 ### 7. Voice (gate 2)
 `node <skill>/scripts/voicecheck.mjs` - transcribes every scene and compares it with the script.
@@ -119,7 +144,7 @@ reason - never try to sign in unattended.)
 
 ### 10. Record
 - Append to `../history.json` `videos`: `{ date, topic, eventDate, title, videoId, url, privacy,
-  format, category, query, sources: [urls], uploadedAt }`.
+  format, category, query, sources: [urls], music: { source, id, title }, uploadedAt }`.
 - `build/daily-result.json`: `{ "status": "uploaded" | "held" | "failed", "title", "url", "privacy",
   "reason", "gates": { "facts", "voice", "qa", "package" } }`. "held" = finished but not
   uploaded; "failed" = could not finish (the runner retries).
