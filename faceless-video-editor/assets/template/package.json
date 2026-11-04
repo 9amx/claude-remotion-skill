@@ -15,6 +15,7 @@
     "studio": "remotion studio src/index.ts",
     "render": "node scripts/render.mjs",
     "check": "node scripts/check.mjs",
+    "qa": "node scripts/qa.mjs",
     "thumbnail": "node scripts/thumbnail.mjs",
     "youtube": "node scripts/youtube.mjs",
     "adobe": "node scripts/adobe-stock.mjs",

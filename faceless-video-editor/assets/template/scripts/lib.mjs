@@ -60,6 +60,9 @@ export function readProject() {
   }
   p.chapters = p.chapters.map((ch) => ({ title: ch.title ?? "", mood: ch.mood ?? p.music.mood, music: ch.music ?? null }));
   if (p.scenes.length === 0) fail("project.json needs a non-empty scenes (or chapters[].scenes) array.");
+  // "[tense] The engines went quiet." - ElevenLabs v3 audio tags steer the delivery.
+  // Only the voice hears them: captions, timing, lint and the Studio see clean text.
+  p.scenes = p.scenes.map((s) => ({ ...s, text: stripAudioTags(s.text) }));
   const long = p.format !== "shorts";
   p.fps = p.fps || 30;
   // Edit style bundles pacing, transitions, zooms and SFX density. Anything set
@@ -79,6 +82,11 @@ export function readProject() {
   p.hookShake = p.hookShake ?? es.hookShake;
   p.sfxLevel = p.sfx === false ? 0 : (p.sfxLevel ?? es.sfx);
   return p;
+}
+
+export const AUDIO_TAG = /\[[a-z][a-z' -]{0,38}\]\s*/gi;
+export function stripAudioTags(text) {
+  return String(text ?? "").replace(AUDIO_TAG, "").replace(/\s{2,}/g, " ").trim();
 }
 
 // Edit styles: how the video is cut, independent of its colors (style).

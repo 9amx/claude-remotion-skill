@@ -362,7 +362,7 @@ kbd { font:600 11px "JetBrains Mono", monospace; padding:2px 7px; border-radius:
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (v) => String(v ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-const NAMES = { lint: "Script check", voice: "Voice", broll: "Footage", timeline: "Timeline", storyboard: "Storyboard", audio: "Music & SFX", render: "Render", master: "Loudness", check: "Final check", thumbnail: "Thumbnail", upload: "Upload" };
+const NAMES = { lint: "Script check", voice: "Voice", broll: "Footage", timeline: "Timeline", storyboard: "Storyboard", audio: "Music & SFX", render: "Render", master: "Loudness", check: "Final check", thumbnail: "Thumbnail", qa: "Quality check", upload: "Upload" };
 const DESC = { lint: "Hook, length, keywords", voice: "Clean-up · word timings", broll: "Search · pick · download", timeline: "Shots on the words", storyboard: "Every shot + its words", audio: "Music · sound design", render: "Frames to video", master: "−14 LUFS master", check: "Sync · retention", thumbnail: "Cover image", upload: "YouTube" };
 const COL = { video: "var(--c-video)", image: "var(--c-image)", graphic: "var(--c-graphic)", kinetic: "#e11d48" };
 const LAB = { video: "FOOTAGE", image: "STILL", graphic: "GRAPHIC", kinetic: "MISSING" };

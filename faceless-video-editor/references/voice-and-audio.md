@@ -6,6 +6,7 @@
 |---|---|---|---|
 | `edge` | free | real, per word | `pip install edge-tts` |
 | `elevenlabs` | paid, best quality | real (character alignment) | `ELEVENLABS_API_KEY`, `voice` = voice ID |
+| `elevenlabs` + `"model": "eleven_v3"` | paid, most expressive | real (alignment, or ElevenLabs Speech-to-Text when the model gives none) | as above; put audio tags in the text: `"[tense] The tower lost contact. [softly] No mayday was sent."` Tags shape the delivery and never reach captions, timing or lint |
 | `openai` | paid, cheap | estimated from length (shots and captions can drift; prefer edge/elevenlabs when sync matters) | `OPENAI_API_KEY`, `voice` = alloy/onyx/nova/..., optional `instructions` |
 | `file` | free (local) or per-minute (API) | real: whisper.cpp, ElevenLabs Scribe, OpenAI, or your transcript | user recording in `public/`, `voice.file` |
 | `none` | free | estimated (`wpm`) | text + music only videos |

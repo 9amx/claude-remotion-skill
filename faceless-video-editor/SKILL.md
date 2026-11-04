@@ -395,6 +395,12 @@ the one they keep.
 
 ## Step 4 - VERIFY (mandatory, never skip)
 
+`npm run qa` (runs after `check` in `auto`) is a hard gate: it FAILS on unintended
+black frames, a frozen picture (3 s+), dead air, clipping, loudness outside -14 LUFS +-1,
+true peak above -1 dBTP, audio/picture length mismatch, wrong size, or a Short over 60 s,
+and `auto` stops before upload. It also writes `out/qa/hook.jpg` and `out/qa/sheet-*.jpg`
+(one frame per second, time-stamped). Never upload a video that has not passed it.
+
 `npm run check` (last step of `auto`) writes `out/check/contact.jpg` (hook frames +
 the middle of every shot) and lints the timeline and loudness. **Open
 contact.jpg and look at it**, then open single frames where something looks off.

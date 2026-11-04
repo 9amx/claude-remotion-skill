@@ -1,6 +1,6 @@
 // One command, script to finished video:
 //   lint -> voiceover -> b-roll -> timeline -> storyboard -> audio -> render -> loudness master -> check
-//   -> thumbnail [-> YouTube upload, only with --upload]
+//   -> thumbnail -> qa (hard gate) [-> YouTube upload, only with --upload]
 // Usage: node scripts/auto.mjs [--review] [--from=broll] [--only=voice] [--no-render] [--upload]
 //   --review  lint + voice, then B-roll candidate sheets for every shot, with the
 //             words spoken over it (build/review/), and stop. Pick, then continue with --from=broll.
@@ -55,6 +55,8 @@ const steps = [
   }],
   ["check", () => run("node", ["scripts/check.mjs"])],
   ["thumbnail", () => run("node", ["scripts/thumbnail.mjs"])],
+  // Hard gate: black frames, frozen picture, dead air, clipping, loudness, sync. A failure stops here, before upload.
+  ["qa", () => run("node", ["scripts/qa.mjs"])],
   ["upload", () => run("node", ["scripts/youtube.mjs"])],
 ];
 
@@ -62,10 +64,10 @@ const steps = [
 const DOING = {
   lint: "Checking the script", voice: "Cleaning the voice and finding every word's timing", broll: "Finding footage for every shot",
   timeline: "Laying the edit out on the words", storyboard: "Drawing the storyboard", audio: "Music and sound effects",
-  render: "Rendering the video", master: "Setting the loudness", check: "Checking the finished video", thumbnail: "Making the thumbnail", upload: "Uploading",
+  render: "Rendering the video", master: "Setting the loudness", check: "Checking the finished video", thumbnail: "Making the thumbnail", qa: "Final quality check", upload: "Uploading",
 };
 const planned = steps.map(([n]) => n).filter((n) => (n !== "upload" || uploadAfter) && !(reviewMode && !["lint", "voice", "broll"].includes(n)) &&
-  !(noRender && ["render", "master", "check", "thumbnail", "upload"].includes(n)) && (!only || n === only));
+  !(noRender && ["render", "master", "check", "thumbnail", "qa", "upload"].includes(n)) && (!only || n === only));
 status({ title: project.title ?? "Video", steps: planned, done: from ? planned.slice(0, Math.max(0, planned.indexOf(from))) : [],
   step: null, doing: "Starting", progress: null, etaSec: null, finished: false, failed: null, ...(from ? {} : { issues: [], stats: {} }) });
 log("auto", `live status: ${path.join(ROOT, "build", "status.html")} (open it in a browser)`);
@@ -86,7 +88,7 @@ for (const [name, fn] of steps) {
   if (name === from) started = true;
   if (!started || (only && name !== only)) continue;
   if (reviewMode && !["lint", "voice", "broll"].includes(name)) break;
-  if (noRender && ["render", "master", "check", "thumbnail", "upload"].includes(name)) continue;
+  if (noRender && ["render", "master", "check", "thumbnail", "qa", "upload"].includes(name)) continue;
   if (name === "upload" && !uploadAfter && only !== "upload") continue;
   log("auto", `--- ${name} ---`);
   status({ step: name, doing: DOING[name] ?? name, progress: null, etaSec: null });
