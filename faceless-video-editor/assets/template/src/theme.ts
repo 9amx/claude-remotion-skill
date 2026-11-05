@@ -1,6 +1,7 @@
 // Style presets. project.json -> "style" picks one. NEVER inline colors,
 // fonts, easings or spring configs in components: add them here.
 import { loadFont as loadAnton } from "@remotion/google-fonts/Anton";
+import { loadFont as loadBarlowCondensed } from "@remotion/google-fonts/BarlowCondensed";
 import { loadFont as loadFraunces } from "@remotion/google-fonts/Fraunces";
 import { loadFont as loadInter } from "@remotion/google-fonts/Inter";
 import { loadFont as loadInterTight } from "@remotion/google-fonts/InterTight";
@@ -13,8 +14,10 @@ const montserrat = loadMontserrat("normal", { weights: ["800", "900"], subsets: 
 const anton = loadAnton("normal", { weights: ["400"], subsets: ["latin"] }).fontFamily;
 const inter = loadInter("normal", { weights: ["500", "600", "800"], subsets: ["latin"] }).fontFamily;
 // Editorial display faces: a modern serif for documentary, a tight grotesk for minimal.
-const fraunces = loadFraunces("normal", { weights: ["600"], subsets: ["latin"] }).fontFamily;
-const interTight = loadInterTight("normal", { weights: ["600", "700"], subsets: ["latin"] }).fontFamily;
+const fraunces = loadFraunces("normal", { weights: ["400", "600"], subsets: ["latin"] }).fontFamily;
+loadFraunces("italic", { weights: ["400", "600"], subsets: ["latin"] });
+const interTight = loadInterTight("normal", { weights: ["400", "500", "600", "700"], subsets: ["latin"] }).fontFamily;
+const barlow = loadBarlowCondensed("normal", { weights: ["500", "600", "700"], subsets: ["latin"] }).fontFamily;
 // Per-glyph fallbacks so Bengali / Hindi scripts render in a heavy weight too.
 // Add another Noto family the same way for other scripts (Arabic, Tamil, ...).
 const scripts = [
@@ -41,6 +44,10 @@ export type Style = {
   // Decorative lines next to text (a dash before a label, a rule above a title, a
   // bar beside a text pop). Off unless the reference uses them (project "textRules").
   rules: boolean;
+  centerCards?: boolean;
+  slashCards?: boolean; // chapter card: big outlined number, red label, heavy title, a red slash sweeping across // chapter titles centered in big caps with a rule and a date line
+  cinema?: boolean; // footage-first documentary look: graded footage, serif titles, amber accents
+  letterbox?: number; // film ratio bars, e.g. 2.2
   captionWeight: number;
   uppercase: boolean;
   grade: number; // soft-light tint opacity
@@ -69,6 +76,44 @@ export const STYLES: Record<string, Style> = {
     uppercase: false,
     grade: 0.16,
     grain: 0.08,
+  },
+  // Weapons / military dossier: condensed caps, red on black, light studio cards.
+  dossier: {
+    colors: { bg: "#0D0E10", bgAlt: "#1A1C1F", primary: "#C8281C", accent: "#E8E5DE", text: "#F4F4F0", outline: "#0D0E10", scrim: "rgba(0,0,0,0.34)" },
+    fonts: { caption: stack(inter), emphasis: stack(barlow), label: stack(barlow) },
+    editorial: true,
+    rules: false,
+    centerCards: true,
+    captionWeight: 600,
+    uppercase: false,
+    grade: 0.06,
+    grain: 0.05,
+  },
+  // Business documentary: black with a deep red glow, condensed numbers, red tags.
+  crimson: {
+    colors: { bg: "#060506", bgAlt: "#1A0709", primary: "#E3262F", accent: "#F3F1EC", text: "#F3F1EC", outline: "#060506", scrim: "rgba(0,0,0,0.4)" },
+    fonts: { caption: stack(inter), emphasis: stack(barlow), label: stack(barlow) },
+    editorial: true,
+    rules: false,
+    slashCards: true,
+    captionWeight: 600,
+    uppercase: false,
+    grade: 0.04,
+    grain: 0.05,
+  },
+  // Cinematic business documentary: graded footage everywhere, letterbox, a serif
+  // display face, warm amber accents over teal shadows.
+  cinema: {
+    colors: { bg: "#05080A", bgAlt: "#0B1519", primary: "#F2A541", accent: "#5FB7C4", text: "#F4F1EA", outline: "#05080A", scrim: "rgba(0,0,0,0.35)" },
+    fonts: { caption: stack(interTight), emphasis: stack(fraunces), label: stack(interTight) },
+    editorial: true,
+    rules: false,
+    cinema: true,
+    letterbox: 2.2,
+    captionWeight: 600,
+    uppercase: false,
+    grade: 0.05,
+    grain: 0.07,
   },
   // Tech / finance / productivity: clean, violet hero, pill highlight.
   minimal: {

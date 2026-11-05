@@ -50,6 +50,11 @@ says, then review every shot (SKILL.md Step 3). Accuracy comes from both.
   still waiting for that are listed in `build/yt/wanted.json`. Clips are cut at
   the matched chapter, silent, and credited. Rules and the standalone engine:
   `references/youtube-cc-engine.md`.
+- **More free archives, searched automatically** (Wikimedia / NASA video, Internet
+  Archive, Openverse, Smithsonian, Europeana, art museums, NASA SVS, Wellcome,
+  iNaturalist; optional `UNSPLASH_ACCESS_KEY`, `FLICKR_API_KEY`), hand-picking
+  sheets for Pixabay / Coverr / Wikimedia stills, and the DVIDS **footage bank**:
+  `references/advanced-edit.md`.
 - **Paid, by sales**: Storyblocks API (Enterprise), Shutterstock API, Getty
   Images (the legitimate source for news, sports and celebrities).
 - **No API** (download by hand, use `file:`): Envato Elements, Artgrid, Mixkit,

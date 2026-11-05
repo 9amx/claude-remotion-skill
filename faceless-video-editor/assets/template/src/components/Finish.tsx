@@ -1,6 +1,6 @@
 // Top of the five-layer stack: grade -> grain -> vignette. Unifies stock clips
 // from different sources into one look.
-import { AbsoluteFill, useCurrentFrame } from "remotion";
+import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
 import type { Style } from "../theme";
 
 export const Grade: React.FC<{ style: Style }> = ({ style }) => (
@@ -31,3 +31,15 @@ export const Grain: React.FC<{ style: Style }> = ({ style }) => {
 export const Vignette: React.FC = () => (
   <AbsoluteFill style={{ pointerEvents: "none", background: "radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.38) 100%)" }} />
 );
+
+// Cinema bars: crops the frame to a wide film ratio (e.g. 2.2), above everything.
+export const Letterbox: React.FC<{ ratio: number }> = ({ ratio }) => {
+  const { width, height } = useVideoConfig();
+  const bar = Math.max(0, (height - width / ratio) / 2);
+  return (
+    <AbsoluteFill style={{ pointerEvents: "none" }}>
+      <div style={{ position: "absolute", left: 0, right: 0, top: 0, height: bar, background: "#000" }} />
+      <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: bar, background: "#000" }} />
+    </AbsoluteFill>
+  );
+};

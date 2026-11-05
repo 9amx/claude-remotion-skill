@@ -1,8 +1,9 @@
 // Shape of public/timeline.json, written by scripts/build-timeline.mjs.
 export type Word = { text: string; startMs: number; endMs: number; scene: number; hl?: boolean };
 
-export type StillMove = "push" | "pull" | "pan-left" | "pan-right" | "tilt-up" | "tilt-down" | "detail" | "focus" | "frame";
-export type Transition = "whip" | "zoom" | "glitch" | "flash" | "light" | "dip" | "fade" | "cut";
+export type StillMove = "push" | "pull" | "pan-left" | "pan-right" | "tilt-up" | "tilt-down" | "detail" | "focus" | "frame" | "parallax" | "diag-down" | "diag-up" | "reveal" | "tilt-rotate" | "handheld" | "snap" | "slam";
+export type Transition = "whip" | "push" | "wipe" | "zoom" | "glitch" | "flash" | "light" | "dip" | "fade" | "burn" | "shutter" | "leak" | "cut";
+export type PathKey = { t: number; s: number; x: number; y: number; r: number; e?: "snap" | "lin" | "jump" };
 export type Look = "normal" | "flashback" | "dramatic" | "night" | "vhs" | "dream";
 
 // Motion graphics drawn from data (components/Graphic.tsx). Map places are
@@ -25,9 +26,23 @@ export type GraphicSpec =
   | { type: "steps"; items: Item[]; title?: string; at?: number[] }
   | { type: "compare"; left: Side; right: Side; title?: string; at?: number[] }
   | { type: "statement"; text: string; highlight?: string; kicker?: string }
+  // A 3D explainer (components/Model3D.tsx) for a mechanism or a physical event.
+  | { type: "model3d"; model: "blowback" | "roller" | "closedBolt" | "gasIntro" | "gasCycle" | "armorStop" | "armorCompare" | "energy" | "size" | "magazines" | "cartridges" | "barrel"; items: Item[]; title?: string; at?: number[] }
+  | { type: "weapon"; name: string; year?: string; era?: string; image: string; step?: number; steps?: number; scale?: number; flip?: boolean; specs: { label: string; value: string | number; prefix?: string; unit?: string; decimals?: number; bar?: number }[] }
+  | import("./components/Stage").StageSpec
   | { type: "ui"; image: string; device?: "browser" | "phone"; url?: string; highlight?: [number, number, number, number]; on?: string; caption?: string; at?: number[] };
 export type Item = string | { text: string; on?: string; icon?: string };
 export type Side = { label: string; items: Item[]; tone?: "good" | "bad" };
+
+// Motion graphics on the footage (components/Overlay.tsx).
+export type OverlaySpec = {
+  type: "callout" | "track" | "slug" | "stat" | "line";
+  text?: string; sub?: string; hl?: string; // hl: the word of a line set in the accent color
+  at?: [number, number]; // a point: picture % on a still (follows its move), screen % on video
+  size?: [number, number]; side?: 1 | -1; rise?: 1 | -1; reach?: number; // track box, callout direction
+  value?: string | number; prefix?: string; unit?: string; decimals?: number; bar?: number;
+  from?: number; duration?: number; shotOffset?: number; shotLen?: number; path?: PathKey[];
+};
 
 export type Shot = {
   type: "video" | "image" | "kinetic" | "graphic";
@@ -45,6 +60,9 @@ export type Shot = {
   picked?: boolean; // chosen from a review sheet
   crossesCut?: boolean; // the clip's own internal cut is visible in this shot
   move?: StillMove; // camera move on a still (build-timeline picks one; a beat can set it)
+  overlays?: OverlaySpec[];
+  path?: PathKey[]; // a still's own choreography (build-timeline)
+  pathFx?: "rack" | "parallax" | "gate" | "sweep";
   focus?: [number, number]; // where "detail" / "push" head (stills) or where the crop sits (video), % of the picture
   fit?: boolean; // video: show the whole frame over a blurred copy (wide footage in a vertical video)
   fadeIn?: number; // frames of crossfade from the previous shot
@@ -75,7 +93,7 @@ export type Scene = {
   shots: Shot[];
 };
 
-export type Chapter = { title: string; mood: string; startFrame: number; durationInFrames: number };
+export type Chapter = { title: string; sub?: string; mood: string; startFrame: number; durationInFrames: number };
 
 // A sound on a beat (door slam on the door shot), onset-aligned to `at`.
 export type Spot = { src: string; file?: string; at: number; volume: number; scene: string };
@@ -102,10 +120,12 @@ export type Timeline = {
   musicGapBoost?: number; // music rises by this factor when nobody is speaking
   swells?: number[]; // frames where the music lifts for a moment (chapter starts, reveals)
   editStyle: string;
+  calloutStyle?: "subtitle"; // callouts sit low and centered (weapon names)
   textRules?: boolean; // decorative lines beside on-screen text (only when the reference has them)
   reveals: number[]; // absolute frames where a reveal lands
   transitions: "scene" | "chapter" | "none";
   showChapterCards: boolean;
+  chapterCardLead?: number; // frames: cards play in a silent gap this long before each chapter's first scene
   chapters: Chapter[];
   scenes: Scene[];
   words: Word[];

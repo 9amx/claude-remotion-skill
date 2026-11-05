@@ -13,6 +13,7 @@
 //    Cached in build/transcript.json until the recording or these settings change.
 // 3. Splits it into the scenes of project.json, jump-cuts dead air, and writes the same
 //    per-scene files voiceover.py does: public/vo/<scene>.mp3 + build/vo/<scene>.json
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { BUILD, PUBLIC, ROOT, ffmpeg as runFfmpeg, fail, log, probeDuration, readJson, readProject, sceneId, sha1, splitIntoScenes, tightenSegments, writeJson } from "./lib.mjs";
@@ -290,6 +291,49 @@ const totalMs = Math.round((probeDuration(source) ?? words[words.length - 1].end
 // Pauses longer than this are cut down (jump cut on dead air). 0 disables.
 const maxPause = v.tightenPauses === false ? 0 : (v.maxPauseMs ?? 400);
 const norm = (w) => w.toLowerCase().replace(/[^\p{L}\p{M}\p{N}]/gu, "");
+
+// ---- cut only in real silence (measured from the audio, 10 ms frames) ----
+const pcm = spawnSync("ffmpeg", ["-v", "error", "-i", source, "-ac", "1", "-ar", "16000", "-f", "s16le", "-"], { maxBuffer: 2e9 }).stdout;
+if (!pcm?.length) fail("could not decode the recording to find its silences (is ffmpeg on PATH?)");
+const FRAME = 10, SPF = 160;
+const E = new Float32Array(Math.floor(pcm.length / 2 / SPF));
+for (let f = 0; f < E.length; f++) {
+  let x = 0;
+  for (let k = f * SPF; k < (f + 1) * SPF; k++) x += (pcm.readInt16LE(k * 2) / 32768) ** 2;
+  E[f] = 10 * Math.log10(x / SPF + 1e-12);
+}
+// Speech level = median of the voiced frames; anything 30 dB under it is a gap.
+const voiced = [...E].filter((d) => d > -60).sort((a, b) => a - b);
+const QUIET = (voiced.length ? voiced[Math.floor(voiced.length / 2)] : -20) - 30;
+const fr = (ms) => Math.max(0, Math.min(E.length - 1, Math.round(ms / FRAME)));
+const loud = (ms) => E[fr(ms)] > QUIET;
+// Between word a and word b: the middle of the longest quiet run, else the quietest frame.
+function sceneCut(a, b) {
+  const lo = fr(a.startMs + 60), hi = fr(b.endMs - 60);
+  let best = null, run = null;
+  for (let f = lo; f <= hi; f++) {
+    if (E[f] <= QUIET) { run = run ? [run[0], f] : [f, f]; if (!best || run[1] - run[0] > best[1] - best[0]) best = [...run]; }
+    else run = null;
+  }
+  if (best && best[1] - best[0] >= 3) return Math.round(((best[0] + best[1]) / 2) * FRAME);
+  const mid = (a.endMs + b.startMs) / 2;
+  let m = fr(mid);
+  for (let f = Math.max(lo, fr(mid - 300)); f <= Math.min(hi, fr(mid + 150)); f++) if (E[f] < E[m]) m = f;
+  return m * FRAME;
+}
+// Pause tightening cuts at word +- pad; when that lands inside a sound, slide it
+// out into the quiet (max 400 ms, never past the scene's own cuts).
+function snapSegments(t, sw, start, end) {
+  const segs = t.segments.map(([a, b]) => {
+    for (let n = 0; n < 40 && a > start && loud(a); n++) a -= FRAME;
+    for (let n = 0; n < 40 && b < end && loud(b); n++) b += FRAME;
+    return [Math.max(start, a), Math.min(end, b)];
+  });
+  const merged = [];
+  for (const s of segs) if (merged.length && s[0] <= merged[merged.length - 1][1] + 20) merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], s[1]); else merged.push(s);
+  const shift = (x) => { let o = 0; for (const [a, b] of merged) { if (x <= a) break; o += Math.min(x, b) - a; } return Math.round(o); };
+  return { segments: merged, durationMs: Math.round(merged.reduce((n, [a, b]) => n + b - a, 0)), words: sw.map((w) => ({ ...w, startMs: shift(w.startMs), endMs: shift(w.endMs) })) };
+}
 fs.mkdirSync(path.join(PUBLIC, "vo"), { recursive: true });
 let removed = 0;
 for (let i = 0; i < sceneTokens.length; i++) {
@@ -301,13 +345,16 @@ for (let i = 0; i < sceneTokens.length; i++) {
     if (w) w.text = `*${w.text.replace(/\*/g, "")}*`;
   }
   const next = words[bounds[i + 1]];
-  const start = i === 0 ? Math.max(0, sw[0].startMs - 120) : Math.round((words[bounds[i] - 1].endMs + sw[0].startMs) / 2);
-  const end = next ? Math.round((sw[sw.length - 1].endMs + next.startMs) / 2) : totalMs;
+  // Cut in the silence the recording really has, never at the midpoint of two word
+  // timestamps: those are often 100-500 ms off and glue words together, so a midpoint
+  // cut ends a scene on the first syllable of the next one and starts that one mid-word.
+  const start = i === 0 ? Math.max(0, sw[0].startMs - 120) : sceneCut(words[bounds[i] - 1], sw[0]);
+  const end = next ? sceneCut(sw[sw.length - 1], next) : totalMs;
   const id = sceneId(i);
   const out = path.join(PUBLIC, "vo", `${id}.mp3`);
   let durationMs = end - start;
   let timed = sw.map((w) => ({ text: w.text, startMs: w.startMs - start, endMs: w.endMs - start }));
-  const t = maxPause ? tightenSegments(sw, start, end, maxPause) : null;
+  const t = maxPause ? snapSegments(tightenSegments(sw, start, end, maxPause), sw, start, end) : null;
   // Always cut with tightening on: it also trims dead air at the scene's edges.
   if (t) {
     // atrim each kept segment, concat; short fades hide the joins.

@@ -30,11 +30,12 @@ const steps = [
   ["lint", () => run("node", ["scripts/lint-script.mjs", "--strict"])],
   ["voice", () => (project.voice.provider === "file" ? run("node", ["scripts/transcribe.mjs"]) : run(PYTHON, ["scripts/voiceover.py"]))],
   ["broll", () => run("node", ["scripts/fetch-broll.mjs", ...(reviewMode ? ["--review"] : [])])],
-  ["timeline", () => run("node", ["scripts/build-timeline.mjs"])],
+  // Repeated footage is reported here and blocks the render below, so the storyboard can still be used to fix it.
+  ["timeline", () => { run("node", ["scripts/build-timeline.mjs"]); run("node", ["scripts/check-repeats.mjs"]); }],
   // Every shot as a picture with its words, before any render time is spent.
   ["storyboard", () => run("node", ["scripts/storyboard.mjs"])],
   ["audio", () => run("node", ["scripts/gen-audio.mjs"])],
-  ["render", () => run("node", ["scripts/render.mjs"])], // chunked + resumable for long videos
+  ["render", () => { run("node", ["scripts/check-repeats.mjs", "--strict"]); run("node", ["scripts/render.mjs"]); }], // chunked + resumable for long videos
   ["master", () => {
     // Platforms normalise to about -14 LUFS; mastering there keeps the VO punchy.
     // Gain to the target, then a true-peak-safe limiter (oversampled, delay compensated)

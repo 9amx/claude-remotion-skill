@@ -7,7 +7,7 @@ import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } fr
 import { clamp, ease, springs, type Style } from "../theme";
 import { Reveal } from "./Reveal";
 
-export const Callout: React.FC<{ text: string; style: Style; duration: number; index: number }> = ({ text, style, duration, index }) => {
+export const Callout: React.FC<{ text: string; style: Style; duration: number; index: number; subtitle?: boolean }> = ({ text, style, duration, index, subtitle }) => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
   const portrait = height > width;
@@ -19,6 +19,21 @@ export const Callout: React.FC<{ text: string; style: Style; duration: number; i
   const exit = interpolate(frame, [duration - 8, duration], [1, 0], { ...clamp, easing: ease.in });
   // Alternate sides so repeated pops don't stamp the same corner.
   const left = portrait ? null : index % 2 === 0;
+  if (subtitle) {
+    // A name low in the frame, like a subtitle.
+    const size = unit * 0.046;
+    return (
+      <AbsoluteFill style={{ pointerEvents: "none", opacity: exit, justifyContent: "flex-end", alignItems: "center", paddingBottom: height * (portrait ? 0.24 : 0.085) }}>
+        <div style={{ display: "flex", columnGap: size * 0.24, padding: `${size * 0.22}px ${size * 0.5}px`, background: "rgba(0,0,0,0.58)", borderRadius: size * 0.12, opacity: interpolate(frame, [0, 6], [0, 1], clamp) }}>
+          {words.map((w, i) => (
+            <Reveal key={i} delay={2 + i * 2} frames={12}>
+              <span style={{ fontFamily: style.fonts.emphasis, fontWeight: 600, fontSize: size, lineHeight: 1.15, color: "#fff" }}>{w}</span>
+            </Reveal>
+          ))}
+        </div>
+      </AbsoluteFill>
+    );
+  }
   if (style.editorial) {
     // A fine accent line draws down, the words rise out of a mask beside it.
     const size = unit * (number ? 0.075 : text.length > 22 ? 0.04 : 0.05);

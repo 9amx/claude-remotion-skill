@@ -2,6 +2,7 @@
 // the single file the Remotion composition renders from.
 import path from "node:path";
 import fs from "node:fs";
+import { applyOverrides, hasEdits } from "./studio-overrides.mjs";
 import { BUILD, FORMATS, FX, LOOKS, MOOD_BPM, PUBLIC, SFX_NAMES, TRANSITIONS, kitSfx, fail, findPhrase, log, planShots, probeDuration, probeSize, ffmpegRaw, readJson, readProject, sceneId, timecode,
   userAmbiencePath, userMusicPath, userSfx, userSfxPath, userSpotPath, writeJson } from "./lib.mjs";
 
@@ -11,7 +12,11 @@ const fps = project.fps;
 const broll = readJson(path.join(BUILD, "broll.json"), {});
 const GAP_MS = project.sceneGapMs ?? 120; // breath between scenes
 const OUTRO_MS = project.outroMs ?? 900; // hold after the last word
-const CHAPTER_GAP_MS = project.chapterGapMs ?? 900; // longer breath before a new chapter
+// Long form with chapter cards: the card gets its own silent beat before the
+// chapter's first words (it used to sit over them and hide their picture).
+const CARD_LEAD_MS = 3000; // card on screen before the voice comes back
+const cardsInGap = (project.chapters?.length ?? 0) > 1 && project.chapterCards !== false && project.chapterCardsOverVoice !== true;
+const CHAPTER_GAP_MS = project.chapterGapMs ?? (cardsInGap ? CARD_LEAD_MS + 450 : 900); // longer breath before a new chapter
 const toF = (ms) => Math.round((ms / 1000) * fps);
 
 // auto: what alternates when nothing motivates a transition (story: softer, filmic)
@@ -88,19 +93,40 @@ function clipWindow(asset, need) {
 function withItemTimes(g, voWords, shotStartMs, shotFrom, len) {
   const items = g.type === "compare" ? [...g.left.items, ...g.right.items] : g.type === "ui" ? [{ on: g.on }] : g.items;
   if (!items) return g;
-  const startIdx = Math.max(0, voWords.findIndex((w) => w.startMs >= shotStartMs - 50));
+  // Search only around this shot: from a little before its cut (an item's words are
+  // often the last ones before it) to its end. A match far away in the line is a
+  // false hit and used to drop the item into the shot's last frames.
+  const shotEndMs = shotStartMs + (len / fps) * 1000;
+  const idxAt = (ms, d) => { const i = voWords.findIndex((w) => w.startMs >= ms); return i < 0 ? d : i; };
+  const before = Math.max(0, voWords.findIndex((w) => w.endMs >= shotStartMs - 6500)); // a graphic often sums up what was just said
+  const startIdx = idxAt(shotStartMs - 50, voWords.length);
+  const endIdx = idxAt(shotEndMs - 150, voWords.length);
+  const after = idxAt(shotEndMs + 1000, voWords.length); // said right after the cut: show it just before
+  // Stage items sit anywhere on screen and can be listed in any order: each one
+  // lands on its own words. Lists and steps read in order, so they keep moving forward.
+  const ordered = g.type !== "stage";
   let from = startIdx;
   const spread = (i) => Math.round(4 + (i * Math.max(8, len * 0.6)) / Math.max(1, items.length));
   const at = items.map((it, i) => {
     const on = typeof it === "object" ? it?.on : null;
-    const idx = on ? findPhrase(voWords, on, from) : -1;
-    if (on && idx < 0) log("timeline", `${g.type} item "${on}" not found in the spoken words - placed by position`);
-    if (idx < 0) return spread(i);
-    from = idx + 1;
-    return Math.max(0, toF(voWords[idx].startMs) - shotFrom - 3);
+    if (!on) return spread(i);
+    // Its own shot first, then just before the cut, then just after the shot.
+    let idx = findPhrase(voWords, on, ordered ? from : startIdx, false, endIdx);
+    if (idx >= 0) { if (ordered) from = idx + 1; return Math.max(0, toF(voWords[idx].startMs) - shotFrom - 3); }
+    idx = findPhrase(voWords, on, before, true, startIdx);
+    if (idx < 0) idx = findPhrase(voWords, on, Math.max(before, startIdx - 12), false, startIdx);
+    if (idx >= 0) return 4; // said just before the cut: on screen with the cut
+    idx = findPhrase(voWords, on, endIdx, false, after);
+    if (idx >= 0) return Math.max(4, len - 16); // said just after: up shortly before the cut
+    log("timeline", `${g.type} item "${on}" not found near its shot - placed by position`);
+    return spread(i);
   });
+  // A graphic never opens on an empty screen: when its first item's words come
+  // later in the line (common - the phrase that names it is often at the end),
+  // the first item lands with the cut instead. The rest still land on their words.
+  if (at.length && at[0] > 12) at[0] = 4;
   // Never before the previous item, never after the shot.
-  for (let i = 1; i < at.length; i++) at[i] = Math.max(at[i], at[i - 1] + 4);
+  if (ordered) for (let i = 1; i < at.length; i++) at[i] = Math.max(at[i], at[i - 1] + 4);
   return { ...g, at: at.map((a) => Math.min(a, Math.max(0, len - 10))) };
 }
 
@@ -109,23 +135,117 @@ function withItemTimes(g, voWords, shotStartMs, shotFrom, len) {
 // print) is shown whole as a framed print over its own blurred backdrop; a
 // panorama pans; long holds push in on a detail; the rest rotate through push,
 // pull, pans and tilts. A beat can set "move" (and "focus": [x, y] in %) itself.
-const MOVES = ["push", "pan-left", "pull", "detail", "pan-right", "tilt-up", "focus", "tilt-down"];
+const MOVES = ["push", "pan-left", "reveal", "diag-down", "pull", "parallax", "tilt-up", "snap", "pan-right", "tilt-rotate", "diag-up", "detail", "handheld", "focus", "tilt-down", "slam"];
+const SHORT_ONLY = new Set(["snap", "slam", "handheld", "focus", "push", "pull"]);
+const LONG_ONLY = new Set(["detail", "reveal", "parallax", "tilt-rotate"]);
 const FRAME_AR = width / height;
 let lastMove = null, moveIdx = 0;
+const recentMoves = [];
 function stillMove(shot, planned, lenSec) {
   if (planned.move) return planned.move;
   const size = shot.src ? probeSize(path.join(PUBLIC, shot.src)) : null;
   const ar = size ? size[0] / size[1] : FRAME_AR;
   const archive = /^(wikimedia|nasa|dvids)-/.test(shot.assetId ?? "");
   let m;
-  if (ar < FRAME_AR * 0.72 || (archive && ar < FRAME_AR * 0.9)) m = "frame";
+  // A print over a blurred copy only when the picture really can't fill the frame.
+  if (ar < FRAME_AR * 0.72) m = "frame";
   else if (ar > FRAME_AR * 1.35) m = lastMove === "pan-left" ? "pan-right" : "pan-left";
-  else if (lenSec > 5) m = lastMove === "detail" ? "push" : "detail";
   else {
-    do m = MOVES[moveIdx++ % MOVES.length]; while (m === lastMove || (m === "detail" && lenSec < 3));
+    // Never one of the last five moves; a short shot takes a quick move, a long one a big one.
+    for (let tries = 0; tries < MOVES.length * 2; tries++) {
+      m = MOVES[moveIdx++ % MOVES.length];
+      if (recentMoves.includes(m)) continue;
+      if (lenSec < 2.2 && LONG_ONLY.has(m)) continue;
+      if (lenSec > 6 && SHORT_ONLY.has(m)) continue;
+      break;
+    }
   }
+  if (m !== "frame") { recentMoves.push(m); if (recentMoves.length > 5) recentMoves.shift(); }
   lastMove = m;
   return m;
+}
+
+// Every still gets its own choreography: a recipe (several moves in one shot,
+// jump crops, light, film gate, depth) aimed at what is actually in THAT picture
+// (the busiest regions, measured), with seeded distances, so no two look alike and
+// no recipe comes back within the last six stills. A portrait picture stays a print.
+const seedRand = (s) => { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return () => ((h = Math.imul(h ^ (h >>> 15), 2246822507) ^ Math.imul(h ^ (h >>> 13), 3266489909)) >>> 0) / 4294967296; };
+const saliencyCache = new Map();
+function saliency(src) {
+  if (saliencyCache.has(src)) return saliencyCache.get(src);
+  const W = 48, H = 27;
+  const buf = ffmpegRaw(["-i", path.join(PUBLIC, src), "-frames:v", "1", "-vf", `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H}`, "-f", "rawvideo", "-pix_fmt", "gray", "-"]);
+  const cells = [];
+  if (buf?.length >= W * H) {
+    const CX = 8, CY = 5;
+    for (let cy = 0; cy < CY; cy++) for (let cx = 0; cx < CX; cx++) {
+      let e = 0;
+      const x0 = Math.floor((cx * W) / CX), x1 = Math.floor(((cx + 1) * W) / CX), y0 = Math.floor((cy * H) / CY), y1 = Math.floor(((cy + 1) * H) / CY);
+      for (let y = y0; y < y1; y++) for (let x = x0; x < x1 - 1; x++) e += Math.abs(buf[y * W + x] - buf[y * W + x + 1]) + (y < H - 1 ? Math.abs(buf[y * W + x] - buf[(y + 1) * W + x]) : 0);
+      // Slight pull to the middle: the frame edge is rarely the subject.
+      const px = ((cx + 0.5) / CX) * 100, py = ((cy + 0.5) / CY) * 100;
+      cells.push({ x: px, y: py, e: e * (1 - (Math.abs(px - 50) + Math.abs(py - 50)) / 220) });
+    }
+    cells.sort((a, b) => b.e - a.e);
+  }
+  const picks = [];
+  for (const c of cells) { if (picks.every((p) => Math.hypot(p[0] - c.x, p[1] - c.y) > 24)) picks.push([c.x, c.y]); if (picks.length === 3) break; }
+  while (picks.length < 3) picks.push([[38, 44], [64, 52], [50, 36]][picks.length]);
+  saliencyCache.set(src, picks);
+  return picks;
+}
+const RECIPES = ["pushIn", "pullOut", "twoStep", "jumpCrops", "traverse", "arc", "drop", "rack", "parallax", "gate", "sweep", "tiltTravel", "breathe"];
+const recentRecipes = [];
+const recipeUse = {};
+function choreograph(shot, lenSec) {
+  const size = shot.src ? probeSize(path.join(PUBLIC, shot.src)) : null;
+  const ar = size ? size[0] / size[1] : FRAME_AR;
+  const rnd = seedRand(`${shot.src}|${shot.words ?? ""}`);
+  if (ar < FRAME_AR * 0.72) return { move: "frame" };
+  const [f1, f2, f3] = saliency(shot.src);
+  const r = (a, b) => a + (b - a) * rnd();
+  const at = (f, s, rot = 0, t = 0, e) => {
+    const lim = 50 * (s - 1) - (Math.abs(rot) > 0 ? 1.4 : 0.2);
+    const cl = (v) => Math.max(-lim, Math.min(lim, v));
+    return { t, s, x: +cl(-(f[0] - 50) * s).toFixed(2), y: +cl(-(f[1] - 50) * s).toFixed(2), r: rot, ...(e ? { e } : {}) };
+  };
+  const mid = [50, 50];
+  const old = /\b(19\d\d|cold war|soviet|embassy)\b/i.test(`${shot.keyword} ${shot.words}`);
+  const allowed = RECIPES.filter((n) => {
+    // A client flagged both as "glitchy": jumpCrops hard-cuts between crops of one
+    // photo, parallax tears the cut-out edges. Off unless the project asks for them.
+    if ((n === "jumpCrops" || n === "parallax") && !(project.stillRecipes ?? []).includes(n)) return false;
+    if (recentRecipes.includes(n)) return false;
+    if (n === "jumpCrops" && lenSec < 3.4) return false;
+    if ((n === "twoStep" || n === "parallax" || n === "traverse") && lenSec < 2.4) return false;
+    if (n === "drop" && lenSec > 6) return false;
+    if (n === "gate" && !old) return false;
+    return true;
+  });
+  // Least used first, then a seeded choice among them.
+  const least = Math.min(...allowed.map((n) => recipeUse[n] ?? 0));
+  const pool = allowed.filter((n) => (recipeUse[n] ?? 0) === least);
+  const name = pool[Math.floor(rnd() * pool.length)] ?? "pushIn";
+  recipeUse[name] = (recipeUse[name] ?? 0) + 1;
+  recentRecipes.push(name); if (recentRecipes.length > 6) recentRecipes.shift();
+  const big = r(1.22, 1.42), small = r(1.04, 1.1), rot = r(0.7, 1.9) * (rnd() < 0.5 ? -1 : 1);
+  let p, fx;
+  switch (name) {
+    case "pushIn": p = [at(mid, small), at(f1, big, 0, 1)]; break;
+    case "pullOut": p = [at(f1, big + 0.12), at(mid, small, 0, 1)]; break;
+    case "twoStep": p = [at(f1, r(1.1, 1.16)), at(f1, r(1.17, 1.22), 0, 0.46), at(f2, r(1.3, 1.44), 0, 0.62, "snap"), at(f2, r(1.45, 1.55), 0, 1, "lin")]; break;
+    case "jumpCrops": { const s1 = r(1.05, 1.12), s2 = r(1.4, 1.6), s3 = r(1.5, 1.75); p = [at(mid, s1), at(mid, s1 + 0.04, 0, 0.32, "lin"), at(f1, s2, 0, 0.33, "jump"), at(f1, s2 + 0.06, 0, 0.65, "lin"), at(f2, s3, 0, 0.66, "jump"), at(f2, s3 + 0.08, 0, 1, "lin")]; break; }
+    case "traverse": { const s = r(1.26, 1.4); p = [at(f1, s, rot * 0.35), at(f2, s + r(0.02, 0.08), -rot * 0.35, 1)]; break; }
+    case "arc": { const s = r(1.16, 1.24), a = at(f1, s, rot), b = at(f2, s + 0.07, 0, 0.5), c = at(f3, s + 0.13, -rot, 1); p = [a, b, c]; break; }
+    case "drop": { const s = r(1.12, 1.2); p = [at(f1, s + r(0.3, 0.45), rot * 0.6), at(f1, s, 0, Math.min(0.3, 0.55 / lenSec), "snap"), at(f1, s + r(0.03, 0.06), 0, 1, "lin")]; break; }
+    case "rack": p = [at(f1, r(1.1, 1.16)), at(f1, r(1.22, 1.3), 0, 1)]; fx = "rack"; break;
+    case "parallax": p = [at(f2, 1.12), at(f1, 1.18, 0, 1)]; fx = "parallax"; break;
+    case "gate": p = [at(mid, 1.07), at(f1, r(1.14, 1.22), 0, 1, "lin")]; fx = "gate"; break;
+    case "sweep": p = [at(f1, r(1.24, 1.32)), at(mid, r(1.06, 1.1), 0, 1)]; fx = "sweep"; break;
+    case "tiltTravel": { const s = r(1.28, 1.42), dir = rnd() < 0.5 ? 1 : -1; p = [at([f1[0], 50 + dir * 40], s), at([f1[0], 50 - dir * 40], s + 0.03, 0, 1)]; break; }
+    default: p = [at(f1, r(1.1, 1.14), rot * 0.5), at(f1, r(1.16, 1.2), -rot * 0.5, 0.5), at(f2, r(1.12, 1.18), rot * 0.3, 1)]; break;
+  }
+  return { path: p, ...(fx ? { pathFx: fx } : {}), recipe: name, focus: f1 };
 }
 
 // "callouts": "auto" (default) pops *highlighted* phrases only when captions are
@@ -212,8 +332,17 @@ for (const [i, scene] of project.scenes.entries()) {
     const len = Math.max(1, end - from);
     const shot = { ...asset, from, durationInFrames: len, zoomIn: (i + k) % 2 === 0, words: p.words, ...(cutShift(k) ? { userCut: true } : {}) };
     delete shot.cuts;
-    if (shot.type === "graphic" && shot.graphic) shot.graphic = withItemTimes(shot.graphic, vo.words, p.startMs, from, len);
-    if (shot.type === "image") Object.assign(shot, { move: stillMove(shot, p, len / fps) }, p.focus ? { focus: p.focus } : {});
+    // Items can sum up words said just before the scene began, so the search also sees
+    // the previous scene's last seconds (times relative to this scene, so negative).
+    const ctxWords = [...words.filter((w) => w.startMs >= cursorMs - 8000).map((w) => ({ ...w, startMs: w.startMs - cursorMs, endMs: w.endMs - cursorMs })), ...vo.words];
+    if (shot.type === "graphic" && shot.graphic) shot.graphic = withItemTimes(shot.graphic, ctxWords, p.startMs, from, len);
+    // Stage items can carry their own sound, landing with the item.
+    if (shot.type === "graphic" && shot.graphic?.type === "stage") shot.graphic.items.forEach((it, j) => {
+      if (!it.sfx) return;
+      const ref = soundRef(typeof it.sfx === "string" ? { file: it.sfx } : it.sfx, `${id} stage item "${it.on}" sfx`);
+      spots.push({ ...ref, at: startFrame + from + (shot.graphic.at?.[j] ?? 0) + 3, volume: ref.volume ?? 0.55, scene: id });
+    });
+    if (shot.type === "image") Object.assign(shot, project.stillMotion === "simple" || p.move ? { move: stillMove(shot, p, len / fps) } : choreograph(shot, len / fps), p.focus ? { focus: p.focus } : {});
     if (shot.type === "video" && shot.src) {
       // Vertical video, wide source: footage that must stay whole (archival, official, your own
       // files) is shown complete over a blurred copy of itself instead of cropped to the middle
@@ -233,7 +362,7 @@ for (const [i, scene] of project.scenes.entries()) {
     if (asset.type === "video" && asset.duration) Object.assign(shot, clipWindow(asset, len / fps));
     if (p.sfx) {
       const ref = soundRef(p.sfx, `${id} beat "${p.on ?? p.kw}" sfx`);
-      spots.push({ ...ref, at: startFrame + from, volume: ref.volume ?? 0.45, scene: id });
+      spots.push({ ...ref, at: startFrame + from, volume: ref.volume ?? 0.55, scene: id });
     } else if (shot.type === "graphic" && shot.graphic && project.sfxLevel > 0 && project.graphicSfx !== false) {
       // Explainers make the sound of what they show: a radar pings, and the contact
       // drops out on an impact; counters, charts and diagrams build with soft data blips.
@@ -245,6 +374,20 @@ for (const [i, scene] of project.scenes.entries()) {
         spots.push({ file: "data", slot: "data", at: at + 3, volume: 0.2, scene: id });
       }
     }
+    // Motion graphics on the footage: each lands on its own words; none in the long-form hook.
+    if (p.overlays?.length) {
+      shot.overlays = p.overlays.flatMap((o) => {
+        const idx = o.on ? findPhrase(vo.words, o.on, 0) : -1;
+        if (o.on && idx < 0) log("timeline", `${id}: overlay "${o.text}" - "${o.on}" not found in the spoken words, placed at the shot's start`);
+        const at = idx >= 0 ? Math.max(from, toF(vo.words[idx].startMs) - 2) : from + 4;
+        const pinned = o.type === "callout" || o.type === "track"; // these point at something in THIS picture
+        const dur = Math.min(Math.round((o.seconds ?? 2.6) * fps), (pinned ? from + len : durationInFrames) - at);
+        if (dur < fps * 0.8) { log("timeline", `${id}: overlay "${o.text}" has no room on its shot, dropped`); return []; }
+        if (project.format === "landscape" && startFrame + at < (project.hookTextFreeSeconds ?? 10) * fps) { log("timeline", `${id}: overlay "${o.text}" is inside the hook, dropped`); return []; }
+        const { on, seconds, ...rest } = o;
+        return [{ ...rest, from: at, duration: dur, shotOffset: at - from, shotLen: len, ...(shot.path ? { path: shot.path } : {}) }];
+      });
+    }
     return shot;
   });
   // Story / calm: a still eases in over the shot before it (or out of it) with a
@@ -252,7 +395,9 @@ for (const [i, scene] of project.scenes.entries()) {
   if (["story", "calm"].includes(project.editStyle) && !split) {
     for (let k = 1; k < shots.length; k++) {
       const a = shots[k - 1], b = shots[k];
-      if (a.type !== "graphic" && b.type !== "graphic" && (a.type === "image" || b.type === "image")) b.fadeIn = Math.min(12, Math.round(b.durationInFrames / 4));
+      const card = (s) => s.type === "graphic" && s.graphic?.type === "weapon";
+      if (card(a) || card(b)) b.fadeIn = Math.min(14, Math.round(b.durationInFrames / 4));
+      else if (a.type !== "graphic" && b.type !== "graphic" && (a.type === "image" || b.type === "image")) b.fadeIn = Math.min(12, Math.round(b.durationInFrames / 4));
     }
   }
 
@@ -285,7 +430,7 @@ for (const [i, scene] of project.scenes.entries()) {
     !callouts.some((c) => f < c.from + c.duration + 6 && f + len > c.from - 6);
   planned.forEach((p, k) => {
     if (!p.text || k >= shots.length) return;
-    const len = Math.min(shots[k].durationInFrames, Math.round(fps * 3.5));
+    const len = Math.min(shots[k].durationInFrames - 8, Math.round(fps * 3.5)); // ends before the cut so the next shot can carry its own name
     if (free(shots[k].from + 2, len)) callouts.push({ text: p.text, from: shots[k].from + 2, duration: len });
   });
   // Long form: no automatic text pops in the opening (picture + voice carry the hook).
@@ -332,10 +477,20 @@ for (const [i, scene] of project.scenes.entries()) {
   cursorMs += durMs;
 }
 
+// Two low-centered texts can't share the frame: the weapon name wins over a line.
+for (const s of scenes) {
+  for (const sh of s.shots) {
+    if (!sh.overlays) continue;
+    sh.overlays = sh.overlays.filter((o) => o.type !== "line" || !(s.callouts ?? []).some((c) => o.from < c.from + c.duration && c.from < o.from + o.duration));
+  }
+  const lines = s.shots.flatMap((sh) => sh.overlays ?? []).filter((o) => o.type === "line").sort((a, b) => a.from - b.from);
+  lines.forEach((o, k) => { if (lines[k + 1]) o.duration = Math.min(o.duration, lines[k + 1].from - o.from - 2); });
+  for (const sh of s.shots) if (sh.overlays) sh.overlays = sh.overlays.filter((o) => o.type !== "line" || o.duration >= fps * 0.7);
+}
 const durationInFrames = toF(cursorMs);
 // Overlapping transitions keep the outgoing picture playing (and animating out)
 // under the incoming scene for a few frames.
-const OVERLAP = { fade: FADE_FRAMES, whip: 8, zoom: 9, light: 8 };
+const OVERLAP = { fade: FADE_FRAMES, whip: 9, zoom: 10, light: 8, push: 13, wipe: 15, burn: 18, leak: 16 };
 scenes.forEach((s, i) => {
   s.exit = scenes[i + 1]?.transition ?? "cut";
   s.visualExtend = OVERLAP[s.exit] ?? 0;
@@ -344,7 +499,8 @@ scenes.forEach((s, i) => {
 // Chapters: frame ranges, plus a YouTube description block (first must be 0:00).
 const chapters = project.chapters.map((ch, c) => {
   const first = scenes.find((s) => s.chapter === c);
-  return first ? { title: ch.title, mood: ch.mood, startFrame: c === 0 ? 0 : first.startFrame } : null;
+  // With the card in the gap the chapter (music, YouTube timestamp) starts with the card.
+  return first ? { title: ch.title, ...(ch.sub ? { sub: ch.sub } : {}), mood: ch.mood, startFrame: c === 0 ? 0 : first.startFrame - (cardsInGap ? toF(CARD_LEAD_MS) : 0) } : null;
 }).filter(Boolean);
 chapters.forEach((ch, c) => (ch.durationInFrames = (chapters[c + 1]?.startFrame ?? durationInFrames) - ch.startFrame));
 
@@ -453,7 +609,8 @@ scenes.forEach((sc, i) => {
 
 // SFX: user files (variants rotate) or the synthesized kit.
 const user = userSfx();
-const sfxFiles = Object.fromEntries(SFX_NAMES.map((n) => [n, user[n] ? user[n].map(userSfxPath) : kitSfx(n)]));
+// tr* transition slots fall back to the whoosh (user file or kit) when no own file exists.
+const sfxFiles = Object.fromEntries(SFX_NAMES.map((n) => [n, user[n] ? user[n].map(userSfxPath) : n.startsWith("tr") ? (user.whoosh ? user.whoosh.map(userSfxPath) : kitSfx("whoosh")) : kitSfx(n)]));
 const custom = Object.keys(user);
 if (custom.length) log("timeline", `own SFX: ${custom.map((n) => `${n} x${user[n].length}`).join(", ")}`);
 
@@ -476,17 +633,23 @@ const timeline = {
   musicGapBoost: project.music.gapBoost ?? 1.7,
   swells,
   editStyle: project.editStyle,
+  calloutStyle: project.calloutStyle,
   textRules: project.textRules === true,
   reveals,
   transitions: project.transitions,
   showChapterCards: chapters.length > 1 && project.chapterCards !== false,
+  ...(cardsInGap ? { chapterCardLead: toF(CARD_LEAD_MS) } : {}),
   chapters,
   scenes,
   words,
 };
 writeJson(ccFile, ccCache);
 writeJson(beatsFile, beatCache);
-writeJson(path.join(PUBLIC, "timeline.json"), timeline);
+// Studio edits (motion, transitions, looks, color, levels) over the built timeline.
+// The Studio previews its own edits over the base, so it gets the timeline without them.
+writeJson(path.join(BUILD, "timeline.base.json"), timeline);
+writeJson(path.join(BUILD, "edits.built.json"), edits);
+writeJson(path.join(PUBLIC, "timeline.json"), hasEdits(edits) ? applyOverrides(timeline, edits) : timeline);
 if (chapters.length > 1) {
   const yt = chapters.map((ch) => `${timecode(ch.startFrame / fps)} ${ch.title}`).join("\n");
   fs.writeFileSync(path.join(BUILD, "youtube-chapters.txt"), yt + "\n");

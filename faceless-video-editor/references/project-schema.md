@@ -6,7 +6,7 @@
   "format": "shorts",                // shorts 1080x1920 | landscape 1920x1080 | square 1080x1080
   "fps": 30,
   "editStyle": "viral",              // viral | story | explainer | calm - pacing, transitions, zooms, SFX (see editing-playbook.md)
-  "style": "bold",                   // colors/fonts: bold | documentary | minimal (default from editStyle)
+  "style": "bold",                   // colors/fonts: bold | documentary | minimal | dossier | crimson | cinema (default from editStyle; advanced-edit.md)
   "targetSeconds": 35,               // lint compares the script's estimated length to this
   "voice": {
     "provider": "edge",              // edge | elevenlabs | openai | file | none
@@ -36,6 +36,8 @@
   "maxShotSeconds": 2.2,             // B-roll cut length (default from editStyle)
   "brollSources": ["pexels", "pixabay"], // search order; sources without a key are skipped. "coverr" joins
                                      // (last) whenever COVERR_API_KEY is set; DVIDS runs with the archive sources
+  "stillMotion": "auto",             // "auto": each still gets a choreographed path; "simple": one move per still
+  "calloutStyle": "subtitle",        // optional: text pops low and centered like a subtitle
   "vision": true,                    // CLIP picture check (scripts/vision.mjs): thumbnails rank, clips must show the keyword, best-moment trim
   "visionMin": 0.4,                  // 0-1: a downloaded clip scoring lower is replaced by the next result
   "youtubeCC": true,                 // YouTube Creative Commons as an archive source when YOUTUBE_API_KEY / the sign-in exists
@@ -80,13 +82,13 @@
       "badge": "#3",                 // corner tag: list numbers, steps, dates
       "layout": "split",             // two broll clips side by side with a VS divider
       "look": "flashback",           // normal | flashback | dramatic | night | vhs | dream
-      "transition": "whip",          // how this scene enters: whip | zoom | glitch | flash | light | dip | fade | cut
+      "transition": "whip",          // how this scene enters: whip | push | wipe | zoom | glitch | flash | light | dip | fade | burn | shutter | leak | cut
       "fx": ["reveal"],              // reveal (riser + silence + hit) | freeze | shake | punch
       "broll": [                     // beats: each shot starts on its words (broll-keywords.md)
         { "on": "words from the line", "kw": ["keyword", "second angle"], "sfx": "sfx/spot/door.mp3" },
         { "on": "first image", "kw": ["file:clips/press.mp4#12.5-16"], "credit": "\"Title\" by ESO, CC BY 4.0 - <link>" },  // part of a file + attribution
         { "on": "later words", "kw": ["photo:keyword"] },
-        { "on": "173 million", "graphic": { "type": "bars", "data": [["A", 1], ["B", 2]], "source": "..." } },  // counter | bars | map | globe | radar | profile | aircraft | timeline | quote | list | steps | compare | statement | ui (broll-keywords.md)
+        { "on": "173 million", "graphic": { "type": "bars", "data": [["A", 1], ["B", 2]], "source": "..." } },  // counter | bars | map | globe | radar | profile | aircraft | timeline | quote | list | steps | compare | statement | ui | stage | weapon | model3d (broll-keywords.md, advanced-edit.md); a beat may also carry "overlays": [...] (advanced-edit.md)
         "plain keyword"              // also fine: matched to the line automatically
       ],                             // kw prefixes: photo: archive: yt: ai: (and "-word" exclusions) file: adobe:; sfx: a file in public/ or a kit sound (hit, whoosh, pop, ...),
                                      //   or { "file": "...", "volume": 0.45 }

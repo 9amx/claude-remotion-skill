@@ -106,7 +106,7 @@ export const EDIT_STYLES = {
 // Tempo of the synthesized beds (gen-audio.mjs), so cuts can land on their beats.
 export const MOOD_BPM = { calm: 84, tense: 100, upbeat: 118 };
 
-export const TRANSITIONS = ["whip", "zoom", "glitch", "flash", "light", "dip", "fade", "cut"];
+export const TRANSITIONS = ["whip", "push", "wipe", "zoom", "glitch", "flash", "light", "dip", "fade", "burn", "shutter", "leak", "cut"];
 export const LOOKS = ["normal", "flashback", "dramatic", "night", "vhs", "dream"];
 export const FX = ["shake", "freeze", "reveal", "punch"];
 
@@ -114,7 +114,8 @@ export const FX = ["shake", "freeze", "reveal", "punch"];
 // synthesized kit. Drop files in public/sfx/ named after the slot, with optional
 // variants that rotate so repeated cuts don't sound identical:
 //   public/sfx/whoosh-1.mp3, whoosh-2.mp3, hit.wav, riser.mp3, ...
-export const SFX_NAMES = ["hit", "whoosh", "pop", "riser", "scratch", "glitch", "tick", "ping", "data"];
+// tr*: one sound per transition type (scripts/make-transition-sfx.mjs); a missing slot falls back to whoosh.
+export const SFX_NAMES = ["hit", "whoosh", "pop", "riser", "scratch", "glitch", "tick", "ping", "data", "trwhip", "trpush", "trwipe", "trzoom", "trflash", "trlight", "trdip", "trfade", "trburn", "trshutter", "trleak"];
 // Synthesized kit variants (gen-audio): whoosh.wav, whoosh-2.wav, whoosh-3.wav; hit.wav, hit-2.wav.
 export const KIT_VARIANTS = { whoosh: 3, hit: 2 };
 export const kitSfx = (n) => Array.from({ length: KIT_VARIANTS[n] ?? 1 }, (_, k) => `audio/${n}${k ? `-${k + 1}` : ""}.wav`);
@@ -161,25 +162,58 @@ export const sceneId = (i) => `s${String(i + 1).padStart(3, "0")}`;
 // to the first word they share with the line (in order), else spread evenly.
 export const brollEntries = (scene) =>
   (scene.broll ?? []).map((e) => (typeof e === "string" ? { kw: [e] } : { ...e, kw: [].concat(e.kw ?? []).filter(Boolean) }));
-export const GRAPHIC_TYPES = ["counter", "bars", "timeline", "quote", "map", "globe", "radar", "profile", "aircraft", "list", "steps", "compare", "statement", "ui"];
+export const GRAPHIC_TYPES = ["counter", "bars", "timeline", "quote", "map", "globe", "radar", "profile", "aircraft", "list", "steps", "compare", "statement", "ui", "model3d", "weapon", "stage"];
 export const entryKeywords = (scene) => brollEntries(scene).flatMap((e) => e.kw);
 
 export const normWord = (w) => String(w).toLowerCase().replace(/[^\p{L}\p{M}\p{N}]/gu, "");
 const wordStem = (w) => (w.length > 4 ? w.replace(/(ing|ed|es|s|ly)$/, "") : w);
 const loose = (a, b) => a === b || (a.length >= 3 && b.length >= 3 && (a.startsWith(b) || b.startsWith(a)));
 
-// Index of the word where `phrase` starts in words[] (from `from` on), or -1.
-// strict: the whole phrase must match word for word (lint uses it on the script).
-export function findPhrase(words, phrase, from = 0, strict = false) {
-  const want = String(phrase).split(/\s+/).map(normWord).filter(Boolean);
-  const have = words.map((w) => normWord(w.text ?? w));
+// The script and the transcript write the same words differently: "Eighteen months"
+// vs "18 months", "Forty-five grand" vs "45 grand", "a thousand" vs "1,000",
+// "best-selling" vs "best selling", "27th" vs "27", "$9 billion" vs "nine billion".
+// sayable() turns either into the same tokens so they can be compared.
+const NUM = { zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13,
+  fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
+const TENS = "twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety", ONES = "one|two|three|four|five|six|seven|eight|nine";
+export const sayable = (s) => String(s).toLowerCase()
+  .replace(/(\d),(?=\d{3}\b)/g, "$1")
+  .replace(/\ba thousand\b/g, "1000").replace(/\ba hundred\b/g, "100")
+  .replace(/(\d+)(st|nd|rd|th)\b/g, "$1")
+  .replace(new RegExp(`\\b(${TENS})[-\\s](${ONES})\\b`, "g"), (_, a, b) => String(NUM[a] + NUM[b]))
+  .replace(new RegExp(`\\b(${Object.keys(NUM).join("|")})\\b`, "g"), (m) => String(NUM[m]))
+  .replace(/\bpercent\b/g, "")
+  .split(/[\s\-–—/]+/).map(normWord).filter(Boolean);
+const lev = (a, b) => {
+  if (Math.abs(a.length - b.length) > 3) return 9;
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[b.length];
+};
+
+// Index of the word where `phrase` starts in words[] (from `from` up to `to`), or -1.
+// The phrase is compared as one run of letters, so word splits and number spellings
+// don't matter ("car makers" = "carmakers", "two million" = "2 million"); then a
+// near-miss spelling ("Afeela" / "Affila"); then, unless strict, the old loose
+// fallbacks. strict: exact run only (lint uses it on the script).
+export function findPhrase(words, phrase, from = 0, strict = false, to = words.length) {
+  const want = sayable(phrase);
   if (!want.length) return -1;
-  for (let i = from; i <= have.length - want.length; i++) if (want.every((t, j) => have[i + j] === t)) return i;
+  const target = want.join("");
+  const have = words.map((w) => sayable(w.text ?? w).join(""));
+  const end = Math.min(to, have.length);
+  const runAt = (i) => { let s = ""; for (let j = i; j < have.length && s.length < target.length; j++) s += have[j]; return s; };
+  for (let i = from; i < end; i++) if (have[i] && runAt(i) === target) return i;
   if (strict) return -1;
-  // Spoken text can differ from the script (numbers read out, a transcription):
-  // first two words loosely, then the first word alone.
-  for (let i = from; i < have.length; i++) if (loose(have[i], want[0]) && (want.length === 1 || loose(have[i + 1] ?? "", want[1]))) return i;
-  for (let i = from; i < have.length; i++) if (loose(have[i], want[0])) return i;
+  const tol = target.length >= 12 ? 3 : target.length >= 5 ? 2 : 0;
+  if (tol) for (let i = from; i < end; i++) if (have[i] && have[i][0] === target[0] && lev(runAt(i).slice(0, target.length), target) <= tol) return i;
+  // Spoken text can differ from the script: first two words loosely, then the first word alone.
+  for (let i = from; i < end; i++) if (loose(have[i], want[0]) && (want.length === 1 || loose(have[i + 1] ?? "", want[1]))) return i;
+  for (let i = from; i < end; i++) if (want[0].length >= 4 && loose(have[i], want[0])) return i;
   return -1;
 }
 
@@ -283,9 +317,9 @@ export function planShots(scene, vo, maxShotSeconds) {
     }
     cuts.push(end);
     for (let j = 0; j < cuts.length - 1; j++) {
-      shots.push({ kw: b.e.graphic ? null : b.e.kw[j % b.e.kw.length], alts: b.e.kw, entry: b.k, sub: j, on: b.e.on, startMs: cuts[j], endMs: cuts[j + 1],
+      shots.push({ kw: b.e.graphic ? (b.e.kw[0] ?? null) : b.e.kw[j % b.e.kw.length], alts: b.e.kw, entry: b.k, sub: j, on: b.e.on, startMs: cuts[j], endMs: cuts[j + 1],
         words: spoken(cuts[j], cuts[j + 1]), ...(b.e.graphic ? { graphic: b.e.graphic } : {}), ...(j === 0 && b.e.sfx ? { sfx: b.e.sfx } : {}),
-        ...(b.e.move ? { move: b.e.move } : {}), ...(b.e.focus ? { focus: b.e.focus } : {}), ...(b.e.fit != null ? { fit: b.e.fit } : {}), ...(j === 0 && b.e.text ? { text: b.e.text } : {}),
+        ...(b.e.move ? { move: b.e.move } : {}), ...(b.e.focus ? { focus: b.e.focus } : {}), ...(b.e.fit != null ? { fit: b.e.fit } : {}), ...(j === 0 && b.e.text ? { text: b.e.text } : {}), ...(j === 0 && b.e.overlays ? { overlays: b.e.overlays } : {}),
         ...(b.e.credit ? { credit: b.e.credit } : {}) });
     }
   });

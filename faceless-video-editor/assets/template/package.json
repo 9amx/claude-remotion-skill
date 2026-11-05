@@ -21,7 +21,9 @@
     "adobe": "node scripts/adobe-stock.mjs",
     "yt": "node scripts/yt-engine.mjs",
     "editor": "node scripts/editor.mjs --open",
-    "remote": "node scripts/remote-agent.mjs"
+    "remote": "node scripts/remote-agent.mjs",
+    "edit": "node scripts/studio.mjs --open",
+    "progress": "node scripts/progress.mjs --watch"
   },
   "dependencies": {
     "@remotion/cli": "^4.0.0",
@@ -36,7 +38,8 @@
     "@react-three/fiber": "^9.0.0",
     "@remotion/three": "^4.0.0",
     "three": "^0.172.0",
-    "three-globe": "^2.45.0"
+    "three-globe": "^2.45.0",
+    "@remotion/player": "^4.0.0"
   },
   "optionalDependencies": {
     "@huggingface/transformers": "^3.8.1",

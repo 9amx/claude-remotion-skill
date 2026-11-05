@@ -1,0 +1,1213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0a0d; --panel:#111116; --panel-2:#16161d; --panel-3:#1d1d26; --line:#23232d; --line-2:#2e2e3a;
+  --text:#ececf1; --muted:#8b8b99; --faint:#5a5a66;
+  --accent:#ff3b55; --accent-2:#ff8a4c; --accent-soft:#3a1219; --sel:#5b8cff; --sel-soft:#18223d;
+  --ok:#34d399; --ok-soft:#0e2a1f; --warn:#f5b544;
+  --clip-v:#2a3550; --clip-i:#3a2f4d; --clip-g:#4a2a33; --vo:#1c3a33; --mu:#2b2a45;
+  --radius:10px; --tl-h:330px;
+}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){
+  --bg:#e9e8e4; --panel:#f7f6f3; --panel-2:#ffffff; --panel-3:#efede8; --line:#dcd9d2; --line-2:#cbc7be;
+  --text:#16161b; --muted:#6a6a76; --faint:#a0a0aa;
+  --accent:#e11d38; --accent-2:#f06a2c; --accent-soft:#fde3e7; --sel:#2f6bff; --sel-soft:#e1eaff;
+  --ok:#0f9960; --ok-soft:#d9f2e6; --warn:#b7791f;
+  --clip-v:#c9d6f2; --clip-i:#ddd0ee; --clip-g:#f1d0d6; --vo:#cfe9e0; --mu:#d9d7f0;
+}}
+:root[data-theme="light"]{
+  --bg:#e9e8e4; --panel:#f7f6f3; --panel-2:#ffffff; --panel-3:#efede8; --line:#dcd9d2; --line-2:#cbc7be;
+  --text:#16161b; --muted:#6a6a76; --faint:#a0a0aa;
+  --accent:#e11d38; --accent-2:#f06a2c; --accent-soft:#fde3e7; --sel:#2f6bff; --sel-soft:#e1eaff;
+  --ok:#0f9960; --ok-soft:#d9f2e6; --warn:#b7791f;
+  --clip-v:#c9d6f2; --clip-i:#ddd0ee; --clip-g:#f1d0d6; --vo:#cfe9e0; --mu:#d9d7f0;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;overflow:hidden}
+body{background:var(--bg);color:var(--text);font:13px/1.45 "Inter Tight",system-ui,sans-serif;-webkit-font-smoothing:antialiased;
+  display:grid;grid-template-rows:52px minmax(0,1fr) 6px var(--tl-h);user-select:none}
+.mono{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
+input,select,textarea{font:inherit;color:var(--text);background:var(--panel-3);border:1px solid var(--line);border-radius:8px;padding:7px 9px;width:100%;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--sel)}
+textarea{resize:vertical;min-height:60px;user-select:text}
+input[type=range]{padding:0;border:0;background:none;accent-color:var(--accent);height:18px}
+input[type=checkbox]{width:auto;accent-color:var(--accent)}
+::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:10px;border:3px solid transparent;background-clip:padding-box}
+::-webkit-scrollbar-track{background:transparent}
+svg.i{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* top bar */
+.top{display:flex;align-items:center;gap:14px;padding:0 14px;background:var(--panel);border-bottom:1px solid var(--line);min-width:0}
+.logo{display:flex;align-items:center;gap:9px;font-weight:800;letter-spacing:-.02em;font-size:15px}
+.logo i{width:22px;height:22px;border-radius:7px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:grid;place-items:center}
+.logo i::after{content:"";width:0;height:0;border-left:7px solid #fff;border-top:4.5px solid transparent;border-bottom:4.5px solid transparent;margin-left:2px}
+.ptitle{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
+.ptitle b{color:var(--text);font-weight:600}
+.tb{display:flex;align-items:center;gap:6px}
+.btn{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 12px;border-radius:9px;background:var(--panel-3);border:1px solid var(--line);font-weight:600;white-space:nowrap;transition:background .15s,border-color .15s}
+.btn:hover{border-color:var(--line-2);background:var(--panel-2)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn.icon{width:32px;padding:0;justify-content:center}
+.btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));border-color:transparent;color:#fff}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.sm{height:26px;padding:0 9px;font-size:12px;border-radius:7px}
+.btn.on{background:var(--sel-soft);border-color:var(--sel);color:var(--text)}
+.saved{color:var(--muted);font-size:12px;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.saved::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--ok)}
+.saved.dirty::before{background:var(--warn)}
+.chip{display:flex;align-items:center;gap:9px;height:32px;padding:0 12px 0 8px;border-radius:99px;background:var(--panel-3);border:1px solid var(--line);font-size:12px;white-space:nowrap;cursor:default}
+.chip .mini{width:20px;height:20px}
+.chip .mini circle{fill:none;stroke-width:3}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--faint)}
+.dot.live{background:var(--accent);animation:pulse 1.6s infinite}
+.dot.ok{background:var(--ok)}
+@keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 60%,transparent)}100%{box-shadow:0 0 0 8px transparent}}
+.pending{font-size:11px;padding:2px 7px;border-radius:99px;background:var(--accent-soft);color:var(--accent);font-weight:700}
+
+/* workspace */
+.work{display:grid;grid-template-columns:300px minmax(0,1fr) 340px;min-height:0}
+.panel{background:var(--panel);display:flex;flex-direction:column;min-height:0;min-width:0}
+.panel.left{border-right:1px solid var(--line)}
+.panel.right{border-left:1px solid var(--line)}
+.tabs{display:flex;gap:2px;padding:8px 8px 0;border-bottom:1px solid var(--line);flex:none;overflow-x:auto;scrollbar-width:none}
+.tab{display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 9px 8px;border-radius:8px 8px 0 0;color:var(--muted);font-size:11px;font-weight:600;border-bottom:2px solid transparent;min-width:44px}
+.tab:hover{color:var(--text)}
+.tab.on{color:var(--text);border-bottom-color:var(--accent)}
+.pane{flex:1;overflow:auto;padding:12px;display:none;min-height:0}
+.pane.on{display:block}
+.h{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin:14px 0 8px;display:flex;justify-content:space-between;align-items:center}
+.h:first-child{margin-top:2px}
+.search{position:relative;margin-bottom:8px}
+.search svg{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--faint)}
+.search input{padding-left:30px}
+.chips{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px}
+.fchip{padding:4px 10px;border-radius:99px;background:var(--panel-3);border:1px solid var(--line);font-size:12px;color:var(--muted)}
+.fchip.on{background:var(--sel-soft);border-color:var(--sel);color:var(--text)}
+.mgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.mi{border-radius:8px;overflow:hidden;background:var(--panel-3);border:1px solid var(--line);cursor:pointer;transition:border-color .15s,transform .15s}
+.mi:hover{border-color:var(--line-2);transform:translateY(-1px)}
+.mi.sel{border-color:var(--sel);box-shadow:0 0 0 1px var(--sel)}
+.mi .im{position:relative;aspect-ratio:16/9;background:var(--panel-2)}
+.mi img{width:100%;height:100%;object-fit:cover;display:block}
+.mi .ty{position:absolute;left:5px;top:5px;font-size:9.5px;font-weight:700;padding:1px 5px;border-radius:4px;background:rgba(0,0,0,.6);color:#fff;text-transform:uppercase;letter-spacing:.05em}
+.mi .tc{position:absolute;right:5px;bottom:5px;font-size:10px;padding:1px 5px;border-radius:4px;background:rgba(0,0,0,.6);color:#fff}
+.mi .ed{position:absolute;right:5px;top:5px;width:8px;height:8px;border-radius:50%;background:var(--warn);box-shadow:0 0 0 2px rgba(0,0,0,.4)}
+.mi .lb{padding:5px 7px;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fxgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.fx{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 4px 8px;border-radius:9px;background:var(--panel-3);border:1px solid var(--line);font-size:11.5px;font-weight:600;text-transform:capitalize;cursor:grab;color:var(--muted);transition:border-color .15s,color .15s}
+.fx:hover{border-color:var(--line-2);color:var(--text)}
+.fx.on{border-color:var(--accent);color:var(--text);background:var(--accent-soft)}
+.fx .sw{width:100%;height:30px;border-radius:6px;background:var(--panel-2);display:grid;place-items:center;overflow:hidden;position:relative}
+.hint{color:var(--muted);font-size:12px;line-height:1.5;margin:6px 0 10px}
+.hint b{color:var(--text)}
+.empty{color:var(--muted);text-align:center;padding:30px 10px;font-size:12.5px}
+
+/* viewer */
+.viewer{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--bg)}
+.vbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;flex:none}
+.seg{display:inline-flex;background:var(--panel-3);border:1px solid var(--line);border-radius:9px;padding:2px}
+.seg button{height:26px;padding:0 11px;border-radius:7px;font-size:12px;font-weight:600;color:var(--muted)}
+.seg button.on{background:var(--panel-2);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.25)}
+.stage{flex:1;display:grid;place-items:center;min-height:0;padding:4px 16px;position:relative}
+.screen{position:relative;aspect-ratio:16/9;width:100%;max-height:100%;background:#000;border-radius:8px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.45)}
+.screen>#live,.screen>video{position:absolute;inset:0;width:100%;height:100%}
+.screen video{display:none;object-fit:contain;background:#000}
+.screen.rendered video{display:block}.screen.rendered #live{visibility:hidden}
+.guides{position:absolute;inset:0;pointer-events:none;display:none}
+.guides.on{display:block}
+.guides i{position:absolute;border:1px dashed rgba(255,255,255,.35)}
+.guides i:nth-child(1){inset:5% 5%}.guides i:nth-child(2){inset:10% 10%;border-color:rgba(255,255,255,.2)}
+.screen .msg{position:absolute;inset:0;display:grid;place-items:center;color:#aaa;font-size:13px;text-align:center;padding:20px}
+.stale{position:absolute;top:10px;left:10px;padding:4px 9px;border-radius:7px;background:rgba(245,181,68,.92);color:#1a1200;font-size:11.5px;font-weight:700;display:none;z-index:3}
+.screen.rendered .stale.show{display:block}
+.transport{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;padding:8px 14px 10px;flex:none}
+.tcode{font-size:15px;font-weight:600;letter-spacing:.02em}
+.tcode small{color:var(--muted);font-weight:400;font-size:12px}
+.tctl{display:flex;align-items:center;gap:4px}
+.tctl .play{width:40px;height:40px;border-radius:50%;background:var(--text);color:var(--bg);display:grid;place-items:center}
+.tctl .play svg{width:18px;height:18px;fill:currentColor;stroke:none}
+.tctl .b{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;color:var(--muted)}
+.tctl .b:hover{background:var(--panel-3);color:var(--text)}
+.tright{display:flex;justify-content:flex-end;align-items:center;gap:6px}
+.tright select{width:auto;height:28px;padding:0 6px;font-size:12px}
+.nowline{color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+
+/* inspector */
+.ihead{display:flex;gap:10px;align-items:center;padding:12px;border-bottom:1px solid var(--line);flex:none}
+.ihead .th{width:86px;aspect-ratio:16/9;border-radius:7px;overflow:hidden;background:var(--panel-3);flex:none}
+.ihead .th img{width:100%;height:100%;object-fit:cover}
+.ihead b{display:block;font-size:14px}
+.ihead span{color:var(--muted);font-size:12px}
+.sec{border-bottom:1px solid var(--line);padding:4px 0 12px;margin-bottom:4px}
+.sec:last-child{border:0}
+.row{display:grid;grid-template-columns:86px 1fr 40px;align-items:center;gap:8px;margin:6px 0}
+.row label{color:var(--muted);font-size:12px}
+.row output{text-align:right;color:var(--muted);font-size:11.5px}
+.row.two{grid-template-columns:86px 1fr}
+.words{background:var(--panel-3);border-radius:8px;padding:8px 10px;font-size:12.5px;color:var(--muted);line-height:1.5;user-select:text}
+.words b{color:var(--text);font-weight:600}
+.btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.mgrid3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.opt{padding:7px 4px;border-radius:8px;background:var(--panel-3);border:1px solid var(--line);font-size:11.5px;text-align:center;text-transform:capitalize;color:var(--muted);font-weight:600}
+.opt:hover{color:var(--text);border-color:var(--line-2)}
+.opt.on{border-color:var(--accent);color:var(--text);background:var(--accent-soft)}
+.focuspad{position:relative;aspect-ratio:16/9;border-radius:8px;overflow:hidden;background:var(--panel-3);cursor:crosshair;margin-top:6px}
+.focuspad img{width:100%;height:100%;object-fit:cover;opacity:.85;pointer-events:none}
+.focuspad i{position:absolute;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 2px rgba(0,0,0,.5)}
+.cands{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
+.cand{position:relative;border-radius:8px;overflow:hidden;aspect-ratio:16/9;background:var(--panel-3);border:1px solid var(--line);cursor:pointer}
+.cand img{width:100%;height:100%;object-fit:cover}
+.cand b{position:absolute;left:5px;top:5px;background:rgba(0,0,0,.65);color:#fff;font-size:11px;padding:1px 6px;border-radius:5px}
+.cand:hover{border-color:var(--accent)}
+.cand.cur{border-color:var(--ok)}
+.gf{border:1px solid var(--line);border-radius:9px;padding:8px;margin:6px 0;background:var(--panel-2)}
+.gf .gfh{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:4px}
+.gfrow{display:grid;grid-template-columns:72px 1fr;gap:6px;align-items:center;margin:4px 0}
+.gfrow label{color:var(--muted);font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gfrow input,.gfrow select{padding:5px 7px;font-size:12px}
+.ovl{display:flex;gap:6px;align-items:center;margin:5px 0}
+.ovl span{font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;width:52px;flex:none}
+
+/* timeline */
+.resizer{background:var(--line);cursor:row-resize;position:relative}
+.resizer:hover{background:var(--sel)}
+.tl{background:var(--panel);display:grid;grid-template-rows:40px minmax(0,1fr);min-height:0}
+.tlbar{display:flex;align-items:center;gap:8px;padding:0 10px;border-bottom:1px solid var(--line);min-width:0}
+.tlbar .sp{flex:1}
+.tlbar input[type=range]{width:140px}
+.tlbar .tc{font-size:12px;color:var(--muted)}
+.tlbody{display:grid;grid-template-columns:96px minmax(0,1fr);min-height:0}
+.heads{border-right:1px solid var(--line);background:var(--panel);padding-top:26px;overflow:hidden}
+.heads div{display:flex;align-items:center;gap:7px;padding:0 10px;color:var(--muted);font-size:11px;font-weight:700;letter-spacing:.06em;border-bottom:1px solid var(--line)}
+.heads div svg{width:14px;height:14px}
+.scroll{overflow:auto;position:relative;min-height:0}
+.canvas{position:relative;min-height:100%}
+.ruler{position:sticky;top:0;height:26px;background:var(--panel);border-bottom:1px solid var(--line);z-index:5;cursor:ew-resize}
+.ruler .tk{position:absolute;top:0;bottom:0;border-left:1px solid var(--line-2);padding-left:4px;font-size:10px;color:var(--faint);line-height:24px}
+.ruler .tk.s{top:18px;border-color:var(--line)}
+.lane{position:relative;border-bottom:1px solid var(--line)}
+.lane.ch{height:24px}.lane.tx{height:30px}.lane.v{height:64px}.lane.fxl{height:26px}.lane.vo{height:44px}.lane.mu{height:40px}
+.chb{position:absolute;top:3px;bottom:3px;border-radius:6px;background:var(--panel-3);border:1px solid var(--line-2);font-size:11px;font-weight:700;padding:0 8px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
+.txm{position:absolute;top:5px;height:20px;border-radius:5px;background:color-mix(in srgb,var(--warn) 25%,var(--panel-3));border:1px solid color-mix(in srgb,var(--warn) 55%,transparent);font-size:10.5px;padding:0 6px;line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.txm.ov{background:color-mix(in srgb,var(--sel) 25%,var(--panel-3));border-color:color-mix(in srgb,var(--sel) 55%,transparent)}
+.clip{position:absolute;top:4px;bottom:4px;border-radius:6px;overflow:hidden;background:var(--clip-v);border:1px solid rgba(255,255,255,.08);cursor:pointer;display:flex;flex-direction:column}
+.clip.image{background:var(--clip-i)}.clip.graphic{background:var(--clip-g)}
+.clip .strip{flex:1;display:flex;overflow:hidden;min-height:0;opacity:.9}
+.clip .strip img{height:100%;width:auto;flex:none;pointer-events:none}
+.clip .cl{position:absolute;left:0;right:0;bottom:0;padding:2px 6px;font-size:10.5px;background:linear-gradient(transparent,rgba(0,0,0,.8));color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+.clip .badges{position:absolute;top:3px;left:4px;display:flex;gap:3px;pointer-events:none}
+.clip .badges i{font-style:normal;font-size:9px;font-weight:800;padding:0 4px;border-radius:3px;background:rgba(0,0,0,.6);color:#fff;line-height:14px}
+.clip .badges i.e{background:var(--warn);color:#1a1200}
+.clip.sel{outline:2px solid var(--sel);outline-offset:-1px;z-index:2}
+.clip.scs{border-left:2px solid var(--line-2)}
+.clip.drop{outline:2px dashed var(--accent);outline-offset:-2px}
+.clip .trim{position:absolute;left:-1px;top:0;bottom:0;width:8px;cursor:ew-resize;z-index:3}
+.clip .trim:hover,.clip .trim.act{background:linear-gradient(90deg,var(--accent),transparent)}
+.tl.blade .clip{cursor:crosshair}
+.trn{position:absolute;top:4px;width:18px;height:18px;margin-left:-9px;transform:rotate(45deg);border-radius:3px;background:var(--accent);cursor:pointer;box-shadow:0 0 0 2px var(--panel)}
+.trn.cut{display:none}
+.trn:hover,.trn.sel{background:var(--accent-2);box-shadow:0 0 0 2px var(--sel)}
+.wv{position:absolute;top:4px;bottom:4px;border-radius:5px;background:var(--vo);overflow:hidden}
+.wv img{width:100%;height:100%;display:block;pointer-events:none}
+.wv.mu{background:var(--mu)}
+.wv span{position:absolute;left:5px;top:2px;font-size:10px;color:var(--muted)}
+.ph{position:absolute;top:0;bottom:0;width:1px;background:var(--accent);z-index:6;pointer-events:none}
+.ph::before{content:"";position:absolute;top:0;left:-6px;border-left:6px solid transparent;border-right:6px solid transparent;border-top:9px solid var(--accent)}
+.bladeline{position:absolute;top:26px;bottom:0;width:1px;background:var(--warn);z-index:7;pointer-events:none;display:none}
+.tl.blade .bladeline.on{display:block}
+
+/* toasts + modal */
+.toasts{position:fixed;right:16px;bottom:16px;display:flex;flex-direction:column;gap:8px;z-index:50}
+.toast{background:var(--panel-2);border:1px solid var(--line-2);border-radius:10px;padding:10px 14px;box-shadow:0 10px 30px rgba(0,0,0,.35);max-width:360px;font-size:12.5px;animation:tin .25s ease}
+.toast.err{border-color:var(--accent)}.toast.ok{border-color:var(--ok)}
+@keyframes tin{from{transform:translateY(8px);opacity:0}}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;place-items:center;z-index:40}
+.modal.on{display:grid}
+.mbox{background:var(--panel);border:1px solid var(--line-2);border-radius:14px;padding:20px;width:min(520px,calc(100vw - 32px));max-height:80vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.mbox h3{margin:0 0 8px;font-size:17px}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:12.5px}
+.keys kbd{font-family:"JetBrains Mono",monospace;font-size:11px;background:var(--panel-3);border:1px solid var(--line-2);border-bottom-width:2px;border-radius:5px;padding:1px 6px;white-space:nowrap}
+.copybox{position:relative;margin-bottom:10px}
+.copybox textarea{min-height:44px;font-size:12px}
+.copybox .btn{position:absolute;right:6px;top:6px}
+@media (max-width:1100px){.work{grid-template-columns:250px minmax(0,1fr) 290px}}
+@media (max-width:820px){
+  body{grid-template-rows:52px minmax(0,1fr) 6px 260px;overflow:auto}
+  .work{grid-template-columns:1fr}
+  .panel.left,.panel.right{display:none}
+  .ptitle{display:none}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></symbol>
+  <symbol id="i-redo" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></symbol>
+  <symbol id="i-media" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 15 5-5 4 4 3-3 6 6"/></symbol>
+  <symbol id="i-fx" viewBox="0 0 24 24"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></symbol>
+  <symbol id="i-graph" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
+  <symbol id="i-text" viewBox="0 0 24 24"><path d="M4 7V5h16v2M9 19h6M12 5v14"/></symbol>
+  <symbol id="i-audio" viewBox="0 0 24 24"><path d="M4 10v4M8 6v12M12 3v18M16 7v10M20 10v4"/></symbol>
+  <symbol id="i-ship" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 21h16"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="4.5" width="4" height="15" rx="1"/><rect x="14" y="4.5" width="4" height="15" rx="1"/></symbol>
+  <symbol id="i-start" viewBox="0 0 24 24"><path d="M6 5v14M19 5l-9 7 9 7z"/></symbol>
+  <symbol id="i-end" viewBox="0 0 24 24"><path d="M18 5v14M5 5l9 7-9 7z"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+  <symbol id="i-fwd" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-full" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
+  <symbol id="i-safe" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><rect x="7" y="8.5" width="10" height="7" rx="1" stroke-dasharray="2 2"/></symbol>
+  <symbol id="i-vol" viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></symbol>
+  <symbol id="i-mute" viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m16 9 6 6M22 9l-6 6"/></symbol>
+  <symbol id="i-cursor" viewBox="0 0 24 24"><path d="m5 3 14 7-6 2-2 6z"/></symbol>
+  <symbol id="i-blade" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12"/></symbol>
+  <symbol id="i-magnet" viewBox="0 0 24 24"><path d="M6 3v8a6 6 0 0 0 12 0V3"/><path d="M6 7h4M14 7h4"/></symbol>
+  <symbol id="i-fit" viewBox="0 0 24 24"><path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4"/></symbol>
+  <symbol id="i-follow" viewBox="0 0 24 24"><path d="M12 3v18"/><path d="m8 7 4-4 4 4"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M5 7l1 13h12l1-13M9 7V4h6v3"/></symbol>
+  <symbol id="i-swap" viewBox="0 0 24 24"><path d="M7 4 3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></symbol>
+  <symbol id="i-chap" viewBox="0 0 24 24"><path d="M5 4h14v16l-7-4-7 4z"/></symbol>
+  <symbol id="i-v" viewBox="0 0 24 24"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="m16 10 6-3v10l-6-3"/></symbol>
+  <symbol id="i-trn" viewBox="0 0 24 24"><path d="M12 3 21 12 12 21 3 12z"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
+  <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></symbol>
+</svg>
+
+<header class="top">
+  <div class="logo"><i></i>Studio</div>
+  <div class="ptitle" id="ptitle"><b>Loading…</b></div>
+  <div class="tb">
+    <button class="btn icon" id="undo" title="Undo (Ctrl+Z)"><svg class="i"><use href="#i-undo"/></svg></button>
+    <button class="btn icon" id="redo" title="Redo (Ctrl+Shift+Z)"><svg class="i"><use href="#i-redo"/></svg></button>
+    <span class="saved" id="saved">Saved</span>
+  </div>
+  <div class="chip" id="chip" title="Pipeline status, live">
+    <svg class="mini" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" stroke="var(--line-2)"/><circle id="chipArc" cx="10" cy="10" r="8" stroke="var(--accent)" stroke-dasharray="50.27" stroke-dashoffset="50.27" transform="rotate(-90 10 10)" stroke-linecap="round"/></svg>
+    <span id="chipText">Connecting…</span>
+  </div>
+  <div class="tb">
+    <button class="btn icon" id="keysBtn" title="Keyboard shortcuts (?)"><svg class="i"><use href="#i-key"/></svg></button>
+    <button class="btn" id="applyBtn" title="Rebuild the timeline with your edits, exactly as it will render">Apply edits</button>
+    <button class="btn primary" id="renderBtn">Render <span class="pending" id="pendingN" hidden>0</span></button>
+  </div>
+</header>
+
+<div class="work">
+  <aside class="panel left">
+    <nav class="tabs" id="ltabs">
+      <button class="tab on" data-p="media"><svg class="i"><use href="#i-media"/></svg>Media</button>
+      <button class="tab" data-p="effects"><svg class="i"><use href="#i-fx"/></svg>Effects</button>
+      <button class="tab" data-p="graphics"><svg class="i"><use href="#i-graph"/></svg>Graphics</button>
+      <button class="tab" data-p="text"><svg class="i"><use href="#i-text"/></svg>Text</button>
+      <button class="tab" data-p="audio"><svg class="i"><use href="#i-audio"/></svg>Audio</button>
+      <button class="tab" data-p="deliver"><svg class="i"><use href="#i-ship"/></svg>Deliver</button>
+    </nav>
+    <div class="pane on" id="p-media">
+      <div class="search"><svg class="i"><use href="#i-search"/></svg><input id="mq" placeholder="Search shots, words, keywords"></div>
+      <div class="chips" id="mchips"><button class="fchip on" data-f="all">All</button><button class="fchip" data-f="video">Video</button><button class="fchip" data-f="image">Photo</button><button class="fchip" data-f="graphic">Graphic</button><button class="fchip" data-f="edited">Edited</button></div>
+      <div class="mgrid" id="mgrid"></div>
+    </div>
+    <div class="pane" id="p-effects">
+      <p class="hint">Click to apply to the selected shot, or <b>drag onto any clip</b> in the timeline.</p>
+      <div class="h">Transitions <span class="mono" style="font-weight:500">scene in</span></div><div class="fxgrid" id="fxTrans"></div>
+      <div class="h">Looks</div><div class="fxgrid" id="fxLooks"></div>
+      <div class="h">Camera motion <span style="font-weight:500;text-transform:none;letter-spacing:0">photos</span></div><div class="fxgrid" id="fxMoves"></div>
+      <div class="h">Scene effects</div><div class="fxgrid" id="fxFx"></div>
+    </div>
+    <div class="pane" id="p-graphics">
+      <p class="hint">Turns the selected shot into a motion graphic. <b>Stage</b> graphics keep the footage behind them. Edit the words and numbers in the inspector.</p>
+      <div class="h">Over the footage</div><div class="fxgrid" id="gStage"></div>
+      <div class="h">Full-screen</div><div class="fxgrid" id="gFull"></div>
+    </div>
+    <div class="pane" id="p-text">
+      <p class="hint">Text on the selected shot. It appears with the shot and follows its motion.</p>
+      <div class="h">On the shot</div><div class="fxgrid" id="tOver"></div>
+      <div class="h">Scene text</div>
+      <div id="sceneText"></div>
+    </div>
+    <div class="pane" id="p-audio">
+      <div class="h">Mixer</div>
+      <div id="mixer"></div>
+      <p class="hint">The master evens the whole mix out to −14 LUFS, so <b>Voice</b> sets the voice against everything else. Audio changes never re-render the picture.</p>
+      <div class="h">Captions & display</div>
+      <div id="display"></div>
+    </div>
+    <div class="pane" id="p-deliver"><div id="deliver"></div></div>
+  </aside>
+
+  <section class="viewer">
+    <div class="vbar">
+      <div class="seg" id="srcSeg"><button class="on" data-s="live">Edit · live</button><button data-s="rendered">Rendered</button></div>
+      <div class="nowline" id="nowline"></div>
+      <div class="tb">
+        <button class="btn icon sm" id="safeBtn" title="Safe area"><svg class="i"><use href="#i-safe"/></svg></button>
+        <button class="btn icon sm" id="fullBtn" title="Full screen (F)"><svg class="i"><use href="#i-full"/></svg></button>
+      </div>
+    </div>
+    <div class="stage" id="stageBox">
+      <div class="screen" id="screen">
+        <div id="live"></div>
+        <video id="rvid" playsinline preload="metadata"></video>
+        <div class="stale" id="staleTag">Older cut: render to see your edits</div>
+        <div class="guides" id="guides"><i></i><i></i></div>
+        <div class="msg" id="msg">Loading the live preview…</div>
+      </div>
+    </div>
+    <div class="transport">
+      <div class="tcode mono" id="tcode">00:00:00 <small>/ 00:00:00</small></div>
+      <div class="tctl">
+        <button class="b" id="toStart" title="Start (Home)"><svg class="i"><use href="#i-start"/></svg></button>
+        <button class="b" id="back" title="Previous cut (↑)"><svg class="i"><use href="#i-back"/></svg></button>
+        <button class="play" id="play" title="Play / pause (Space)"><svg><use href="#i-play" id="playUse"/></svg></button>
+        <button class="b" id="fwd" title="Next cut (↓)"><svg class="i"><use href="#i-fwd"/></svg></button>
+        <button class="b" id="toEnd" title="End (End)"><svg class="i"><use href="#i-end"/></svg></button>
+      </div>
+      <div class="tright">
+        <button class="btn icon sm" id="muteBtn" title="Mute (M)"><svg class="i"><use href="#i-vol" id="muteUse"/></svg></button>
+        <select id="rate" title="Speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="1.5">1.5×</option><option value="2">2×</option></select>
+      </div>
+    </div>
+  </section>
+
+  <aside class="panel right">
+    <nav class="tabs" id="rtabs">
+      <button class="tab on" data-p="shot">Shot</button>
+      <button class="tab" data-p="scene">Scene</button>
+      <button class="tab" data-p="project">Project</button>
+    </nav>
+    <div class="ihead" id="ihead"></div>
+    <div class="pane on" id="p-shot"></div>
+    <div class="pane" id="p-scene"></div>
+    <div class="pane" id="p-project"></div>
+  </aside>
+</div>
+
+<div class="resizer" id="resizer" title="Drag to resize the timeline"></div>
+
+<section class="tl" id="tl">
+  <div class="tlbar">
+    <div class="seg"><button class="on" id="toolSel" title="Select (V)"><svg class="i"><use href="#i-cursor"/></svg></button><button id="toolBlade" title="Blade: split a clip (B)"><svg class="i"><use href="#i-blade"/></svg></button></div>
+    <button class="btn sm" id="splitBtn" title="Split at the playhead (S)"><svg class="i"><use href="#i-blade"/></svg>Split</button>
+    <button class="btn sm" id="delBtn" title="Delete the selected shot (Del)"><svg class="i"><use href="#i-trash"/></svg>Delete</button>
+    <button class="btn sm" id="swapBtn" title="Swap with the next shot in the scene"><svg class="i"><use href="#i-swap"/></svg>Swap</button>
+    <span class="tc mono" id="tlinfo"></span>
+    <span class="sp"></span>
+    <button class="btn icon sm on" id="snapBtn" title="Snap to cuts and words"><svg class="i"><use href="#i-magnet"/></svg></button>
+    <button class="btn icon sm on" id="followBtn" title="Follow the playhead"><svg class="i"><use href="#i-follow"/></svg></button>
+    <button class="btn icon sm" id="fitBtn" title="Fit the whole video (Shift+Z)"><svg class="i"><use href="#i-fit"/></svg></button>
+    <input type="range" id="zoom" min="0" max="100" value="40" title="Zoom (+ / −)">
+  </div>
+  <div class="tlbody">
+    <div class="heads" id="heads">
+      <div style="height:24px"><svg class="i"><use href="#i-chap"/></svg>CHAP</div>
+      <div style="height:30px"><svg class="i"><use href="#i-text"/></svg>TEXT</div>
+      <div style="height:64px"><svg class="i"><use href="#i-v"/></svg>V1</div>
+      <div style="height:26px"><svg class="i"><use href="#i-trn"/></svg>TRANS</div>
+      <div style="height:44px"><svg class="i"><use href="#i-mic"/></svg>VOICE</div>
+      <div style="height:40px"><svg class="i"><use href="#i-music"/></svg>MUSIC</div>
+    </div>
+    <div class="scroll" id="scroll">
+      <div class="canvas" id="canvas">
+        <div class="ruler" id="ruler"></div>
+        <div class="lane ch" id="lCh"></div>
+        <div class="lane tx" id="lTx"></div>
+        <div class="lane v" id="lV"></div>
+        <div class="lane fxl" id="lFx"></div>
+        <div class="lane vo" id="lVo"></div>
+        <div class="lane mu" id="lMu"></div>
+        <div class="ph" id="ph"></div>
+        <div class="bladeline" id="bladeline"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="toasts" id="toasts"></div>
+<div class="modal" id="modal"><div class="mbox" id="mbox"></div></div>
+
+<script>window.remotion_staticBase = "/public";</script>
+<script src="/player.js"></script>
+<script type="module">
+import { applyOverrides, MOVES, TRANSITIONS, LOOKS, FX, CAPTIONS } from "/overrides.mjs";
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const clone = (o) => JSON.parse(JSON.stringify(o));
+const clean = (s) => String(s ?? "").replace(/\*/g, "");
+
+// ---------------- state ----------------
+let base = null, view = null, fps = 30, total = 1;
+let edits = { shots: {}, scenes: {}, global: {}, cuts: {}, text: {}, splits: {}, swaps: [] };
+let built = {};
+let undoStack = [], redoStack = [];
+let clips = [], byKey = new Map();
+let sel = null;            // selected clip key
+let frame = 0, playing = false, player = null, source = "live";
+let pxs = 20;              // pixels per second
+let tool = "sel", snap = true, follow = true;
+let liveState = null, lastTimelineTime = 0, lastReviewTime = 0, project = null;
+const thumbURL = (src, t = 0) => `/thumb?src=${encodeURIComponent(src)}&t=${(+t || 0).toFixed(1)}`;
+const tc = (f, withFrames = false) => { f = Math.max(0, Math.round(f)); const s = Math.floor(f / fps), h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, ss = s % 60; return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}${withFrames ? ":" + String(f % fps).padStart(2, "0") : ""}`; };
+const short = (f) => { const s = Math.floor(f / fps); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+
+function toast(text, kind = "") {
+  const el = document.createElement("div");
+  el.className = "toast " + kind; el.textContent = text;
+  $("toasts").append(el);
+  setTimeout(() => { el.style.opacity = "0"; el.style.transition = "opacity .3s"; setTimeout(() => el.remove(), 300); }, kind === "err" ? 6000 : 3200);
+}
+
+// ---------------- edits, preview, history ----------------
+function previewEdits() {
+  // Cuts already built into the base only count by what changed since.
+  const cuts = {};
+  const keys = new Set([...Object.keys(edits.cuts ?? {}), ...Object.keys(built.cuts ?? {})]);
+  for (const k of keys) { const d = (Number(edits.cuts?.[k]) || 0) - (Number(built.cuts?.[k]) || 0); if (d) cuts[k] = d; }
+  return { ...edits, cuts };
+}
+function recompute() {
+  if (!base) return;
+  view = applyOverrides(base, previewEdits(), { preview: true });
+  total = view.durationInFrames;
+  clips = []; byKey = new Map();
+  view.scenes.forEach((sc, si) => sc.shots.forEach((sh, k) => {
+    const key = sh._key ?? `${sc.id}-${k + 1}`;
+    const c = { key, sc, si, k, sh, start: sc.startFrame + sh.from, end: sc.startFrame + sh.from + sh.durationInFrames };
+    clips.push(c); byKey.set(key, c);
+  }));
+  if (sel && !byKey.has(sel)) sel = byKey.has(sel.replace(/b$/, "")) ? sel.replace(/b$/, "") : null;
+  player?.update(view);
+}
+let saveTimer = null;
+function commit(mutate, label = "Edit") {
+  const before = JSON.stringify(edits);
+  mutate(edits);
+  if (JSON.stringify(edits) === before) return;
+  undoStack.push(before); redoStack = [];
+  if (undoStack.length > 300) undoStack.shift();
+  afterChange();
+}
+function afterChange() {
+  recompute(); drawAll();
+  $("saved").textContent = "Saving…"; $("saved").classList.add("dirty");
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(save, 350);
+}
+async function save() {
+  try {
+    const r = await fetch("/api/edits", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ edits }) });
+    if (!r.ok) throw new Error((await r.json()).error);
+    $("saved").textContent = "Saved"; $("saved").classList.remove("dirty");
+    updatePending();
+  } catch (e) { $("saved").textContent = "Not saved"; toast("Couldn't save: " + e.message, "err"); }
+}
+function undo() { if (!undoStack.length) return toast("Nothing to undo"); redoStack.push(JSON.stringify(edits)); edits = JSON.parse(undoStack.pop()); afterChange(); toast("Undone"); }
+function redo() { if (!redoStack.length) return toast("Nothing to redo"); undoStack.push(JSON.stringify(edits)); edits = JSON.parse(redoStack.pop()); afterChange(); toast("Redone"); }
+const shotEdit = (key) => (edits.shots[key] ??= {});
+const sceneEdit = (id) => (edits.scenes[id] ??= {});
+const prune = (e) => {
+  for (const g of ["shots", "scenes"]) for (const [k, v] of Object.entries(e[g])) {
+    for (const [kk, vv] of Object.entries(v)) if (vv === undefined || vv === null || (typeof vv === "object" && !Array.isArray(vv) && !Object.keys(vv).length)) delete v[kk];
+    if (!Object.keys(v).length) delete e[g][k];
+  }
+};
+function updatePending() {
+  const n = countEdits(edits) - 0;
+  const changed = JSON.stringify(normalize(edits)) !== JSON.stringify(normalize(built));
+  $("pendingN").hidden = !changed;
+  $("pendingN").textContent = n ? String(n) : "•";
+  $("renderBtn").title = changed ? "Your edits aren't in the rendered video yet" : "Render the video";
+}
+const normalize = (e) => ({ shots: e?.shots ?? {}, scenes: e?.scenes ?? {}, global: e?.global ?? {}, cuts: e?.cuts ?? {}, text: e?.text ?? {}, splits: e?.splits ?? {}, swaps: e?.swaps ?? [] });
+const countEdits = (e) => Object.keys(e.shots ?? {}).length + Object.keys(e.scenes ?? {}).length + Object.keys(e.cuts ?? {}).length + Object.keys(e.text ?? {}).length + Object.keys(e.splits ?? {}).length + (e.swaps?.length ?? 0) + Object.keys(e.global ?? {}).length;
+
+// ---------------- data loading ----------------
+async function loadTimeline() {
+  const [t, e] = await Promise.all([fetch("/api/timeline", { cache: "no-store" }).then((r) => r.json()), fetch("/api/edits", { cache: "no-store" }).then((r) => r.json())]);
+  base = t; fps = t.fps; built = e.built ?? {};
+  if (!undoStack.length) edits = { ...normalize({}), ...e.edits, ...normalize(e.edits) };
+  recompute();
+}
+async function init() {
+  project = await fetch("/api/project").then((r) => r.json()).catch(() => ({}));
+  await loadTimeline();
+  $("ptitle").innerHTML = `<b>${esc(base.title)}</b> · ${base.width}×${base.height} · ${base.fps} fps · ${short(total)}`;
+  buildPanels(); setZoom(); drawAll(); mountPlayer(); connectLive();
+  sel = clips[0]?.key; showInspector();
+  updatePending();
+}
+
+// ---------------- player ----------------
+function mountPlayer() {
+  if (!window.FacelessPlayer) { $("msg").textContent = "The live preview couldn't load. Use Rendered."; return; }
+  $("msg").remove();
+  player = window.FacelessPlayer.mount($("live"), view, {
+    onFrame: (f) => { frame = f; tick(); },
+    onPlay: () => setPlaying(true), onPause: () => setPlaying(false), onEnded: () => setPlaying(false),
+    onError: (m) => toast("Preview: " + m, "err"),
+  });
+}
+function setPlaying(p) { playing = p; $("playUse").setAttribute("href", p ? "#i-pause" : "#i-play"); }
+function togglePlay() {
+  if (source === "rendered") { const v = $("rvid"); v.paused ? v.play() : v.pause(); return; }
+  if (!player) return;
+  playing ? player.pause() : player.play();
+}
+function seek(f) {
+  frame = Math.max(0, Math.min(total - 1, Math.round(f)));
+  if (source === "rendered") $("rvid").currentTime = frame / fps;
+  else player?.seek(frame);
+  tick();
+}
+$("rvid").addEventListener("timeupdate", () => { if (source === "rendered") { frame = Math.round($("rvid").currentTime * fps); tick(); } });
+$("rvid").addEventListener("play", () => setPlaying(true));
+$("rvid").addEventListener("pause", () => setPlaying(false));
+let lastFollow = 0;
+function tick() {
+  $("tcode").innerHTML = `${tc(frame, true)} <small>/ ${tc(total)}</small>`;
+  $("ph").style.left = (frame / fps * pxs) + "px";
+  const c = clipAt(frame);
+  $("nowline").textContent = c ? clean(c.sh.words || c.sc.text) : "";
+  if (follow && playing && performance.now() - lastFollow > 200) {
+    lastFollow = performance.now();
+    const sc = $("scroll"), x = frame / fps * pxs;
+    if (x < sc.scrollLeft + 40 || x > sc.scrollLeft + sc.clientWidth - 80) sc.scrollLeft = x - sc.clientWidth * 0.25;
+  }
+}
+const clipAt = (f) => clips.find((c) => f >= c.start && f < c.end) ?? null;
+
+// ---------------- timeline drawing ----------------
+function setZoom() {
+  const z = +$("zoom").value; // 0..100 -> 1.2 .. 240 px/s (log)
+  pxs = 1.2 * Math.pow(200, z / 100);
+}
+function drawAll() { drawTimeline(); drawMedia(); showInspector(); }
+function drawTimeline() {
+  if (!view) return;
+  const W = Math.ceil(total / fps * pxs) + 200;
+  $("canvas").style.width = W + "px";
+  // ruler
+  const steps = [1, 2, 5, 10, 15, 30, 60, 120, 300];
+  const major = steps.find((s) => s * pxs >= 70) ?? 600, minor = major / (major >= 10 ? 5 : major);
+  let r = "";
+  for (let s = 0; s <= total / fps; s += major) r += `<div class="tk" style="left:${s * pxs}px">${short(s * fps)}</div>`;
+  if (minor * pxs >= 8) for (let s = 0; s <= total / fps; s += minor) if (s % major) r += `<div class="tk s" style="left:${s * pxs}px"></div>`;
+  $("ruler").innerHTML = r;
+  const X = (f) => (f / fps * pxs).toFixed(1);
+  const Wd = (f) => Math.max(1, f / fps * pxs - 1).toFixed(1);
+  // chapters
+  $("lCh").innerHTML = view.chapters.map((c, i) => `<div class="chb" style="left:${X(c.startFrame)}px;width:${Wd(c.durationInFrames)}px" title="${esc(c.title)}">${i + 1} · ${esc(c.title)}</div>`).join("");
+  // text: scene text + callouts + shot overlays
+  let tx = "";
+  for (const sc of view.scenes) {
+    if (sc.emphasis) tx += `<div class="txm" data-sc="${sc.id}" style="left:${X(sc.startFrame + (sc.emphasisFrom || 0))}px;width:${Wd(Math.min(60, sc.durationInFrames))}px" title="Emphasis">${esc(clean(sc.emphasis))}</div>`;
+    if (sc.lowerThird) tx += `<div class="txm" data-sc="${sc.id}" style="left:${X(sc.startFrame)}px;width:${Wd(Math.min(90, sc.durationInFrames))}px" title="Lower third">${esc(sc.lowerThird.title)}</div>`;
+    if (sc.badge) tx += `<div class="txm" data-sc="${sc.id}" style="left:${X(sc.startFrame)}px;width:${Wd(Math.min(45, sc.durationInFrames))}px" title="Badge">${esc(sc.badge)}</div>`;
+    (sc.callouts ?? []).forEach((c) => { tx += `<div class="txm" data-sc="${sc.id}" style="left:${X(sc.startFrame + c.from)}px;width:${Wd(c.duration)}px" title="Text pop">${esc(clean(c.text))}</div>`; });
+  }
+  for (const c of clips) for (const o of c.sh.overlays ?? []) if (o.text) tx += `<div class="txm ov" data-key="${c.key}" style="left:${X(c.start + (o.from ?? 0))}px;width:${Wd(o.duration ?? c.sh.durationInFrames)}px" title="On-screen text">${esc(o.text)}</div>`;
+  $("lTx").innerHTML = tx;
+  // clips
+  const thumbW = 64 * 16 / 9;
+  $("lV").innerHTML = clips.map((c) => {
+    const w = (c.end - c.start) / fps * pxs;
+    const src = c.sh.src ?? c.sh.graphic?.bg?.video ?? c.sh.graphic?.bg?.image ?? c.sh.graphic?.image;
+    const t0 = (c.sh.trimBefore ?? 0) / fps;
+    const n = src ? Math.max(1, Math.min(4, Math.ceil(w / thumbW))) : 0;
+    let imgs = "";
+    for (let i = 0; i < n; i++) imgs += `<img loading="lazy" src="${thumbURL(src, c.sh.type === "video" ? t0 + (i / n) * (c.end - c.start) / fps * (c.sh.playbackRate ?? 1) + 0.3 : 0)}" alt="">`;
+    const e = edits.shots[c.key], b = [];
+    if (c.sh.type === "graphic") b.push(`<i>${esc(c.sh.graphic?.type ?? "gfx")}</i>`);
+    if (e) b.push(`<i class="e">edited</i>`);
+    if (c.key.endsWith("b")) b.push("<i>split</i>");
+    const trim = c.k > 0 && c.sc.layout !== "split" && !c.key.endsWith("b") ? `<div class="trim" data-trim="${c.key}" title="Drag to move this cut"></div>` : "";
+    return `<div class="clip ${c.sh.type}${c.k === 0 ? " scs" : ""}${c.key === sel ? " sel" : ""}" draggable="true" data-key="${c.key}" style="left:${X(c.start)}px;width:${Wd(c.end - c.start)}px">
+      ${trim}<div class="strip">${imgs}</div><div class="badges">${b.join("")}</div><div class="cl">${esc(label(c))}</div></div>`;
+  }).join("");
+  // transitions
+  $("lFx").innerHTML = view.scenes.map((sc) => `<div class="trn ${sc.transition === "cut" ? "cut" : ""}${sel && sel.startsWith(sc.id) ? " sel" : ""}" data-sc="${sc.id}" style="left:${X(sc.startFrame)}px" title="${esc(sc.transition)} into ${sc.id}"></div>`).join("");
+  // voice (per scene audio)
+  $("lVo").innerHTML = view.scenes.filter((sc) => sc.audio).map((sc) => {
+    const w = sc.durationInFrames / fps * pxs;
+    return `<div class="wv" style="left:${X(sc.startFrame)}px;width:${Wd(sc.durationInFrames)}px">${w > 14 ? `<img loading="lazy" src="/wave?src=${encodeURIComponent(sc.audio)}&w=${Math.min(1200, Math.max(100, Math.round(w / 50) * 50))}&c=5fd3a8" alt="">` : ""}</div>`;
+  }).join("");
+  // music
+  $("lMu").innerHTML = (view.music?.segments ?? []).map((m) => `<div class="wv mu" style="left:${X(m.from)}px;width:${Wd(m.durationInFrames)}px"><img loading="lazy" src="/wave?src=${encodeURIComponent(m.src)}&w=2000&c=9a8cff" alt="" style="object-fit:fill"><span>${esc(m.mood ?? "")} · ${esc((m.src ?? "").split("/").pop())}</span></div>`).join("");
+  $("tlinfo").textContent = `${clips.length} shots · ${view.scenes.length} scenes`;
+  tick();
+}
+function label(c) {
+  const g = c.sh.graphic;
+  if (c.sh.type === "graphic") {
+    const items = g?.items ?? [];
+    const word = items.map((x) => x.text ?? x.title).filter((s) => s && /[a-z]{3}/i.test(s))[0];
+    const numb = items.find((x) => x.value != null && x.el !== "chart");
+    const it = [numb ? `${numb.prefix ?? ""}${numb.value}${numb.suffix ?? ""}` : null, word].filter(Boolean).join(" · ");
+    return clean(it || g?.title || g?.text || c.sh.words || g?.type);
+  }
+  const k = (c.sh.keyword ?? "").replace(/^(adobe|archive|pexels|pixabay|wikimedia):/, "");
+  return /^file:|^\d+$|^$/.test(k) ? clean(c.sh.words ?? "") : k;
+}
+
+// ---------------- timeline interaction ----------------
+const frameAtX = (clientX) => { const r = $("canvas").getBoundingClientRect(); return Math.max(0, Math.min(total - 1, (clientX - r.left) / pxs * fps)); };
+function snapFrame(f) {
+  if (!snap) return Math.round(f);
+  const tol = 8 / pxs * fps;
+  let best = f, bd = tol;
+  for (const c of clips) { const d = Math.abs(c.start - f); if (d < bd) { bd = d; best = c.start; } }
+  return Math.round(best);
+}
+let scrubbing = false;
+$("ruler").addEventListener("pointerdown", (e) => { scrubbing = true; $("ruler").setPointerCapture(e.pointerId); seek(frameAtX(e.clientX)); });
+$("ruler").addEventListener("pointermove", (e) => { if (scrubbing) seek(frameAtX(e.clientX)); });
+$("ruler").addEventListener("pointerup", () => (scrubbing = false));
+
+$("lV").addEventListener("pointermove", (e) => {
+  if (tool !== "blade") return;
+  const bl = $("bladeline"); bl.classList.add("on");
+  bl.style.left = (snapFrame(frameAtX(e.clientX)) / fps * pxs) + "px";
+});
+$("lV").addEventListener("pointerleave", () => $("bladeline").classList.remove("on"));
+$("lV").addEventListener("click", (e) => {
+  const el = e.target.closest(".clip"); if (!el || e.target.closest(".trim")) return;
+  const c = byKey.get(el.dataset.key);
+  if (tool === "blade") return splitAt(c, snapFrame(frameAtX(e.clientX)));
+  select(c.key, true);
+});
+$("lV").addEventListener("dblclick", (e) => { const el = e.target.closest(".clip"); if (el) { select(el.dataset.key, true); togglePlay(); } });
+$("lFx").addEventListener("click", (e) => {
+  const el = e.target.closest(".trn"); if (!el) return;
+  const c = clips.find((x) => x.sc.id === el.dataset.sc); if (c) { select(c.key, true); rtab("scene"); }
+});
+$("lTx").addEventListener("click", (e) => {
+  const el = e.target.closest(".txm"); if (!el) return;
+  if (el.dataset.key) { select(el.dataset.key, true); rtab("shot"); }
+  else { const c = clips.find((x) => x.sc.id === el.dataset.sc); if (c) { select(c.key, true); rtab("scene"); } }
+});
+
+// trim: drag the cut between two shots of a scene
+$("lV").addEventListener("pointerdown", (e) => {
+  const h = e.target.closest(".trim"); if (!h) return;
+  e.preventDefault(); e.stopPropagation();
+  const c = byKey.get(h.dataset.trim), prev = clips[clips.indexOf(c) - 1];
+  const el = h.parentElement, x0 = e.clientX, start0 = c.start;
+  h.classList.add("act"); h.setPointerCapture(e.pointerId);
+  let d = 0;
+  const lo = -(prev.end - prev.start - 6), hi = c.end - c.start - 6;
+  const move = (ev) => {
+    d = Math.round((ev.clientX - x0) / pxs * fps);
+    if (snap) { const w = view.words.map((w) => Math.round(w.startMs / 1000 * fps)).filter((f) => Math.abs(f - (start0 + d)) < 6 / pxs * fps); if (w.length) d = w.sort((a, b) => Math.abs(a - start0 - d) - Math.abs(b - start0 - d))[0] - start0; }
+    d = Math.max(lo, Math.min(hi, d));
+    el.style.left = ((start0 + d) / fps * pxs) + "px"; el.style.width = ((c.end - start0 - d) / fps * pxs) + "px";
+    $("tlinfo").textContent = `cut ${d > 0 ? "+" : ""}${d} frames (${(d / fps).toFixed(2)} s)`;
+  };
+  const up = () => {
+    h.removeEventListener("pointermove", move); h.removeEventListener("pointerup", up); h.classList.remove("act");
+    if (!d) return drawTimeline();
+    const baseKey = c.key;
+    commit((E) => { E.cuts[baseKey] = Math.max(-150, Math.min(150, (Number(E.cuts[baseKey]) || 0) + d)); if (!E.cuts[baseKey]) delete E.cuts[baseKey]; });
+    toast(`Cut moved ${d > 0 ? "later" : "earlier"} by ${Math.abs(d)} frames`);
+  };
+  h.addEventListener("pointermove", move); h.addEventListener("pointerup", up);
+});
+
+// drag a clip onto another in the same scene = swap; drag an effect onto a clip = apply
+let dragKey = null;
+$("lV").addEventListener("dragstart", (e) => { const el = e.target.closest(".clip"); if (!el) return; dragKey = el.dataset.key; e.dataTransfer.setData("text/studio", JSON.stringify({ kind: "clip", key: dragKey })); e.dataTransfer.effectAllowed = "move"; });
+$("lV").addEventListener("dragover", (e) => { const el = e.target.closest(".clip"); if (!el) return; e.preventDefault(); document.querySelectorAll(".clip.drop").forEach((x) => x.classList.remove("drop")); el.classList.add("drop"); });
+$("lV").addEventListener("dragleave", (e) => { e.target.closest?.(".clip")?.classList.remove("drop"); });
+$("lV").addEventListener("drop", (e) => {
+  e.preventDefault();
+  document.querySelectorAll(".clip.drop").forEach((x) => x.classList.remove("drop"));
+  const el = e.target.closest(".clip"); if (!el) return;
+  let d; try { d = JSON.parse(e.dataTransfer.getData("text/studio")); } catch { return; }
+  const target = el.dataset.key;
+  if (d.kind === "clip") return swap(d.key, target);
+  select(target, false);
+  applyFx(d.kind, d.value);
+});
+document.addEventListener("dragend", () => { dragKey = null; document.querySelectorAll(".clip.drop").forEach((x) => x.classList.remove("drop")); });
+
+function swap(a, b) {
+  if (!a || !b || a === b) return;
+  if (a.slice(0, 4) !== b.slice(0, 4)) return toast("Shots can only trade places inside one scene: each scene's pictures sit on its own words.", "err");
+  commit((E) => { E.swaps = [...(E.swaps ?? []), [a, b]]; });
+  toast("Shots swapped");
+}
+function splitAt(c, f) {
+  if (!c) return;
+  if (c.key.endsWith("b")) return toast("This half is already split - split the first half instead.", "err");
+  if (c.sc.layout === "split") return toast("Split-screen scenes can't be cut.", "err");
+  const at = Math.round(f - c.start);
+  if (at < 6 || at > c.end - c.start - 6) return toast("Too close to the edge of the clip to split.", "err");
+  commit((E) => { E.splits[c.key] = at; });
+  sel = c.key + "b"; drawAll();
+  toast(`Split ${c.key} at ${tc(f, true)}. Style each half on its own.`);
+}
+function removeShot(key) {
+  const c = byKey.get(key); if (!c) return;
+  if (c.sc.shots.length < 2) return toast("A scene needs at least one picture.", "err");
+  commit((E) => { (E.shots[key] ??= {}).remove = true; });
+  toast("Shot deleted - the shot before fills its time. Undo with Ctrl+Z.");
+}
+
+// ---------------- selection + inspector ----------------
+function select(key, seekTo) {
+  sel = key;
+  const c = byKey.get(key);
+  if (c && seekTo && !playing) seek(c.start);
+  document.querySelectorAll(".clip.sel").forEach((x) => x.classList.remove("sel"));
+  document.querySelector(`.clip[data-key="${key}"]`)?.classList.add("sel");
+  document.querySelectorAll(".trn.sel").forEach((x) => x.classList.remove("sel"));
+  document.querySelector(`.trn[data-sc="${key?.slice(0, 4)}"]`)?.classList.add("sel");
+  document.querySelectorAll(".mi.sel").forEach((x) => x.classList.remove("sel"));
+  document.querySelector(`.mi[data-key="${key}"]`)?.classList.add("sel");
+  showInspector();
+  markFxOn();
+}
+function rtab(p) {
+  document.querySelectorAll("#rtabs .tab").forEach((t) => t.classList.toggle("on", t.dataset.p === p));
+  for (const id of ["shot", "scene", "project"]) $("p-" + id).classList.toggle("on", id === p);
+}
+document.querySelectorAll("#rtabs .tab").forEach((t) => t.onclick = () => rtab(t.dataset.p));
+document.querySelectorAll("#ltabs .tab").forEach((t) => t.onclick = () => {
+  document.querySelectorAll("#ltabs .tab").forEach((x) => x.classList.toggle("on", x === t));
+  document.querySelectorAll(".panel.left .pane").forEach((p) => p.classList.toggle("on", p.id === "p-" + t.dataset.p));
+});
+
+const slider = (id, labelTxt, val, min, max, step, fmt = (v) => v) => `<div class="row"><label for="${id}">${labelTxt}</label><input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}"><output id="${id}-o">${fmt(val)}</output></div>`;
+function showInspector() {
+  const c = byKey.get(sel);
+  if (!c) { $("ihead").innerHTML = `<span>Select a clip on the timeline.</span>`; $("p-shot").innerHTML = ""; $("p-scene").innerHTML = ""; drawProject(); return; }
+  const src = c.sh.src ?? c.sh.graphic?.bg?.video ?? c.sh.graphic?.bg?.image;
+  $("ihead").innerHTML = `<div class="th">${src ? `<img src="${thumbURL(src, (c.sh.trimBefore ?? 0) / fps + 0.3)}" alt="">` : ""}</div>
+    <div style="min-width:0"><b>${esc(c.key)}</b><span>${esc(c.sh.type)} · ${tc(c.start)} · ${((c.end - c.start) / fps).toFixed(2)} s</span></div>`;
+  drawShot(c); drawScene(c); drawProject();
+}
+
+function drawShot(c) {
+  const e = edits.shots[c.key] ?? {}, sh = c.sh, gr = e.grade ?? {};
+  const baseKey = c.key.replace(/b$/, "");
+  let h = `<div class="sec"><div class="h">Words on this shot</div><div class="words">${esc(clean(sh.words || c.sc.text))}</div>`;
+  if (sh.credit) h += `<div class="hint" style="margin:8px 0 0">${esc(sh.credit)}</div>`;
+  h += `<div class="btns"><button class="btn sm" data-a="split"><svg class="i"><use href="#i-blade"/></svg>Split at playhead</button><button class="btn sm" data-a="swapn"><svg class="i"><use href="#i-swap"/></svg>Swap next</button><button class="btn sm" data-a="del"><svg class="i"><use href="#i-trash"/></svg>Delete</button></div></div>`;
+
+  // footage
+  {
+    const vsrc = sh.type === "video" ? sh.src : /\.(mp4|mov|webm)$/i.test(sh.graphic?.bg?.video ?? "") ? sh.graphic.bg.video : null;
+    h += `<div class="sec"><div class="h">${sh.type === "graphic" ? "Footage behind the graphic" : "Footage"}</div>`;
+    if (vsrc) h += `<video src="/public/${esc(vsrc)}#t=${((sh.trimBefore ?? sh.graphic?.bg?.from ?? 0) / fps).toFixed(2)}" muted autoplay loop playsinline preload="metadata" style="width:100%;border-radius:8px;background:#000"></video>`;
+    h += `<div class="btns"><button class="btn sm" data-a="cands" ${c.key.endsWith("b") ? "disabled" : ""}><svg class="i"><use href="#i-search"/></svg>Find other footage</button></div><div id="cands"></div></div>`;
+  }
+  // motion
+  if (sh.type === "image") {
+    const mv = e.move ?? sh.move ?? "auto";
+    h += `<div class="sec"><div class="h">Camera motion</div><div class="mgrid3">${MOVES.map((m) => `<button class="opt${mv === m ? " on" : ""}" data-move="${m}">${m.replace("-", " ")}</button>`).join("")}</div>
+      <div class="h">Focus point <span style="font-weight:500;text-transform:none;letter-spacing:0">click the picture</span></div>
+      <div class="focuspad" id="focuspad"><img src="${thumbURL(sh.src)}" alt=""><i style="left:${(e.focus ?? sh.focus ?? [50, 50])[0]}%;top:${(e.focus ?? sh.focus ?? [50, 50])[1]}%"></i></div></div>`;
+  }
+  if (sh.type === "video") {
+    h += `<div class="sec"><div class="h">Speed</div>${slider("spd", "Speed", e.speed ?? sh.playbackRate ?? 1, 0.25, 2, 0.05, (v) => (+v).toFixed(2) + "×")}</div>`;
+  }
+  // color
+  if (sh.type !== "graphic") {
+    h += `<div class="sec"><div class="h">Color <button class="btn sm" data-a="resetColor">Reset</button></div>
+      ${slider("gB", "Brightness", gr.bright ?? 1, 0.6, 1.5, 0.01, (v) => Math.round((v - 1) * 100) + "%")}
+      ${slider("gC", "Contrast", gr.contrast ?? 1, 0.6, 1.5, 0.01, (v) => Math.round((v - 1) * 100) + "%")}
+      ${slider("gW", "Warmth", gr.warm ?? 0, -0.25, 0.25, 0.01, (v) => Math.round(v * 100))}
+      ${slider("gT", "Tint", gr.tint ?? 0, -0.25, 0.25, 0.01, (v) => Math.round(v * 100))}</div>`;
+  }
+  // graphic editor
+  if (sh.type === "graphic") {
+    h += `<div class="sec"><div class="h">Graphic · ${esc(sh.graphic?.type)} ${e.graphic ? `<button class="btn sm" data-a="unGraphic">Remove graphic</button>` : ""}</div>
+      <p class="hint" style="margin-top:0">Change any word or number: it updates in the preview as you type.</p><div id="gform"></div>
+      <details style="margin-top:8px"><summary class="hint" style="cursor:pointer">Edit as JSON</summary><textarea id="gjson" class="mono" style="min-height:160px;font-size:11.5px">${esc(JSON.stringify(e.graphic ?? sh.graphic, null, 2))}</textarea><div class="btns"><button class="btn sm" data-a="gjson">Apply JSON</button></div></details></div>`;
+  }
+  // overlays
+  const ovs = e.overlays ?? [];
+  h += `<div class="sec"><div class="h">On-screen text</div>${ovs.length ? ovs.map((o, i) => `<div class="ovl"><span>${esc(o.type)}</span><input data-ov="${i}" value="${esc(o.text ?? "")}"><button class="btn icon sm" data-ovdel="${i}" title="Remove"><svg class="i"><use href="#i-trash"/></svg></button></div>`).join("") : `<p class="hint" style="margin:0">None added. Use the Text tab to add one.</p>`}</div>`;
+  $("p-shot").innerHTML = h;
+
+  // wire
+  const P = $("p-shot");
+  P.querySelector('[data-a="split"]').onclick = () => splitAt(c, frame >= c.start + 6 && frame <= c.end - 6 ? frame : c.start + Math.round((c.end - c.start) / 2));
+  P.querySelector('[data-a="swapn"]').onclick = () => { const n = clips[clips.indexOf(c) + 1]; if (n && n.sc === c.sc) swap(c.key, n.key); else toast("No next shot in this scene.", "err"); };
+  P.querySelector('[data-a="del"]').onclick = () => removeShot(c.key);
+  P.querySelectorAll("[data-move]").forEach((b) => b.onclick = () => commit((E) => { (E.shots[c.key] ??= {}).move = b.dataset.move; }));
+  const fp = $("focuspad");
+  if (fp) fp.onclick = (ev) => { const r = fp.getBoundingClientRect(); const x = Math.round((ev.clientX - r.left) / r.width * 100), y = Math.round((ev.clientY - r.top) / r.height * 100); commit((E) => { (E.shots[c.key] ??= {}).focus = [x, y]; }); };
+  const live = (id, fn, fmt) => { const el = $(id); if (!el) return; let t; el.oninput = () => { $(id + "-o").textContent = fmt(+el.value); clearTimeout(t); t = setTimeout(() => fn(+el.value), 120); }; };
+  live("spd", (v) => commit((E) => { (E.shots[c.key] ??= {}).speed = v; }), (v) => v.toFixed(2) + "×");
+  const g = (k) => (v) => commit((E) => { const s = (E.shots[c.key] ??= {}); s.grade = { ...(s.grade ?? {}), [k]: v }; });
+  live("gB", g("bright"), (v) => Math.round((v - 1) * 100) + "%"); live("gC", g("contrast"), (v) => Math.round((v - 1) * 100) + "%");
+  live("gW", g("warm"), (v) => Math.round(v * 100)); live("gT", g("tint"), (v) => Math.round(v * 100));
+  P.querySelector('[data-a="resetColor"]')?.addEventListener("click", () => commit((E) => { if (E.shots[c.key]) delete E.shots[c.key].grade; prune(E); }));
+  P.querySelector('[data-a="unGraphic"]')?.addEventListener("click", () => commit((E) => { if (E.shots[c.key]) delete E.shots[c.key].graphic; prune(E); }));
+  P.querySelector('[data-a="gjson"]')?.addEventListener("click", () => { try { const spec = JSON.parse($("gjson").value); commit((E) => { (E.shots[c.key] ??= {}).graphic = spec; }); toast("Graphic updated"); } catch (er) { toast("That JSON has a mistake: " + er.message, "err"); } });
+  P.querySelectorAll("[data-ov]").forEach((inp) => { let t; inp.oninput = () => { clearTimeout(t); t = setTimeout(() => commit((E) => { E.shots[c.key].overlays[+inp.dataset.ov].text = inp.value; }), 300); }; });
+  P.querySelectorAll("[data-ovdel]").forEach((b) => b.onclick = () => commit((E) => { E.shots[c.key].overlays.splice(+b.dataset.ovdel, 1); if (!E.shots[c.key].overlays.length) delete E.shots[c.key].overlays; prune(E); }));
+  P.querySelector('[data-a="cands"]')?.addEventListener("click", () => findFootage(baseKey));
+  if (sh.type === "graphic") graphicForm(c);
+  if (candShot === baseKey) drawCands();
+}
+
+// generic form for any graphic spec: every word and number gets a field
+function graphicForm(c) {
+  const spec = clone(edits.shots[c.key]?.graphic ?? c.sh.graphic ?? {});
+  const box = $("gform");
+  const skip = new Set(["type", "el", "at", "bg", "points", "on", "sfx", "until", "x", "y", "w", "h", "size", "align", "push", "image", "images"]);
+  let html = "";
+  const field = (path, k, v) => {
+    const id = "gf-" + path.join("-");
+    if (typeof v === "number") return `<div class="gfrow"><label title="${esc(k)}">${esc(k)}</label><input type="number" step="any" data-path='${JSON.stringify(path)}' value="${v}"></div>`;
+    if (typeof v === "string") return `<div class="gfrow"><label title="${esc(k)}">${esc(k)}</label><input data-path='${JSON.stringify(path)}' value="${esc(v)}"></div>`;
+    return "";
+  };
+  const walk = (obj, path, title) => {
+    let out = "";
+    for (const [k, v] of Object.entries(obj)) {
+      if (skip.has(k) && path.length < 3) continue;
+      if (Array.isArray(v)) {
+        if (v.every((x) => typeof x !== "object")) { out += `<div class="gfrow"><label>${esc(k)}</label><input data-path='${JSON.stringify([...path, k])}' data-arr="1" value="${esc(v.join(", "))}"></div>`; continue; }
+        v.forEach((item, i) => {
+          if (Array.isArray(item)) { out += `<div class="gf"><div class="gfh">${esc(k)} ${i + 1}<button class="btn sm" data-del='${JSON.stringify([...path, k, i])}'>Remove</button></div>${item.map((x, j) => field([...path, k, i, j], j === 0 ? "label" : "value", x)).join("")}</div>`; return; }
+          out += `<div class="gf"><div class="gfh">${esc(item.el ?? k)} ${i + 1}<button class="btn sm" data-del='${JSON.stringify([...path, k, i])}'>Remove</button></div>${walk(item, [...path, k, i])}</div>`;
+        });
+        if (v.length) out += `<div class="btns" style="margin:2px 0 8px"><button class="btn sm" data-add='${JSON.stringify([...path, k])}'>+ Add ${esc(k.replace(/s$/, ""))}</button></div>`;
+      } else if (v && typeof v === "object") out += `<div class="gf"><div class="gfh">${esc(k)}</div>${walk(v, [...path, k])}</div>`;
+      else out += field([...path, k], k, v);
+    }
+    return out;
+  };
+  html = walk(spec, []);
+  box.innerHTML = html || `<p class="hint">Nothing to edit here.</p>`;
+  const get = (p) => p.reduce((o, k) => o?.[k], spec);
+  const set = (p, v) => { const last = p.at(-1); get(p.slice(0, -1))[last] = v; };
+  const push = () => commit((E) => { (E.shots[c.key] ??= {}).graphic = clone(spec); });
+  box.querySelectorAll("input[data-path]").forEach((inp) => { let t; inp.oninput = () => {
+    const p = JSON.parse(inp.dataset.path), old = get(p);
+    let v = inp.value;
+    if (inp.dataset.arr) v = v.split(",").map((s) => s.trim()).filter(Boolean).map((s) => (typeof old?.[0] === "number" ? +s : s));
+    else if (typeof old === "number") { if (v === "" || !isFinite(+v)) return; v = +v; }
+    set(p, v); clearTimeout(t); t = setTimeout(push, 250);
+  }; });
+  box.querySelectorAll("[data-del]").forEach((b) => b.onclick = () => { const p = JSON.parse(b.dataset.del); get(p.slice(0, -1)).splice(p.at(-1), 1); if (spec.at) spec.at = undefined; push(); });
+  box.querySelectorAll("[data-add]").forEach((b) => b.onclick = () => { const arr = get(JSON.parse(b.dataset.add)); arr.push(clone(arr.at(-1))); if (spec.at) spec.at = undefined; push(); });
+}
+
+// footage alternatives (the pipeline's own review: 6 candidates per shot)
+let candShot = null, candData = null;
+async function findFootage(key) {
+  candShot = key; candData = null;
+  const r = await fetch("/api/review?shot=" + key).then((r) => r.json()).catch(() => null);
+  if (r?.candidates?.length) { candData = r; drawCands(); }
+  const res = await fetch("/api/candidates", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ shot: key }) });
+  if (!res.ok) { const er = await res.json(); toast(er.error, "err"); if (!candData) $("cands").innerHTML = `<p class="hint">${esc(er.error)}</p>`; return; }
+  if (!candData && $("cands")) $("cands").innerHTML = `<p class="hint">Searching the footage sites…</p>`;
+}
+async function refreshCands() { if (!candShot) return; candData = await fetch("/api/review?shot=" + candShot).then((r) => r.json()).catch(() => null); drawCands(); }
+function drawCands() {
+  const box = $("cands"); if (!box || !candData) return;
+  box.innerHTML = `<p class="hint" style="margin:8px 0 0">Searched for “${esc(candData.keyword)}”. Click one to use it.</p><div class="cands">${(candData.candidates ?? []).map((x) => `<div class="cand" data-n="${x.n}" title="${esc(x.text ?? "")}"><img src="${esc(x.hit?.thumb ?? "")}" alt="" referrerpolicy="no-referrer"><b>${x.n} · ${esc(x.kind)}</b></div>`).join("")}</div>`;
+  box.querySelectorAll(".cand").forEach((el) => el.onclick = async () => {
+    const res = await fetch("/api/pick", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ shot: candShot, n: +el.dataset.n }) });
+    if (!res.ok) return toast((await res.json()).error, "err");
+    toast(`Downloading option ${el.dataset.n} - the timeline updates by itself when it's in.`);
+  });
+}
+
+function drawScene(c) {
+  const sc = c.sc, se = edits.scenes[sc.id] ?? {}, tx = edits.text ?? {};
+  const T = (k, v) => (k in tx ? tx[k] : v ?? "");
+  let h = `<div class="sec"><div class="h">Scene ${esc(sc.id)} · ${(sc.durationInFrames / fps).toFixed(1)} s</div><div class="words">${esc(clean(sc.text))}</div></div>`;
+  h += `<div class="sec"><div class="h">Transition in</div><div class="mgrid3">${TRANSITIONS.map((t) => `<button class="opt${sc.transition === t ? " on" : ""}" data-trn="${t}">${t}</button>`).join("")}</div>
+    <p class="hint">House rule: transitions only where the story changes; everything else is a straight cut.</p></div>`;
+  h += `<div class="sec"><div class="h">Look</div><div class="mgrid3">${LOOKS.map((l) => `<button class="opt${sc.look === l ? " on" : ""}" data-look="${l}">${l}</button>`).join("")}</div></div>`;
+  h += `<div class="sec"><div class="h">Effects</div><div class="mgrid3">${FX.map((f) => `<button class="opt${(sc.fx ?? []).includes(f) ? " on" : ""}" data-fxs="${f}">${f}</button>`).join("")}</div></div>`;
+  h += `<div class="sec"><div class="h">Scene text</div>
+    <div class="row two"><label>Emphasis</label><input data-tx="${sc.id}:emphasis" value="${esc(T(`${sc.id}:emphasis`, sc.emphasis))}" placeholder="none"></div>
+    <div class="row two"><label>Badge</label><input data-tx="${sc.id}:badge" value="${esc(T(`${sc.id}:badge`, sc.badge))}" placeholder="none"></div>
+    <div class="row two"><label>Lower third</label><input data-tx="${sc.id}:lowerThird" value="${esc(T(`${sc.id}:lowerThird`, sc.lowerThird?.title))}" placeholder="none"></div>
+    ${(base.scenes.find((s) => s.id === sc.id)?.callouts ?? []).map((co, i) => `<div class="row two"><label>Text pop ${i + 1}</label><input data-tx="${sc.id}:callout:${i}" value="${esc(T(`${sc.id}:callout:${i}`, co.text))}"></div>`).join("")}
+    <p class="hint">Clear a box to remove that text.</p></div>`;
+  $("p-scene").innerHTML = h;
+  const P = $("p-scene");
+  P.querySelectorAll("[data-trn]").forEach((b) => b.onclick = () => applyFx("transition", b.dataset.trn));
+  P.querySelectorAll("[data-look]").forEach((b) => b.onclick = () => applyFx("look", b.dataset.look));
+  P.querySelectorAll("[data-fxs]").forEach((b) => b.onclick = () => applyFx("scenefx", b.dataset.fxs));
+  P.querySelectorAll("[data-tx]").forEach((inp) => { let t; inp.oninput = () => { clearTimeout(t); t = setTimeout(() => commit((E) => { E.text[inp.dataset.tx] = inp.value.trim(); }), 400); }; });
+}
+
+function drawProject() {
+  const g = edits.global ?? {};
+  const vol = (k, d) => g[k] ?? d;
+  const mix = `
+    ${slider("mV", "Voice", vol("voiceVolume", 1), 0.5, 2, 0.05, (v) => (+v).toFixed(2) + "×")}
+    ${slider("mM", "Music", vol("musicVolume", base?.music?.volume ?? 0.1), 0, 0.4, 0.005, (v) => Math.round(v * 100) + "%")}
+    ${slider("mS", "Sound FX", vol("sfxLevel", base?.sfxLevel ?? 1), 0, 2, 0.05, (v) => (+v).toFixed(2) + "×")}`;
+  const disp = `
+    <div class="row two"><label>Captions</label><select id="dCap">${CAPTIONS.map((c) => `<option ${((g.captions ?? base?.captions?.style) === c) ? "selected" : ""}>${c}</option>`).join("")}</select></div>
+    <div class="row two"><label>Progress bar</label><input type="checkbox" id="dPb" ${(g.progressBar ?? base?.progressBar) ? "checked" : ""}></div>
+    <div class="row two"><label>Chapter cards</label><input type="checkbox" id="dCc" ${(g.chapterCards ?? base?.showChapterCards) ? "checked" : ""}></div>`;
+  $("mixer").innerHTML = mix; $("display").innerHTML = disp;
+  $("p-project").innerHTML = `<div class="sec"><div class="h">Mix</div>${mix.replace(/id="m/g, 'id="pm')}</div><div class="sec"><div class="h">Display</div>${disp.replace(/id="d/g, 'id="pd')}</div>
+    <div class="sec"><div class="h">Edits</div><p class="hint">${countEdits(edits)} changes saved in <b>build/edits.json</b>. They survive rebuilding the project and go into every render.</p>
+    <div class="btns"><button class="btn sm" id="clearAll">Clear all edits</button></div></div>`;
+  for (const pre of ["m", "pm"]) {
+    const w = (id, k, fmt) => { const el = $(pre + id); if (!el) return; let t; el.oninput = () => { $(pre + id + "-o").textContent = fmt(+el.value); clearTimeout(t); t = setTimeout(() => commit((E) => { E.global[k] = +el.value; }), 150); }; };
+    w("V", "voiceVolume", (v) => v.toFixed(2) + "×"); w("M", "musicVolume", (v) => Math.round(v * 100) + "%"); w("S", "sfxLevel", (v) => v.toFixed(2) + "×");
+  }
+  for (const pre of ["d", "pd"]) {
+    $(pre + "Cap").onchange = (e) => commit((E) => { E.global.captions = e.target.value; });
+    $(pre + "Pb").onchange = (e) => commit((E) => { E.global.progressBar = e.target.checked; });
+    $(pre + "Cc").onchange = (e) => commit((E) => { E.global.chapterCards = e.target.checked; });
+  }
+  $("clearAll").onclick = () => { if (confirm("Remove every Studio edit? (You can undo this.)")) commit((E) => { Object.assign(E, normalize({})); E.cuts = {}; E.text = {}; }); };
+}
+
+// ---------------- left panels ----------------
+let mfilter = "all";
+function drawMedia() {
+  const q = $("mq").value.trim().toLowerCase();
+  const list = clips.filter((c) => (mfilter === "all" || (mfilter === "edited" ? edits.shots[c.key] : c.sh.type === mfilter)) && (!q || `${c.key} ${label(c)} ${c.sh.words ?? ""} ${c.sh.keyword ?? ""}`.toLowerCase().includes(q)));
+  $("mgrid").innerHTML = list.slice(0, 400).map((c) => {
+    const src = c.sh.src ?? c.sh.graphic?.bg?.video ?? c.sh.graphic?.bg?.image;
+    return `<div class="mi${c.key === sel ? " sel" : ""}" data-key="${c.key}" draggable="false"><div class="im">${src ? `<img loading="lazy" src="${thumbURL(src, (c.sh.trimBefore ?? 0) / fps + 0.3)}" alt="">` : ""}<span class="ty">${esc(c.sh.type === "graphic" ? c.sh.graphic?.type : c.sh.type)}</span>${edits.shots[c.key] ? '<span class="ed"></span>' : ""}<span class="tc mono">${short(c.start)}</span></div><div class="lb">${esc(label(c))}</div></div>`;
+  }).join("") || `<div class="empty">No shots match.</div>`;
+}
+$("mq").oninput = drawMedia;
+document.querySelectorAll("#mchips .fchip").forEach((b) => b.onclick = () => { mfilter = b.dataset.f; document.querySelectorAll("#mchips .fchip").forEach((x) => x.classList.toggle("on", x === b)); drawMedia(); });
+$("mgrid").onclick = (e) => { const el = e.target.closest(".mi"); if (!el) return; select(el.dataset.key, true); scrollToClip(el.dataset.key); };
+function scrollToClip(key) { const c = byKey.get(key); if (!c) return; const sc = $("scroll"); sc.scrollLeft = c.start / fps * pxs - sc.clientWidth * 0.3; }
+
+const STAGE = {
+  number: { label: "Big number", items: [{ el: "number", value: 100, prefix: "$", suffix: " bn", y: 46, size: 12 }, { el: "tag", text: "What it means", y: 60 }] },
+  title: { label: "Title", items: [{ el: "title", text: "A *bold* title", y: 46, size: 7 }] },
+  tag: { label: "Tag", items: [{ el: "tag", text: "Short label", y: 50 }] },
+  chart: { label: "Chart", items: [{ el: "chart", points: [20, 35, 30, 60, 85], title: "Trend", start: "2020", end: "2026", x: 50, y: 50, w: 60, h: 56 }] },
+  donut: { label: "Donut", items: [{ el: "donut", value: 60, suffix: "%", y: 46, size: 16 }, { el: "tag", text: "of the total", y: 66 }] },
+  flags: { label: "Flags", items: [{ el: "flags", flags: ["us", "ca"], y: 46, size: 10 }, { el: "tag", text: "US vs Canada", y: 64 }] },
+};
+const FULL = {
+  counter: { label: "Counter", spec: { type: "counter", value: 1000000, label: "units sold", title: "Title", source: "Source" } },
+  bars: { label: "Bars", spec: { type: "bars", data: [["A", 40], ["B", 65], ["C", 90]], unit: "%", title: "Title", source: "Source" } },
+  statement: { label: "Statement", spec: { type: "statement", text: "The one line that matters", highlight: "matters" } },
+  quote: { label: "Quote", spec: { type: "quote", text: "A quote goes here.", by: "Name" } },
+  timeline: { label: "Timeline", spec: { type: "timeline", events: [["2020", "First"], ["2023", "Then"], ["2026", "Now"]], title: "Title" } },
+  list: { label: "List", spec: { type: "list", title: "Three reasons", numbered: true, items: ["First", "Second", "Third"] } },
+  compare: { label: "Compare", spec: { type: "compare", left: { label: "Before", items: ["One", "Two"], tone: "bad" }, right: { label: "After", items: ["One", "Two"], tone: "good" } } },
+  map: { label: "Map", spec: { type: "map", places: [{ name: "Tokyo", lat: 35.68, lon: 139.69 }, { name: "Ohio", lat: 40.42, lon: -82.91 }], route: true, title: "Title" } },
+};
+const OVER = {
+  slug: { label: "Location tag", o: { type: "slug", text: "Tokyo, Japan" } },
+  stat: { label: "Stat", o: { type: "stat", value: 42, unit: "%", text: "of buyers" } },
+  callout: { label: "Callout", o: { type: "callout", text: "Look here", at: [55, 45] } },
+  line: { label: "Line", o: { type: "line", text: "A line of text", hl: "text" } },
+};
+const tile = (kind, value, text, extra = "") => `<div class="fx" draggable="true" data-kind="${kind}" data-value="${value}">${extra}<span>${esc(text)}</span></div>`;
+function buildPanels() {
+  $("fxTrans").innerHTML = TRANSITIONS.map((t) => tile("transition", t, t, `<div class="sw"><svg class="i" style="width:20px;height:20px"><use href="#i-trn"/></svg></div>`)).join("");
+  $("fxLooks").innerHTML = LOOKS.map((l) => tile("look", l, l, `<div class="sw" style="background:${{ normal: "linear-gradient(135deg,#3a4a6a,#6a5a4a)", flashback: "linear-gradient(135deg,#8a7a5a,#b8a070)", dramatic: "linear-gradient(135deg,#111,#5a1a1a)", night: "linear-gradient(135deg,#0a1a3a,#1a3a6a)", vhs: "repeating-linear-gradient(0deg,#3a2a5a 0 3px,#5a3a6a 3px 6px)", dream: "linear-gradient(135deg,#d8b8e8,#f8d8c8)" }[l]}"></div>`)).join("");
+  $("fxMoves").innerHTML = MOVES.map((m) => tile("move", m, m.replace("-", " "))).join("");
+  $("fxFx").innerHTML = FX.map((f) => tile("scenefx", f, f)).join("");
+  $("gStage").innerHTML = Object.entries(STAGE).map(([k, v]) => tile("stage", k, v.label, `<div class="sw"><svg class="i"><use href="#i-graph"/></svg></div>`)).join("");
+  $("gFull").innerHTML = Object.entries(FULL).map(([k, v]) => tile("full", k, v.label, `<div class="sw"><svg class="i"><use href="#i-graph"/></svg></div>`)).join("");
+  $("tOver").innerHTML = Object.entries(OVER).map(([k, v]) => tile("overlay", k, v.label, `<div class="sw"><svg class="i"><use href="#i-text"/></svg></div>`)).join("");
+  document.querySelectorAll(".fx").forEach((el) => {
+    el.onclick = () => applyFx(el.dataset.kind, el.dataset.value);
+    el.ondragstart = (e) => e.dataTransfer.setData("text/studio", JSON.stringify({ kind: el.dataset.kind, value: el.dataset.value }));
+  });
+  $("sceneText").innerHTML = `<p class="hint">Emphasis, badge, lower third and text pops are edited in the <b>Scene</b> tab of the inspector.</p><button class="btn sm" id="goScene">Open scene text</button>`;
+  $("goScene").onclick = () => rtab("scene");
+  drawDeliver();
+}
+function markFxOn() {
+  const c = byKey.get(sel); if (!c) return;
+  document.querySelectorAll(".fx").forEach((el) => {
+    const k = el.dataset.kind, v = el.dataset.value;
+    el.classList.toggle("on", (k === "transition" && c.sc.transition === v) || (k === "look" && c.sc.look === v) || (k === "move" && c.sh.move === v && c.sh.type === "image") || (k === "scenefx" && (c.sc.fx ?? []).includes(v)));
+  });
+}
+function applyFx(kind, value) {
+  const c = byKey.get(sel);
+  if (!c) return toast("Select a clip first.", "err");
+  const id = c.sc.id;
+  if (kind === "transition") { commit((E) => { (E.scenes[id] ??= {}).transition = value; }); toast(`${value} into scene ${id}`); }
+  else if (kind === "look") commit((E) => { (E.scenes[id] ??= {}).look = value; });
+  else if (kind === "scenefx") commit((E) => { const s = (E.scenes[id] ??= {}); const cur = new Set(s.fx ?? c.sc.fx ?? []); cur.has(value) ? cur.delete(value) : cur.add(value); s.fx = [...cur]; });
+  else if (kind === "move") { if (c.sh.type !== "image") return toast("Camera motion is for photos. This shot is a " + c.sh.type + ".", "err"); commit((E) => { (E.shots[c.key] ??= {}).move = value; }); }
+  else if (kind === "stage") { commit((E) => { (E.shots[c.key] ??= {}).graphic = { type: "stage", items: clone(STAGE[value].items) }; }); rtab("shot"); toast("Graphic added - edit its words in the inspector."); }
+  else if (kind === "full") { commit((E) => { (E.shots[c.key] ??= {}).graphic = clone(FULL[value].spec); }); rtab("shot"); toast("Graphic added - edit its words in the inspector."); }
+  else if (kind === "overlay") { commit((E) => { const s = (E.shots[c.key] ??= {}); s.overlays = [...(s.overlays ?? []), clone(OVER[value].o)]; }); rtab("shot"); }
+  markFxOn();
+}
+function drawDeliver() {
+  const yt = project?.youtube ?? {};
+  const copy = (id, label, text) => `<div class="h">${label}</div><div class="copybox"><textarea id="${id}" readonly>${esc(text)}</textarea><button class="btn icon sm" data-copy="${id}" title="Copy"><svg class="i"><use href="#i-copy"/></svg></button></div>`;
+  const rs = (liveState?.renders ?? []).map((r) => `<div class="ovl"><span style="width:auto;text-transform:none;font-size:12px;color:var(--text)">${esc(r.name)}</span><span style="width:auto;font-weight:500;text-transform:none">${new Date(r.time).toLocaleString([], { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" })}${r.stale ? " · older cut" : ""}</span><span style="flex:1"></span><button class="btn sm" data-watch="${esc(r.name)}">Watch</button></div>`).join("") || `<p class="hint">Nothing rendered yet.</p>`;
+  $("deliver").innerHTML = `<div class="h">Renders</div>${rs}
+    <div class="h">Thumbnail</div><img src="/out/thumbnail.jpg?${Date.now()}" alt="" style="width:100%;border-radius:8px;background:var(--panel-3);aspect-ratio:16/9;object-fit:cover" onerror="this.style.display='none'">
+    ${copy("dT", "Title", yt.title ?? project?.title ?? "")}
+    ${copy("dD", "Description + credits", [yt.description, (yt.hashtags ?? []).join(" "), project?.credits ? "Credits\n" + project.credits : ""].filter(Boolean).join("\n\n"))}
+    ${copy("dTags", "Tags", (yt.tags ?? []).join(", "))}
+    <p class="hint">Nothing is uploaded from here.</p>`;
+  $("deliver").querySelectorAll("[data-copy]").forEach((b) => b.onclick = () => { navigator.clipboard.writeText($(b.dataset.copy).value).then(() => toast("Copied")); });
+  $("deliver").querySelectorAll("[data-watch]").forEach((b) => b.onclick = () => { setSource("rendered", b.dataset.watch); });
+}
+
+// ---------------- source / transport / toolbar ----------------
+function setSource(s, file) {
+  source = s;
+  document.querySelectorAll("#srcSeg button").forEach((b) => b.classList.toggle("on", b.dataset.s === s));
+  $("screen").classList.toggle("rendered", s === "rendered");
+  if (s === "rendered") {
+    player?.pause();
+    const r = (liveState?.renders ?? []).find((x) => x.name === (file ?? "final.mp4")) ?? liveState?.renders?.[0];
+    if (!r) { toast("Nothing rendered yet.", "err"); return setSource("live"); }
+    const v = $("rvid"), url = `/out/${r.name}?v=${Math.round(r.time)}`;
+    if (!v.src.endsWith(url)) v.src = url;
+    v.currentTime = frame / fps;
+    $("staleTag").classList.toggle("show", !!r.stale || $("pendingN").hidden === false);
+  } else { $("rvid").pause(); player?.seek(frame); }
+}
+document.querySelectorAll("#srcSeg button").forEach((b) => b.onclick = () => setSource(b.dataset.s));
+$("play").onclick = togglePlay;
+$("toStart").onclick = () => seek(0);
+$("toEnd").onclick = () => seek(total - 1);
+const nextCut = (dir) => { const cuts = clips.map((c) => c.start); const f = dir > 0 ? cuts.find((x) => x > frame + 0.5) : [...cuts].reverse().find((x) => x < frame - 0.5); if (f != null) seek(f); };
+$("back").onclick = () => nextCut(-1);
+$("fwd").onclick = () => nextCut(1);
+$("rate").onchange = (e) => { player?.setRate(+e.target.value); $("rvid").playbackRate = +e.target.value; };
+let muted = false;
+$("muteBtn").onclick = () => { muted = !muted; player?.setMuted(muted); $("rvid").muted = muted; $("muteUse").setAttribute("href", muted ? "#i-mute" : "#i-vol"); };
+$("safeBtn").onclick = () => { $("guides").classList.toggle("on"); $("safeBtn").classList.toggle("on"); };
+$("fullBtn").onclick = () => (document.fullscreenElement ? document.exitFullscreen() : $("screen").requestFullscreen());
+$("undo").onclick = undo; $("redo").onclick = redo;
+const setTool = (t) => { tool = t; $("toolSel").classList.toggle("on", t === "sel"); $("toolBlade").classList.toggle("on", t === "blade"); $("tl").classList.toggle("blade", t === "blade"); };
+$("toolSel").onclick = () => setTool("sel"); $("toolBlade").onclick = () => setTool("blade");
+$("splitBtn").onclick = () => splitAt(clipAt(frame), frame);
+$("delBtn").onclick = () => sel && removeShot(sel);
+$("swapBtn").onclick = () => { const c = byKey.get(sel); const n = c && clips[clips.indexOf(c) + 1]; if (n && n.sc === c.sc) swap(c.key, n.key); else toast("No next shot in this scene.", "err"); };
+$("snapBtn").onclick = () => { snap = !snap; $("snapBtn").classList.toggle("on", snap); };
+$("followBtn").onclick = () => { follow = !follow; $("followBtn").classList.toggle("on", follow); };
+const zoomKeep = () => { const sc = $("scroll"), f = frame / fps; const off = f * pxs - sc.scrollLeft; setZoom(); drawTimeline(); sc.scrollLeft = f * pxs - off; };
+$("zoom").oninput = zoomKeep;
+$("fitBtn").onclick = () => { const w = $("scroll").clientWidth - 40; const z = Math.log(w / (total / fps) / 1.2) / Math.log(200) * 100; $("zoom").value = Math.max(0, Math.min(100, z)); setZoom(); drawTimeline(); $("scroll").scrollLeft = 0; };
+$("scroll").addEventListener("wheel", (e) => { if (!e.ctrlKey && !e.metaKey) { if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && !e.shiftKey) { $("scroll").scrollLeft += e.deltaY; e.preventDefault(); } return; } e.preventDefault(); $("zoom").value = Math.max(0, Math.min(100, +$("zoom").value - Math.sign(e.deltaY) * 4)); zoomKeep(); }, { passive: false });
+
+// resize the timeline
+$("resizer").addEventListener("pointerdown", (e) => {
+  const y0 = e.clientY, h0 = $("tl").getBoundingClientRect().height;
+  $("resizer").setPointerCapture(e.pointerId);
+  const mv = (ev) => document.documentElement.style.setProperty("--tl-h", Math.max(200, Math.min(window.innerHeight - 260, h0 - (ev.clientY - y0))) + "px");
+  const up = () => { $("resizer").removeEventListener("pointermove", mv); $("resizer").removeEventListener("pointerup", up); };
+  $("resizer").addEventListener("pointermove", mv); $("resizer").addEventListener("pointerup", up);
+});
+
+// keyboard
+document.addEventListener("keydown", (e) => {
+  if (e.target.matches?.("input,textarea,select")) return;
+  const k = e.key, ctrl = e.ctrlKey || e.metaKey;
+  if (ctrl && k.toLowerCase() === "z") { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+  if (ctrl && k.toLowerCase() === "y") { e.preventDefault(); redo(); return; }
+  if (ctrl && k.toLowerCase() === "b") { e.preventDefault(); splitAt(clipAt(frame), frame); return; }
+  if (k === " ") { e.preventDefault(); togglePlay(); }
+  else if (k === "k" || k === "K") { player?.pause(); $("rvid").pause(); }
+  else if (k === "l" || k === "L") { if (!playing) togglePlay(); }
+  else if (k === "j" || k === "J") seek(frame - fps * 2);
+  else if (k === "ArrowLeft") seek(frame - (e.shiftKey ? fps : 1));
+  else if (k === "ArrowRight") seek(frame + (e.shiftKey ? fps : 1));
+  else if (k === "ArrowUp") { e.preventDefault(); nextCut(-1); }
+  else if (k === "ArrowDown") { e.preventDefault(); nextCut(1); }
+  else if (k === "Home") seek(0);
+  else if (k === "End") seek(total - 1);
+  else if (k === "s" || k === "S") splitAt(clipAt(frame), frame);
+  else if (k === "b" || k === "B") setTool("blade");
+  else if (k === "v" || k === "V") setTool("sel");
+  else if (k === "Delete" || k === "Backspace") { if (sel) removeShot(sel); }
+  else if (k === "m" || k === "M") $("muteBtn").click();
+  else if (k === "f" || k === "F") $("fullBtn").click();
+  else if (k === "+" || k === "=") { $("zoom").value = +$("zoom").value + 6; zoomKeep(); }
+  else if (k === "-" || k === "_") { $("zoom").value = +$("zoom").value - 6; zoomKeep(); }
+  else if ((k === "z" || k === "Z") && e.shiftKey) $("fitBtn").click();
+  else if (k === "?") showKeys();
+  else if (k === "Escape") { $("modal").classList.remove("on"); setTool("sel"); }
+});
+function showKeys() {
+  const K = [["Space", "Play / pause"], ["J / K / L", "Back 2 s / stop / play"], ["← →", "One frame (Shift: one second)"], ["↑ ↓", "Previous / next cut"], ["S or Ctrl+B", "Split at the playhead"], ["B / V", "Blade / select tool"], ["Del", "Delete the selected shot"], ["Ctrl+Z / Ctrl+Shift+Z", "Undo / redo"], ["+ / −, Ctrl+wheel", "Zoom the timeline"], ["Shift+Z", "Fit the whole video"], ["M / F", "Mute / full screen"], ["Drag a cut edge", "Move the cut (snaps to words)"], ["Drag a clip onto another", "Swap them (same scene)"], ["Drag an effect onto a clip", "Apply it"]];
+  $("mbox").innerHTML = `<h3>Keyboard shortcuts</h3><div class="keys">${K.map(([a, b]) => `<kbd>${a}</kbd><span>${b}</span>`).join("")}</div><div class="btns" style="justify-content:flex-end;margin-top:14px"><button class="btn" onclick="document.getElementById('modal').classList.remove('on')">Close</button></div>`;
+  $("modal").classList.add("on");
+}
+$("keysBtn").onclick = showKeys;
+$("modal").onclick = (e) => { if (e.target === $("modal")) $("modal").classList.remove("on"); };
+
+// apply + render
+$("applyBtn").onclick = async () => {
+  const r = await fetch("/api/rebuild", { method: "POST" });
+  if (!r.ok) return toast((await r.json()).error, "err");
+  toast("Applying your edits to the timeline…");
+};
+$("renderBtn").onclick = () => {
+  $("mbox").innerHTML = `<h3>Render the video?</h3><p class="hint">Rebuilds the timeline with your edits, mixes the audio, renders only the parts whose picture changed, then masters to −14 LUFS and checks it. Audio-only changes don't re-render any picture. Webpage forwarding stays off.</p>
+    <div class="btns" style="justify-content:flex-end;margin-top:14px"><button class="btn" id="rCancel">Cancel</button><button class="btn primary" id="rGo">Render</button></div>`;
+  $("modal").classList.add("on");
+  $("rCancel").onclick = () => $("modal").classList.remove("on");
+  $("rGo").onclick = async () => {
+    $("modal").classList.remove("on");
+    const r = await fetch("/api/render", { method: "POST" });
+    if (!r.ok) return toast((await r.json()).error, "err");
+    toast("Render started - progress shows at the top.", "ok");
+  };
+};
+
+// ---------------- live ----------------
+let lastJob = null;
+function connectLive() {
+  const es = new EventSource("/api/live");
+  es.onmessage = async (ev) => {
+    const s = JSON.parse(ev.data); liveState = s;
+    const st = s.status ?? {};
+    const rendering = !!st.active;
+    let p = 0, txt = "Ready";
+    if (s.job?.running) { txt = s.job.name + "…"; p = (s.job.step - 1) / Math.max(1, s.job.of); }
+    else if (rendering) {
+      const m = (st.doing ?? "").match(/part (\d+)\/(\d+)/);
+      const whole = st.frames && base && st.frames.total >= base.durationInFrames - 2;
+      if (whole) { p = st.frames.done / st.frames.total; txt = `Mixing the audio ${Math.floor(p * 100)}%`; }
+      else { p = m && st.frames ? (m[1] - 1 + st.frames.done / st.frames.total) / m[2] : st.progress ?? 0;
+      txt = `${m ? `Rendering ${Math.floor(p * 100)}% · part ${m[1]}/${m[2]}` : (st.doing ?? st.step)}${st.etaSec ? ` · ${Math.ceil(st.etaSec / 60)} min left` : ""}`; }
+    } else if (st.failed) txt = "Last render failed";
+    else if (st.finished) { txt = "Rendered · up to date"; p = 1; }
+    $("chipText").textContent = txt;
+    $("chipArc").style.strokeDashoffset = 50.27 * (1 - p);
+    $("chipArc").style.stroke = st.finished && !rendering && !s.job?.running ? "var(--ok)" : "var(--accent)";
+    $("renderBtn").disabled = !!s.busy; $("applyBtn").disabled = !!s.busy;
+    // pipeline job finished?
+    if (lastJob?.running && s.job && !s.job.running) toast(s.job.failed ? `${s.job.name} failed: ${s.job.failed}` : `${s.job.name} - done`, s.job.failed ? "err" : "ok");
+    lastJob = s.job;
+    if (s.reviewTime !== lastReviewTime) { const first = !lastReviewTime; lastReviewTime = s.reviewTime; if (!first) refreshCands(); }
+    if (s.timelineTime !== lastTimelineTime) {
+      const first = !lastTimelineTime; lastTimelineTime = s.timelineTime;
+      if (!first) { await loadTimeline(); drawAll(); updatePending(); toast("Timeline updated"); }
+    }
+    if ($("p-deliver").classList.contains("on") && JSON.stringify(s.renders) !== drawDeliver.last) { drawDeliver.last = JSON.stringify(s.renders); drawDeliver(); }
+  };
+  es.onerror = () => { $("chipText").textContent = "Reconnecting…"; };
+}
+
+init().catch((e) => { $("msg").textContent = "Couldn't load: " + e.message; console.error(e); });
+</script>
+</body>
+</html>

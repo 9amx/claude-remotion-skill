@@ -85,24 +85,52 @@ const LightLeak: React.FC<{ t: number }> = ({ t }) => {
   );
 };
 
+// Push and wipe (and the overlays: flash, burn, shutter, leak) come from the long-form edits:
+// enter: how this scene's picture arrives; exit: how it leaves while the next one
+// arrives on top (build-timeline keeps the outgoing picture playing for OVERLAP
+// frames). Overlays (flash, burn, shutter) sit above both: TransitionOverlay.
+const DirBlur: React.FC<{ id: string; amount: number }> = ({ id, amount }) => (
+  <svg width="0" height="0" style={{ position: "absolute" }}>
+    <filter id={id} x="-20%" y="-5%" width="140%" height="110%"><feGaussianBlur stdDeviation={`${amount.toFixed(1)} 0`} /></filter>
+  </svg>
+);
+
 export const TransitionIn: React.FC<{ type: Transition; children: React.ReactNode }> = ({ type, children }) => {
   const frame = useCurrentFrame();
   const { fps, width } = useVideoConfig();
   const id = useFxId();
   let style: React.CSSProperties = {};
   let bx = 0, by = 0, rgb = 0;
+  let blurId: string | null = null, blurAmt = 0, edge: React.ReactNode = null;
   if (type === "whip") {
     // arrives from the right on the same curve the outgoing picture leaves on; blur follows speed
     const p = cubicOut(frame / WHIP), v = 1 - p;
     bx = v * v * 70; rgb = v * v * 14;
     style = { transform: `translateX(${(1 - p) * width}px)`, ...fxStyle(id, bx, 0, rgb, v > 0.02 ? [`brightness(${1 + 0.3 * v})`] : []) };
+  } else if (type === "push" && frame < 13) {
+    const p = interpolate(frame, [0, 13], [0, 1], { ...clamp, easing: ease.inOut });
+    blurId = "tr-push-in"; blurAmt = Math.sin(p * Math.PI) * 44;
+    style = { transform: `translateX(${(1 - p) * width}px)`, filter: `url(#${blurId})` };
+  } else if (type === "wipe" && frame < 15) {
+    // A soft diagonal edge crosses the frame, with light running along it.
+    const p = interpolate(frame, [0, 15], [-18, 118], { ...clamp, easing: ease.inOut });
+    const m = `linear-gradient(108deg, #000 ${p - 8}%, transparent ${p + 8}%)`;
+    style = { WebkitMaskImage: m, maskImage: m };
+    edge = <AbsoluteFill style={{ mixBlendMode: "screen", background: `linear-gradient(108deg, transparent ${p - 7}%, rgba(255,240,215,0.75) ${p}%, transparent ${p + 7}%)` }} />;
   } else if (type === "zoom") {
     // lands from a push-in: starts magnified and smeared, settles; opacity covers the seam
     const p = cubicOut(frame / ZOOM), v = 1 - p;
     bx = v * 16; by = v * 16; rgb = v * 18;
     style = { transform: `scale(${1 + 0.45 * v})`, opacity: Math.min(1, (frame + 1) / 3), ...fxStyle(id, bx, by, rgb, v > 0.02 ? [`brightness(${1 + 0.25 * v})`] : []) };
   } else if (type === "fade") {
-    style = { opacity: interpolate(frame, [0, Math.round(fps * 0.4)], [0, 1], { ...clamp, easing: ease.inOut }) };
+    const p = interpolate(frame, [0, Math.round(fps * 0.4)], [0, 1], { ...clamp, easing: ease.inOut });
+    style = { opacity: p, transform: `scale(${1.025 - 0.025 * p})` };
+  } else if (type === "leak") {
+    // Cross-dissolve under a light leak, with a slight push.
+    const p = interpolate(frame, [0, 16], [0, 1], { ...clamp, easing: ease.inOut });
+    style = { opacity: p, transform: `scale(${1.06 - 0.06 * p})`, filter: p < 1 ? `brightness(${1 + (1 - p) * 0.6})` : undefined };
+  } else if (type === "burn") {
+    style = { opacity: interpolate(frame, [3, 13], [0, 1], { ...clamp, easing: ease.inOut }) };
   } else if (type === "glitch" && frame < 7) {
     const j = (k: string) => (random(`${k}${frame}`) * 2 - 1);
     rgb = 10 + Math.abs(j("gr")) * 26;
@@ -118,9 +146,10 @@ export const TransitionIn: React.FC<{ type: Transition; children: React.ReactNod
   return (
     <AbsoluteFill>
       {bx > 0.3 || by > 0.3 || rgb >= 0.5 ? <FxFilter id={id} bx={bx} by={by} rgb={rgb} /> : null}
+      {blurId && <DirBlur id={blurId} amount={blurAmt} />}
       <AbsoluteFill style={style}>{children}</AbsoluteFill>
       {type === "glitch" && frame < 7 ? <GlitchBars frame={frame} /> : null}
-      {type === "flash" ? <AbsoluteFill style={{ background: "radial-gradient(circle at 50% 42%, #fff 0%, rgba(255,246,232,0.95) 45%, rgba(255,236,210,0.8) 100%)", mixBlendMode: "screen", opacity: interpolate(frame, [0, 2, 8], [0.95, 0.8, 0], clamp) }} /> : null}
+      {edge}
       {type === "light" ? <LightLeak t={frame} /> : null}
     </AbsoluteFill>
   );
@@ -133,6 +162,7 @@ export const TransitionOut: React.FC<{ type: Transition; start: number; children
   const t = frame - start;
   let style: React.CSSProperties = {};
   let bx = 0, by = 0, rgb = 0;
+  let blurId: string | null = null, blurAmt = 0;
   if (t >= 0 && type === "whip") {
     const p = cubicOut(t / WHIP), v = 1 - p;
     bx = v * v * 70; rgb = v * v * 14;
@@ -142,6 +172,10 @@ export const TransitionOut: React.FC<{ type: Transition; start: number; children
     const w = cubicIn((t + 3) / 3);
     bx = w * 40;
     style = { transform: `translateX(${-w * width * 0.06}px)`, ...fxStyle(id, bx, 0, 0, []) };
+  } else if (t >= 0 && type === "push") {
+    const p = interpolate(t, [0, 13], [0, 1], { ...clamp, easing: ease.inOut });
+    blurId = "tr-push-out"; blurAmt = Math.sin(p * Math.PI) * 44;
+    style = { transform: `translateX(${-p * width}px)`, filter: `url(#${blurId})` };
   } else if (t >= 0 && type === "zoom") {
     const p = cubicIn(Math.min(1, (t + 1) / 3));
     bx = by = p * 18; rgb = p * 16;
@@ -155,10 +189,61 @@ export const TransitionOut: React.FC<{ type: Transition; start: number; children
   return (
     <AbsoluteFill>
       {bx > 0.3 || by > 0.3 || rgb >= 0.5 ? <FxFilter id={id} bx={bx} by={by} rgb={rgb} /> : null}
+      {blurId && <DirBlur id={blurId} amount={blurAmt} />}
       <AbsoluteFill style={style}>{children}</AbsoluteFill>
       {type === "light" && t >= -6 && t < 0 ? <LightLeak t={t} /> : null}
     </AbsoluteFill>
   );
+};
+
+// Above both pictures. `frame` 0 here is OVERLAY_LEAD frames before the cut.
+export const OVERLAY_LEAD = 10;
+export const TransitionOverlay: React.FC<{ type: Transition; seed: number }> = ({ type, seed }) => {
+  const frame = useCurrentFrame();
+  const { width, height } = useVideoConfig();
+  const t = frame - OVERLAY_LEAD; // 0 = the cut
+  if (type === "flash") {
+    return <AbsoluteFill style={{ background: "#fff", opacity: interpolate(t, [-3, 0, 2, 11], [0, 1, 0.92, 0], { ...clamp, easing: ease.inOut }) }} />;
+  }
+  if (type === "burn") {
+    // Film burn: warm light blooms from one edge and rolls across as the picture changes.
+    const side = seed % 2 ? 1 : -1;
+    const o = interpolate(t, [0, 6, 13, 22], [0, 1, 0.8, 0], clamp);
+    const cx = 50 + side * interpolate(t, [0, 22], [-62, 58], clamp);
+    return (
+      <AbsoluteFill style={{ mixBlendMode: "screen", opacity: o }}>
+        <AbsoluteFill style={{ background: `radial-gradient(ellipse 58% 120% at ${cx}% 55%, rgba(255,246,225,1) 0%, rgba(255,170,70,0.92) 30%, rgba(220,60,20,0.55) 58%, transparent 80%)` }} />
+        <AbsoluteFill style={{ background: `radial-gradient(ellipse 28% 70% at ${cx + side * 24}% 28%, rgba(255,205,120,0.8), transparent 75%)` }} />
+      </AbsoluteFill>
+    );
+  }
+  if (type === "leak") {
+    // Light leak: warm amber and a teal edge bloom across the frame as the shots dissolve.
+    const side = seed % 2 ? 1 : -1;
+    const o = interpolate(t, [-8, 2, 10, 24], [0, 0.95, 0.8, 0], { ...clamp, easing: ease.inOut });
+    const cx = 50 + side * interpolate(t, [-8, 24], [-45, 45], clamp);
+    return (
+      <AbsoluteFill style={{ mixBlendMode: "screen", opacity: o }}>
+        <AbsoluteFill style={{ background: `radial-gradient(ellipse 45% 95% at ${cx}% 40%, rgba(255,214,150,0.95) 0%, rgba(255,140,50,0.75) 30%, rgba(200,60,20,0.35) 55%, transparent 75%)` }} />
+        <AbsoluteFill style={{ background: `radial-gradient(ellipse 30% 70% at ${100 - cx}% 70%, rgba(60,170,190,0.55), transparent 70%)` }} />
+        <AbsoluteFill style={{ background: `linear-gradient(${side > 0 ? 100 : 80}deg, transparent ${cx - 25}%, rgba(255,240,220,0.35) ${cx}%, transparent ${cx + 25}%)` }} />
+      </AbsoluteFill>
+    );
+  }
+  if (type === "shutter") {
+    // Dark blades close across the frame, the picture changes behind them, and they open.
+    const N = 7;
+    return (
+      <AbsoluteFill>
+        {Array.from({ length: N }, (_, i) => {
+          const d = i * 0.7;
+          const k = interpolate(t, [-9 + d, -2 + d * 0.3, 2 + d * 0.3, 9 + d], [0, 1, 1, 0], { ...clamp, easing: ease.inOut });
+          return <div key={i} style={{ position: "absolute", left: (i * width) / N - 1, width: width / N + 2, top: 0, height, background: "#08090B", transform: `scaleY(${k})`, transformOrigin: i % 2 ? "top" : "bottom" }} />;
+        })}
+      </AbsoluteFill>
+    );
+  }
+  return null;
 };
 
 const GlitchBars: React.FC<{ frame: number }> = ({ frame }) => {

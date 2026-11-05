@@ -382,6 +382,8 @@ If the render can't download Chrome, set `REMOTION_BROWSER=/path/to/chrome`
 `file:` assets still work; other shots fall back to an animated kinetic
 background - fine for a test, not for a real upload; tell the user.
 
+**Studio.** For long form, `npm run edit` opens the full editing app (http://localhost:3300: live preview, timeline, inspector, mixer, render queue, the owner's comments on frames) - see `references/advanced-edit.md`. Read `node scripts/comments.mjs` before changing an edit the owner has commented on.
+
 **Editor view.** `auto.mjs` also starts a local editor page,
 http://localhost:3100 (or `npm run editor`, which opens the browser): a preview
 player, a multi-track timeline (chapters, scenes, picture with thumbnails,
@@ -514,6 +516,34 @@ charts), edit `src/components/` and follow the motion rules of the
 `remotion-motion-graphics` skill if it is installed: springs not linear, 2-3
 property entrances, staggers, exits faster than entrances.
 
+## Lessons from real productions
+
+Learned the hard way on client long-form work; follow them unless the user says otherwise.
+
+- **Patch a project's scripts, never overwrite them.** Projects drift from the
+  template (extra sources, fixes, a client's looks). To bring a template change into
+  a project: back the file up, diff it, and patch the project's own copy; copy whole
+  files only when they're new.
+- **Ask before adding a whole category of element** the user hasn't asked for
+  (spot sound effects, ambience beds, captions, text pops, a new graphic family).
+  A wrong guess costs a full revision round; one question costs seconds.
+- **The reference sets the style, never the content.** Match its look, pace, text
+  style and transitions; never reuse its footage, wording or exact layouts - that is
+  how channels get claims and strikes.
+- **When the reference has no captions, render none** (`captions.style: "none"`,
+  `callouts: "off"`), and add no decoration it doesn't have.
+- **Transitions only where the story changes** (a chapter, a time jump, a reveal),
+  varied, each with a clearly audible sound; cuts everywhere else.
+- **Vary the motion on stills** - never the same move on photo after photo (still
+  choreography does this by default).
+- **Choppy footage reads as "glitchy" to clients**: low-frame-rate or stop-motion
+  clips and hard cuts between crops of one picture get rejected. The fetcher and
+  timeline filter both; still look at the storyboard.
+- **One shot, one use** (`check-repeats.mjs`): a repeated clip is the first thing a
+  viewer notices.
+- **Never upload without an explicit yes**, and always put `build/credits.txt` in
+  the description.
+
 ## Batch mode
 
 For N videos: one folder per video (`cp -r template video-01`), share
@@ -533,3 +563,4 @@ at once (`references/youtube-upload.md`, Batch + schedule; about 6 uploads a day
 - `references/project-schema.md` - every project.json field and what it does.
 - `references/youtube-upload.md` - thumbnail options, Google Cloud setup, upload, scheduling, limits.
 - `references/troubleshooting.md` - render, network, TTS and alignment failures.
+- `references/advanced-edit.md` - long-form tools: Studio app and comments, stage graphics, overlays on footage, weapon / 3D explainers, still choreography, push / wipe / burn / leak / shutter transitions with their own sounds, crimson / cinema / dossier styles, more free sources, hand-picking, footage bank, one-shot-one-use check.

@@ -357,7 +357,7 @@ function alignMs(file, mode) {
 timeline.sfxPeaks = {};
 for (const [slot, list] of Object.entries(timeline.sfxFiles ?? {})) {
   for (const src of list) {
-    if (fs.existsSync(path.join(PUBLIC, src))) timeline.sfxPeaks[src] = alignMs(path.join(PUBLIC, src), PEAK_ALIGNED.has(slot) ? "peak" : "onset");
+    if (fs.existsSync(path.join(PUBLIC, src))) timeline.sfxPeaks[src] = alignMs(path.join(PUBLIC, src), PEAK_ALIGNED.has(slot) || slot.startsWith("tr") ? "peak" : "onset");
   }
 }
 // Beat sounds start on their cut (a door slam, a camera shutter): onset.

@@ -1,8 +1,8 @@
 // One B-roll shot: stock video, still (slow camera move), a motion graphic, or
 // the title-card fallback when nothing matched.
-import { AbsoluteFill, Img, OffthreadVideo, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Img, OffthreadVideo, interpolate, random, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { clamp, ease, springs, type Style } from "../theme";
-import type { Shot as ShotT } from "../types";
+import type { PathKey, Shot as ShotT } from "../types";
 import { Graphic } from "./Graphic";
 
 // No footage: the line itself, set as a title card on a slow light sweep. It is
@@ -53,7 +53,71 @@ const ccCss = (shot: ShotT, seed: number, base: string) =>
   shot.cc ? `url(#${ccId(shot, seed)}) brightness(${shot.cc.bright}) contrast(${shot.cc.contrast}) ${base}` : base;
 const THIRDS: [number, number][] = [[33, 38], [67, 38], [50, 45], [33, 62], [67, 62]];
 
+// A still's own choreography: keyframes from build-timeline, each stretch with its
+// own feel ("snap" arrives fast and settles, "lin" keeps drifting, "jump" is a cut
+// inside the picture), plus an optional layer for depth, film gate, focus or light.
+export const pathAt = (path: PathKey[], t: number) => {
+  let k = 0;
+  while (k < path.length - 2 && t >= path[k + 1].t) k++;
+  const a = path[k], b = path[k + 1] ?? a;
+  if (b.e === "jump" && t < b.t) return a;
+  const span = Math.max(0.0001, b.t - a.t);
+  const raw = Math.min(1, Math.max(0, (t - a.t) / span));
+  const e = b.e === "lin" || b.e === "jump" ? raw : b.e === "snap" ? ease.out(raw) : ease.inOut(raw);
+  const m = (x: number, y: number) => x + (y - x) * e;
+  return { s: m(a.s, b.s), x: m(a.x, b.x), y: m(a.y, b.y), r: m(a.r, b.r) };
+};
+
+const Choreo: React.FC<{ shot: ShotT; seed: number }> = ({ shot, seed }) => {
+  const frame = useCurrentFrame();
+  const { width } = useVideoConfig();
+  const t = Math.min(1, frame / Math.max(1, shot.durationInFrames - 1));
+  const p = pathAt(shot.path!, t);
+  const src = staticFile(shot.src!);
+  const fx = shot.pathFx;
+  const [fxX, fxY] = shot.focus ?? [50, 45];
+  const look = ccCss(shot, seed, "saturate(1.05) contrast(1.05)");
+  // Film gate: the frame weaves and the exposure breathes like a projected print.
+  const weave = fx === "gate" ? { x: (random(`wx${seed}-${frame}`) - 0.5) * 0.28, y: (random(`wy${seed}-${frame}`) - 0.5) * 0.42, b: 0.95 + random(`wb${seed}-${frame}`) * 0.1 } : { x: 0, y: 0, b: 1 };
+  const layer = (extra: React.CSSProperties = {}, tx = 0, sc = 1) => (
+    <AbsoluteFill style={{ transform: `translate(${p.x + weave.x + tx}%, ${p.y + weave.y}%) scale(${p.s * sc}) rotate(${p.r}deg)`, ...extra }}>
+      <Img src={src} style={{ width: "100%", height: "100%", objectFit: "cover", filter: fx === "gate" ? `${look} grayscale(0.55) sepia(0.2) brightness(${weave.b})` : look }} />
+    </AbsoluteFill>
+  );
+  const rackIn = interpolate(frame, [0, Math.min(26, shot.durationInFrames * 0.5)], [1, 0], { ...clamp, easing: ease.inOut });
+  const mask = `radial-gradient(ellipse 34% 44% at ${fxX}% ${fxY}%, #000 58%, transparent 100%)`;
+  return (
+    <AbsoluteFill style={{ overflow: "hidden", background: "#000" }}>
+      {fx === "rack" ? (
+        <>
+          {/* Focus pulls from the whole frame to the subject; the edges stay soft. */}
+          <AbsoluteFill style={{ transform: `translate(${p.x}%, ${p.y}%) scale(${p.s})` }}>
+            <Img src={src} style={{ width: "100%", height: "100%", objectFit: "cover", filter: `${look} blur(${5 + rackIn * 3}px)` }} />
+          </AbsoluteFill>
+          {layer({ WebkitMaskImage: mask, maskImage: mask, opacity: 1 - rackIn })}
+        </>
+      ) : fx === "parallax" ? (
+        <>
+          {layer({}, interpolate(t, [0, 1], [2.2, -2.2]))}
+          {layer({ WebkitMaskImage: mask, maskImage: mask }, interpolate(t, [0, 1], [-2.6, 2.6]), 1.05)}
+        </>
+      ) : layer()}
+      {fx === "sweep" && (
+        <AbsoluteFill style={{ mixBlendMode: "screen", background: `linear-gradient(112deg, transparent ${interpolate(t, [0, 1], [-40, 110])}%, rgba(255,236,205,0.26) ${interpolate(t, [0, 1], [-22, 128])}%, transparent ${interpolate(t, [0, 1], [-4, 146])}%)` }} />
+      )}
+      {fx === "gate" && (
+        <AbsoluteFill style={{ boxShadow: `inset 0 0 ${width * 0.09}px rgba(0,0,0,0.75)`, opacity: 0.9 }} />
+      )}
+    </AbsoluteFill>
+  );
+};
+
 const Still: React.FC<{ shot: ShotT; seed: number; motion: Motion }> = ({ shot, seed, motion }) => {
+  if (shot.path?.length) return <Choreo shot={shot} seed={seed} />;
+  return <SimpleStill shot={shot} seed={seed} motion={motion} />;
+};
+
+const SimpleStill: React.FC<{ shot: ShotT; seed: number; motion: Motion }> = ({ shot, seed, motion }) => {
   const frame = useCurrentFrame();
   const { width } = useVideoConfig();
   const t = interpolate(frame, [0, shot.durationInFrames], [0, 1], { ...clamp, easing: ease.inOut });
@@ -70,6 +134,13 @@ const Still: React.FC<{ shot: ShotT; seed: number; motion: Motion }> = ({ shot, 
     // runs on a quarter-size layer scaled up: same look, a fraction of the cost.
     const archive = /^(wikimedia|nasa|dvids)-/.test(shot.assetId ?? "");
     const settle = spring({ frame, fps: 30, config: springs.smooth });
+    const variant = seed % 4;
+    const side = seed % 8 < 4 ? 1 : -1;
+    const entrance =
+      variant === 1 ? `translateX(${interpolate(settle, [0, 1], [side * 70, 0])}%) rotate(${interpolate(settle, [0, 1], [side * 3, side * -0.6])}deg) scale(${lerp(1, 1.06)})`
+      : variant === 2 ? `translateY(${interpolate(settle, [0, 1], [-60, 0])}%) rotate(${interpolate(settle, [0, 1], [side * -5, side * 0.8])}deg) scale(${lerp(1.02, 1.08)})`
+      : variant === 3 ? `scale(${interpolate(settle, [0, 1], [0.9, 1]) * lerp(1, 1.3)})`
+      : `scale(${interpolate(settle, [0, 1], [0.94, 1]) * lerp(1, 1.05)}) rotate(${lerp(seed % 2 ? -1.2 : 1.2, seed % 2 ? 0.4 : -0.4)}deg)`;
     return (
       <AbsoluteFill style={{ overflow: "hidden", background: "#000" }}>
         <div style={{ position: "absolute", left: 0, top: 0, width: "25%", height: "25%", transform: `scale(${4 * lerp(1.15, 1.25)})`, transformOrigin: "0 0" }}>
@@ -80,22 +151,46 @@ const Still: React.FC<{ shot: ShotT; seed: number; motion: Motion }> = ({ shot, 
             maxWidth: "80%", maxHeight: "84%", ...look,
             border: archive ? `${width * 0.006}px solid #EFE8DA` : "none", borderRadius: archive ? 2 : width * 0.006,
             boxShadow: `0 ${width * 0.012}px ${width * 0.04}px rgba(0,0,0,0.65)`,
-            transform: `scale(${interpolate(settle, [0, 1], [0.94, 1]) * lerp(1, 1.05)}) rotate(${lerp(seed % 2 ? -1.2 : 1.2, seed % 2 ? 0.4 : -0.4)}deg)`,
+            transform: entrance,
           }} />
         </AbsoluteFill>
       </AbsoluteFill>
     );
   }
 
-  let scale = 1, x = 0, y = 0, blur = 0, origin = "50% 50%";
+  if (move === "parallax") {
+    // Fake depth: the middle of the picture slides against the rest of it.
+    const mask = `radial-gradient(ellipse 46% 56% at ${fx}% ${fy}%, #000 62%, transparent 100%)`;
+    return (
+      <AbsoluteFill style={{ overflow: "hidden" }}>
+        <AbsoluteFill style={{ transform: `translateX(${lerp(3, -3)}%) scale(1.14)` }}>
+          <Img src={src} style={{ width: "100%", height: "100%", objectFit: "cover", ...look }} />
+        </AbsoluteFill>
+        <AbsoluteFill style={{ transform: `translateX(${lerp(-3.5, 3.5)}%) scale(${lerp(1.2, 1.28)})`, transformOrigin: `${fx}% ${fy}%`, WebkitMaskImage: mask, maskImage: mask }}>
+          <Img src={src} style={{ width: "100%", height: "100%", objectFit: "cover", ...look }} />
+        </AbsoluteFill>
+      </AbsoluteFill>
+    );
+  }
+
+  let scale = 1, x = 0, y = 0, blur = 0, rotate = 0, origin = "50% 50%";
+  const snapIn = interpolate(frame, [0, 10], [0, 1], { ...clamp, easing: ease.out });
+  const creep = interpolate(frame, [0, shot.durationInFrames], [0, 1], clamp);
   switch (move) {
-    case "push": scale = grow(1.04, 1.14); origin = `${fx}% ${fy}%`; break;
-    case "pull": scale = grow(1.16, 1.04); origin = `${fx}% ${fy}%`; break;
-    case "pan-left": scale = 1.16; x = lerp(4, -4) * k; break;
-    case "pan-right": scale = 1.16; x = lerp(-4, 4) * k; break;
-    case "tilt-up": scale = 1.16; y = lerp(-3.5, 3.5) * k; break;
-    case "tilt-down": scale = 1.16; y = lerp(3.5, -3.5) * k; break;
-    case "detail": scale = grow(1.03, 1.3); origin = `${fx}% ${fy}%`; break;
+    case "push": scale = grow(1.03, 1.2); origin = `${fx}% ${fy}%`; break;
+    case "pull": scale = grow(1.22, 1.03); origin = `${fx}% ${fy}%`; break;
+    case "pan-left": scale = 1.2; x = lerp(6, -6) * k; break;
+    case "pan-right": scale = 1.2; x = lerp(-6, 6) * k; break;
+    case "tilt-up": scale = 1.2; y = lerp(-5, 5) * k; break;
+    case "tilt-down": scale = 1.2; y = lerp(5, -5) * k; break;
+    case "detail": scale = grow(1.03, 1.42); origin = `${fx}% ${fy}%`; break;
+    case "diag-down": scale = 1.22; x = lerp(-5, 5) * k; y = lerp(-4, 4) * k; break;
+    case "diag-up": scale = 1.22; x = lerp(5, -5) * k; y = lerp(4, -4) * k; break;
+    case "reveal": scale = grow(1.55, 1.05); origin = `${fx}% ${fy}%`; break;
+    case "tilt-rotate": scale = grow(1.1, 1.24); rotate = lerp(-2, 1.6); origin = `${fx}% ${fy}%`; break;
+    case "handheld": scale = 1.14; x = Math.sin(frame / 17) * 1.1 + Math.sin(frame / 7) * 0.3; y = Math.cos(frame / 23) * 0.9; rotate = Math.sin(frame / 29) * 0.45; break;
+    case "snap": scale = 1.02 + 0.16 * snapIn + 0.07 * creep; origin = `${fx}% ${fy}%`; blur = (1 - snapIn) * 5; break;
+    case "slam": scale = 1.38 - 0.3 * snapIn + 0.06 * creep; origin = `${fx}% ${fy}%`; blur = (1 - snapIn) * 7; break;
     case "focus":
       scale = grow(1.12, 1.04);
       blur = interpolate(frame, [0, 14], [10, 0], { ...clamp, easing: ease.out });
@@ -103,7 +198,7 @@ const Still: React.FC<{ shot: ShotT; seed: number; motion: Motion }> = ({ shot, 
   }
   return (
     <AbsoluteFill style={{ overflow: "hidden" }}>
-      <AbsoluteFill style={{ transform: `translate(${x}%, ${y}%) scale(${scale})`, transformOrigin: origin }}>
+      <AbsoluteFill style={{ transform: `translate(${x}%, ${y}%) scale(${scale}) rotate(${rotate}deg)`, transformOrigin: origin }}>
         <Img src={src} style={{ width: "100%", height: "100%", objectFit: "cover", ...look, ...(blur > 0.05 ? { filter: `${look.filter} blur(${blur}px)` } : {}) }} />
       </AbsoluteFill>
     </AbsoluteFill>
@@ -115,7 +210,7 @@ export const Shot: React.FC<{ shot: ShotT; style: Style; seed: number; motion?: 
   const { fps } = useVideoConfig();
   const fade = shot.fadeIn ? interpolate(frame, [0, shot.fadeIn], [0, 1], { ...clamp, easing: ease.inOut }) : 1;
   // Graphics have their own motion; no Ken Burns or cut punch on top of a chart.
-  if (shot.type === "graphic" && shot.graphic) return <Graphic graphic={shot.graphic} style={style} dur={shot.durationInFrames} />;
+  if (shot.type === "graphic" && shot.graphic) return <AbsoluteFill style={{ opacity: fade }}><Graphic graphic={shot.graphic} style={style} dur={shot.durationInFrames} /></AbsoluteFill>;
   if (shot.type !== "video" && shot.type !== "image" || !shot.src) return <Kinetic style={style} seed={seed} words={shot.words} />;
   const punch = motion === "punchy" ? interpolate(spring({ frame, fps, config: springs.punch }), [0, 1], [1.06, 1]) : 1;
   if (shot.type === "image") {
