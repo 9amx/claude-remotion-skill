@@ -19,6 +19,7 @@
     "thumbnail": "node scripts/thumbnail.mjs",
     "youtube": "node scripts/youtube.mjs",
     "adobe": "node scripts/adobe-stock.mjs",
+    "yt": "node scripts/yt-engine.mjs",
     "editor": "node scripts/editor.mjs --open",
     "remote": "node scripts/remote-agent.mjs"
   },
@@ -38,6 +39,7 @@
     "three-globe": "^2.45.0"
   },
   "optionalDependencies": {
+    "@huggingface/transformers": "^3.8.1",
     "@remotion/install-whisper-cpp": "^4.0.0"
   },
   "devDependencies": {

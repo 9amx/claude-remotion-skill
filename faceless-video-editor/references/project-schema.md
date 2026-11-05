@@ -36,6 +36,10 @@
   "maxShotSeconds": 2.2,             // B-roll cut length (default from editStyle)
   "brollSources": ["pexels", "pixabay"], // search order; sources without a key are skipped. "coverr" joins
                                      // (last) whenever COVERR_API_KEY is set; DVIDS runs with the archive sources
+  "vision": true,                    // CLIP picture check (scripts/vision.mjs): thumbnails rank, clips must show the keyword, best-moment trim
+  "visionMin": 0.4,                  // 0-1: a downloaded clip scoring lower is replaced by the next result
+  "youtubeCC": true,                 // YouTube Creative Commons as an archive source when YOUTUBE_API_KEY / the sign-in exists
+  "youtubeMaxSearches": 30,          // YouTube searches per run (100 quota units each, 10,000 free a day)
   "brollMinRelevance": 0.4,          // auto-pick only results sharing this share of keyword words (0 = anything goes)
   "colorMatch": true,                // even out exposure, contrast and white balance across clips from different libraries
   "qualityGate": true,               // skip footage that is too small for the frame, heavily compressed or out of focus
@@ -84,7 +88,7 @@
         { "on": "later words", "kw": ["photo:keyword"] },
         { "on": "173 million", "graphic": { "type": "bars", "data": [["A", 1], ["B", 2]], "source": "..." } },  // counter | bars | map | globe | radar | profile | aircraft | timeline | quote | list | steps | compare | statement | ui (broll-keywords.md)
         "plain keyword"              // also fine: matched to the line automatically
-      ],                             // kw prefixes: photo: archive: ai: file: adobe:; sfx: a file in public/ or a kit sound (hit, whoosh, pop, ...),
+      ],                             // kw prefixes: photo: archive: yt: ai: (and "-word" exclusions) file: adobe:; sfx: a file in public/ or a kit sound (hit, whoosh, pop, ...),
                                      //   or { "file": "...", "volume": 0.45 }
       "ambience": "sfx/amb/rain.mp3", // optional bed under the scene ({ "file", "volume": 0.1 }); "none" stops a chapter's
       "visual": "kinetic"            // optional: skip B-roll for this scene

@@ -78,7 +78,7 @@ project.scenes.forEach((scene, i) => {
   const id = sceneId(i);
   const tlScene = timeline?.scenes.find((s) => s.id === id);
   // Keyword prefixes (photo:, archive:, file:...) say where a picture comes from, not what it shows.
-  const kws = brollEntries(scene).flatMap((e) => e.kw).join(" ").toLowerCase().replace(/\b(photo|archive|file|ai|adobe):/g, "");
+  const kws = brollEntries(scene).flatMap((e) => e.kw).join(" ").toLowerCase().replace(/\b(photo|archive|yt|file|ai|adobe):/g, "");
   const text = `${kws} ${scene.text}`.toLowerCase();
   if (!scene.ambience) {
     const hit = AMBIENCE.find(([re]) => re.test(text));
@@ -89,7 +89,7 @@ project.scenes.forEach((scene, i) => {
     if (e.graphic || e.sfx || !e.on) return;
     const t = startSec + (tlScene?.shots[k] ? tlScene.shots[k].from / timeline.fps : 0);
     if (t - lastSpot < 8) return;
-    const words = `${e.kw.join(" ")} ${e.on}`.toLowerCase().replace(/\b(photo|archive|file|ai|adobe):/g, "");
+    const words = `${e.kw.join(" ")} ${e.on}`.toLowerCase().replace(/\b(photo|archive|yt|file|ai|adobe):/g, "");
     const hit = SPOTS.find(([re]) => re.test(words));
     if (!hit) return;
     const key = `${id}-${k + 1}`;

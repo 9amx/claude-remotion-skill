@@ -6,7 +6,7 @@ says, then review every shot (SKILL.md Step 3). Accuracy comes from both.
 | The voice says... | Use | Why |
 |---|---|---|
 | a generic thing or action ("scrolling a phone", "city at night") | stock: Pixabay, Adobe Stock (connector), Pexels if you have a key | filmed, plentiful |
-| a real person, place, event, date ("Apollo 11", "Dhaka 1971") | `archive:` (Wikimedia Commons, NASA), licensed news footage | stock lookalikes and AI are wrong by definition |
+| a real person, place, event, date ("Apollo 11", "Dhaka 1971") | `archive:` (Wikimedia Commons, NASA, DVIDS, YouTube CC), licensed news footage | stock lookalikes and AI are wrong by definition |
 | a number, comparison, ranking, share | `graphic` counter / bars | drawn from your data: exactly right |
 | where something is, a route, a country | `graphic` map | real borders, geocoded places |
 | a sequence of dates | `graphic` timeline | the dates are the content |
@@ -40,6 +40,16 @@ says, then review every shot (SKILL.md Step 3). Accuracy comes from both.
   government work (public domain); some carry a third-party copyright notice on
   their page - check the page of anything central to the video. Credit is
   written anyway, and nothing may suggest the military endorses the video.
+- **YouTube Creative Commons** (`YOUTUBE_API_KEY` or the channel sign-in):
+  built in, searched like DVIDS (`archive:` keywords and keywords naming
+  something real; `yt:` searches only YouTube). Every result gets a license
+  record (CC BY, attribution, red flags for re-uploads) in
+  `build/yt/licenses.json`, and a video becomes a candidate only once its file
+  is authorized: the maker's own file, one you imported, or a recorded
+  permission (`scripts/yt-engine.mjs source / import / authorize`). Good matches
+  still waiting for that are listed in `build/yt/wanted.json`. Clips are cut at
+  the matched chapter, silent, and credited. Rules and the standalone engine:
+  `references/youtube-cc-engine.md`.
 - **Paid, by sales**: Storyblocks API (Enterprise), Shutterstock API, Getty
   Images (the legitimate source for news, sports and celebrities).
 - **No API** (download by hand, use `file:`): Envato Elements, Artgrid, Mixkit,
@@ -90,6 +100,11 @@ Clips you can use:
   footage in their own archives (`archive:` covers NASA and Wikimedia).
 - **Shorts Remix -> Cut** in the YouTube app: 1-5 seconds of an eligible video
   inside a Short, credited and linked by YouTube itself.
+
+`scripts/yt-engine.mjs` automates the Creative Commons route for a whole script:
+keywords per sentence, CC-only search, timestamps with confidence, license
+records, download only from an authorized source, ffmpeg cuts and an editor
+package (`references/youtube-cc-engine.md`).
 
 Use them as `"file:clips/source.mp4#12.5-16"` (just that part, cut exactly) with
 a `"credit"` on the beat; the credit lands in `build/credits.txt` and the

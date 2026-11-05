@@ -9,12 +9,16 @@
 //   DVIDS    (DVIDS_API_KEY)   US military / government video: wars, disasters, rescues,
 //                              aircraft, ships. Mostly public domain; credited anyway
 //   OpenAI images (OPENAI_API_KEY) generated stills for "ai:" keywords
+//   YouTube CC (YOUTUBE_API_KEY or the channel sign-in) Creative Commons video, license-checked
+//                              (yt-lib.mjs); used only when an authorized file exists (yt-engine.mjs
+//                              source / import / authorize). Searched like DVIDS: real things only
 // Keyword prefixes in scene.broll:
 //   "city traffic night"   stock video first, photos as fallback; archive photos join in
 //                          automatically when the keyword names something real (a year,
 //                          a proper noun) or stock has nothing relevant
 //   "photo:old map"        photos only (stock + archive)
-//   "archive:Apollo 11"    Wikimedia + NASA (+ DVIDS video) only: accurate, real imagery
+//   "archive:Apollo 11"    Wikimedia + NASA (+ DVIDS, YouTube CC video) only: accurate, real imagery
+//   "yt:Saturn V liftoff"  YouTube Creative Commons only
 //   "ai:prompt"            generate an image (needs OPENAI_API_KEY)
 //   "file:clip.mp4"        your own asset in public/; "file:talk.mp4#12.5-16" uses just
 //                          that part (cut once into broll/clip-*.mp4). A beat's "credit"
@@ -49,6 +53,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { BLOCK, BUILD, FORMATS, GRAPHIC_TYPES, PUBLIC, ROOT, adobeAsset, ffmpeg, ffmpegRaw, fail, log, parseFileRef, planShots, probeDuration, probeSize, readJson, readProject,
   relevance, sceneId, sleep, status, writeJson } from "./lib.mjs";
+import { NOT_REAL, QuotaError, YT, authorizedSource, fetchRaw, licenseFor, loadLicenses, noteWanted, saveLicenses, searchCC, usable, videoDetails, windowFor,
+  ytAvailable } from "./yt-lib.mjs";
+import { bestMoment, checkMedia, clearVisionTmp, scoreImages, visionReady, visualQuery } from "./vision.mjs";
+import { mismatch } from "./match-rules.mjs";
 
 const args = process.argv.slice(2);
 const reviewArg = args.find((a) => a.startsWith("--review"));
@@ -65,7 +73,16 @@ const KEYS = { pexels: process.env.PEXELS_API_KEY, pixabay: process.env.PIXABAY_
 const listed = project.brollSources ?? ["pexels", "pixabay"];
 const stockSources = [...listed, ...(listed.includes("coverr") ? [] : ["coverr"])].filter((s) => KEYS[s]);
 const archiveOn = project.archive !== false; // Wikimedia + NASA need no key, DVIDS needs DVIDS_API_KEY
-const ARCHIVE = new Set(["wikimedia", "nasa", "dvids"]);
+const ARCHIVE = new Set(["wikimedia", "nasa", "dvids", "youtube"]);
+// YouTube Creative Commons (yt-lib.mjs): on with YOUTUBE_API_KEY or the channel sign-in, for archive: / yt:
+// keywords and lines that name something real. A search costs 100 of the 10,000 free daily quota units.
+const ytOn = project.youtubeCC !== false && ytAvailable();
+const ytBudget = project.youtubeMaxSearches ?? 30;
+// Vision (vision.mjs, CLIP): a downloaded clip must show its keyword at least this much (0-1), else the next result.
+const VMIN = project.visionMin ?? 0.4;
+const visionOn = project.vision !== false && (await visionReady());
+let ytSearches = 0;
+const ytWanted = new Set();
 const maxWaitMs = (project.brollMaxWaitMinutes ?? 0) * 60_000;
 const trim = project.trimBroll !== false;
 // Below this share of keyword words a result is never auto-picked: 1 of 3 words ("closed shop sign" -> a shop) is not a match.
@@ -221,6 +238,45 @@ const SOURCES = {
         credit: `NASA - "${d.title}" (${d.center ?? "NASA"}) - https://images.nasa.gov/details/${encodeURIComponent(id)}` };
     }).filter(Boolean);
   },
+  // YouTube Creative Commons, same rules as scripts/yt-engine.mjs: every video gets a license record
+  // (build/yt/licenses.json); only CC BY videos that pass it AND have an authorized file (the maker's
+  // file, an imported one, or a recorded authorization) become candidates. Good matches still missing
+  // the file or a person's check are listed in build/yt/wanted.json.
+  async youtube(query, minSec) {
+    const cacheFile = path.join(BUILD, "search-cache", `yt-${Buffer.from(query).toString("base64url").slice(0, 140)}.json`);
+    let ids = readJson(cacheFile, null);
+    if (!ids) {
+      if (exhausted.has("youtube")) throw new RateLimited("youtube");
+      if (ytSearches >= ytBudget) { exhausted.add("youtube"); log("broll", `youtube: ${ytBudget} searches this run (youtubeMaxSearches), the rest without it`); throw new RateLimited("youtube"); }
+      try { ids = await searchCC(query, { max: 10 }); ytSearches++; searches++; }
+      catch (e) { if (e instanceof QuotaError) { exhausted.add("youtube"); log("broll", "youtube quota used up for today, using other sources"); throw new RateLimited("youtube"); } throw e; }
+      writeJson(cacheFile, ids);
+    }
+    const vfile = path.join(YT, "videos.json"), videos = readJson(vfile, {});
+    const missing = ids.filter((id) => !videos[id]);
+    if (missing.length) { Object.assign(videos, await videoDetails(missing)); writeJson(vfile, videos); }
+    const lic = loadLicenses();
+    const out = [];
+    for (const id of ids) {
+      const v = videos[id];
+      if (!v || v.duration < Math.min(3, minSec)) continue;
+      if (NOT_REAL.test(`${v.title} ${v.tags.join(" ")}`) && !NOT_REAL.test(query)) continue; // a model / toy / game, not the thing
+      lic[id] = licenseFor(v, lic[id]);
+      const text = `${v.title} ${v.tags.join(" ")} ${v.description.slice(0, 300)}`;
+      if (!usable(lic[id]) || !authorizedSource(id)) {
+        if (lic[id].status !== "rejected" && relevance(query, text) >= MIN_REL) {
+          noteWanted(v, usable(lic[id]) ? "no authorized file yet" : `license review: ${lic[id].flags.join("; ")}`, query); ytWanted.add(id);
+        }
+        continue;
+      }
+      const w = windowFor(v, [query], minSec + 4);
+      out.push({ id: `youtube-${id}`, source: "youtube", kind: "video", url: null, ytId: id, startAt: w.start, ext: "mp4", thumb: v.thumb,
+        text: `${text} ${w.chapter ?? ""}`, w: v.definition === "hd" ? 1920 : 640, h: v.definition === "hd" ? 1080 : 360, duration: v.duration,
+        credit: lic[id].attribution });
+    }
+    saveLicenses(lic);
+    return out;
+  },
 };
 
 // ---------- relevance ----------
@@ -250,12 +306,24 @@ function rank(cands, query, minSec) {
 // All candidates for a keyword from every source, best first (with
 // brollSearchAll: false it stops once there are enough relevant ones).
 async function candidatesFor(keyword, minSec, want = 6) {
-  const mode = keyword.match(/^(photo|archive):/)?.[1] ?? "auto";
-  const query = keyword.replace(/^(photo|archive):/, "").trim();
-  // DVIDS is military / government video: only for archive: keywords and lines that
-  // name something real, never for a photo: shot or a generic "office desk".
-  const dvids = KEYS.dvids && mode !== "photo" && (mode === "archive" || factual(query)) ? ["dvids"] : [];
-  const archive = archiveOn ? [...dvids, "wikimedia", "nasa"] : [];
+  const mode = keyword.match(/^(photo|archive|yt):/)?.[1] ?? "auto";
+  // "-word" exclusions are for the rules (match-rules.mjs), not for the search engines.
+  const query = visualQuery(keyword).query;
+  // Wrong generation / era, a toy or game, an excluded word: dropped before anything is downloaded.
+  const fits = (list) => list.filter((c) => !mismatch(keyword, c.text));
+  // "yt:" = YouTube Creative Commons only.
+  if (mode === "yt") {
+    if (!ytOn) log("broll", `"${keyword}": yt: needs YOUTUBE_API_KEY (or node scripts/youtube.mjs --auth)`);
+    let pool = [];
+    try { if (ytOn) pool = await SOURCES.youtube(query, minSec); } catch (e) { if (!(e instanceof RateLimited)) log("broll", `youtube search failed (${e.message})`); }
+    return fits(rank(pool, query, minSec));
+  }
+  // DVIDS (military / government video) and YouTube CC: only for archive: keywords and lines
+  // that name something real, never for a photo: shot or a generic "office desk".
+  const real = mode !== "photo" && (mode === "archive" || factual(query));
+  const dvids = KEYS.dvids && real ? ["dvids"] : [];
+  const yt = ytOn && real ? ["youtube"] : [];
+  const archive = archiveOn ? [...dvids, ...yt, "wikimedia", "nasa"] : [];
   const photos = [...(KEYS.pexels ? ["pexelsPhoto"] : []), ...(KEYS.pixabay ? ["pixabayPhoto"] : [])];
   const order =
     mode === "archive" ? archive :
@@ -271,7 +339,7 @@ async function candidatesFor(keyword, minSec, want = 6) {
     }
     if (!searchAll && rank(pool, query, minSec).filter((c) => c.rel >= 0.5).length >= want) break;
   }
-  return rank(pool, query, minSec);
+  return fits(rank(pool, query, minSec));
 }
 
 // ---------- AI stills for "ai:" keywords ----------
@@ -330,6 +398,22 @@ async function fetchOnce({ shot, hit, shotSec }) {
     shot.duration = probeDuration(trimmed);
     return;
   }
+  // YouTube CC: cut the stretch the match found straight from the authorized file (build/yt/raw/),
+  // silent (a CC video's soundtrack may be someone else's music) and re-encoded so the cut is exact.
+  if (hit.source === "youtube") {
+    const raw = await fetchRaw(hit.ytId);
+    const dur = probeDuration(raw) ?? hit.duration ?? 0;
+    // A chapter gave hit.startAt; CLIP over the whole video finds the stretch that shows it, if it's sure.
+    const bm = visionOn ? await bestMoment(raw, shot.query ?? shot.keyword, keep, { duration: dur }) : null;
+    const start = Math.max(0, Math.min(bm && bm.score >= 0.4 ? bm.start : hit.startAt ?? 0, dur - keep));
+    fs.mkdirSync(path.dirname(trimmed), { recursive: true });
+    const r = ffmpeg(["-ss", start.toFixed(2), "-i", raw, "-t", String(keep), "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "18",
+      "-pix_fmt", "yuv420p", "-movflags", "+faststart", trimmed]);
+    if (r.status !== 0 || !fs.existsSync(trimmed)) throw new Error(`could not cut ${hit.ytId}`);
+    shot.src = path.relative(PUBLIC, trimmed);
+    shot.duration = probeDuration(trimmed);
+    return;
+  }
   if (!fs.existsSync(abs)) {
     await download(await resolveUrl(hit), abs, hit.fallbackUrl);
     if (hit.ping && KEYS.coverr) {
@@ -341,7 +425,10 @@ async function fetchOnce({ shot, hit, shotSec }) {
   shot.duration = probeDuration(abs);
   // Stock clips are often 10-60s; a 40 minute video would keep gigabytes it never shows.
   if (trim && shot.duration && shot.duration > keep + 3) {
-    const offset = Math.min((shot.duration - keep) * 0.35, 4);
+    let offset = Math.min((shot.duration - keep) * 0.35, 4);
+    // The stretch that shows the keyword best (CLIP over the whole clip), not a fixed spot.
+    const bm = visionOn ? await bestMoment(abs, shot.query ?? shot.keyword, keep, { duration: shot.duration }) : null;
+    if (bm && bm.score >= 0.3) offset = Math.min(bm.start, shot.duration - keep);
     const r = ffmpeg(["-ss", offset.toFixed(2), "-i", abs, "-t", String(keep), "-an", "-c:v", "copy", "-movflags", "+faststart", trimmed]);
     if (r.status === 0 && fs.existsSync(trimmed)) {
       if (!hit.local) fs.rmSync(abs); // a licensed original stays: re-downloading needs the connector
@@ -429,10 +516,33 @@ const shotFromHit = (hit, kw, query = kw) => ({ type: hit.kind, src: `broll/${hi
 
 // Best candidate that actually matches: the shot's keyword first, then the beat's
 // other keywords. null = nothing relevant (better a kinetic shot than a random clip).
+// Words chose the candidates; the picture decides between them. Thumbnails (cached in build/vision-thumbs/)
+// are scored with CLIP: one that clearly shows something else (a meme, a toy, a title card) is skipped.
+async function visualPick(cands, q) {
+  if (!cands.length || !visionOn) return cands[0] ?? null;
+  const dir = path.join(BUILD, "vision-thumbs");
+  const files = [];
+  for (const c of cands) {
+    const f = path.join(dir, `${c.id.replace(/[^\w.-]+/g, "_").slice(0, 80)}.img`);
+    if (!fs.existsSync(f) && c.thumb) await download(c.thumb, f).catch(() => {});
+    files.push(fs.existsSync(f) ? f : null);
+  }
+  const sc = await scoreImages(files.filter(Boolean), q);
+  if (!sc) return cands[0];
+  let k = 0;
+  const scored = cands.map((c, i) => ({ c, v: files[i] ? sc[k++]?.match ?? null : null }));
+  // Only a thumbnail that clearly shows something else drops a candidate; YouTube thumbnails are often
+  // clickbait (faces, big text), so there it only ranks - the downloaded frames are checked anyway.
+  const ok = scored.filter((x) => x.v == null || x.v >= 0.1 || x.c.source === "youtube");
+  ok.sort((a, b) => (b.c.rel + 1.5 * (b.v ?? 0.5)) - (a.c.rel + 1.5 * (a.v ?? 0.5)));
+  return ok[0]?.c ?? null;
+}
+
 async function bestFor(shot, shotSec, alts) {
   for (const q of [shot, ...alts.filter((a) => a !== shot)]) {
     if (!q || /^(file|ai|adobe):/.test(q)) continue;
-    const hit = (await candidatesFor(q, shotSec)).find((c) => c.rel >= MIN_REL);
+    const cands = (await candidatesFor(q, shotSec)).filter((c) => c.rel >= MIN_REL).slice(0, 6);
+    const hit = await visualPick(cands, q);
     if (hit) return { hit, query: q };
   }
   return null;
@@ -448,7 +558,15 @@ async function fetchJob(job) {
   for (let attempt = 0; attempt < 4; attempt++) {
     await fetchOnce(job);
     const file = path.join(PUBLIC, job.shot.src);
-    const problem = frameProblem(file, job.shot.type === "video" ? job.shot.duration : null);
+    let problem = frameProblem(file, job.shot.type === "video" ? job.shot.duration : null);
+    // Does it show the thing? (CLIP on 3 frames). Review picks were chosen by eye: never second-guessed.
+    if (!problem && visionOn && !job.picked) {
+      const v = await checkMedia(file, job.query ?? job.kw, { video: job.shot.type === "video", duration: job.shot.duration });
+      if (v) {
+        job.shot.vision = v.score;
+        if (v.score < VMIN) problem = `not showing "${visualQuery(job.query ?? job.kw).query}" (vision ${v.score}${v.junk ? `, looks like ${v.junk}` : ""})`;
+      }
+    }
     if (!problem) {
       log("broll", `${job.label} -> ${job.shot.src}${job.picked ? " (picked)" : ""}`);
       return;
@@ -744,6 +862,36 @@ for (const sh of Object.values(plan).flat()) {
   if (sh.type === "video" && sh.src && !sh.cuts && fs.existsSync(path.join(PUBLIC, sh.src))) sh.cuts = detectCuts(path.join(PUBLIC, sh.src));
 }
 
+// Named shots (a real car, company, place, year) get a frame sheet for a check by eye: CLIP sees "a sports
+// car", not "a 1993 Supra MK4". build/verify/<shot>.jpg = 3 frames; build/verify.json = what the voice says
+// over it. Claude looks at each and sets "ok": true/false (false -> change the keyword or pick, re-run).
+{
+  const vfile = path.join(BUILD, "verify.json"), prevV = readJson(vfile, {}), vdir = path.join(BUILD, "verify"), out = {};
+  fs.mkdirSync(vdir, { recursive: true });
+  for (const [i, scene] of project.scenes.entries()) {
+    const id = sceneId(i);
+    let shots; try { shots = shotsOf(scene, i).shots; } catch { continue; }
+    for (const [k, sh] of (plan[id] ?? []).entries()) {
+      const kw = sh.keyword ?? "", key = `${id}-${k + 1}`;
+      if (!sh.src || !["video", "image"].includes(sh.type) || !(/^(archive|yt):/.test(kw) || factual(kw.replace(/^\w+:/, "")))) continue;
+      const file = path.join(PUBLIC, sh.src), sheet = path.join(vdir, `${key}.jpg`);
+      if (prevV[key]?.src !== sh.src || !fs.existsSync(sheet)) {
+        if (sh.type === "video") {
+          const d = sh.duration ?? probeDuration(file) ?? 3;
+          ffmpeg(["-i", file, "-vf", `fps=${(3 / d).toFixed(4)},scale=-2:240,tile=3x1:padding=6:color=white`, "-frames:v", "1", sheet]);
+        } else ffmpeg(["-i", file, "-vf", "scale=-2:240", "-frames:v", "1", sheet]);
+      }
+      out[key] = { keyword: kw, words: shots[k]?.words ?? "", line: scene.text, src: sh.src, vision: sh.vision ?? null, credit: sh.credit ?? null,
+        sheet: `build/verify/${key}.jpg`, ok: prevV[key]?.src === sh.src ? prevV[key].ok ?? null : null };
+    }
+  }
+  writeJson(vfile, out);
+  const todo = Object.values(out).filter((v) => v.ok == null).length, bad = Object.entries(out).filter(([, v]) => v.ok === false).map(([k]) => k);
+  if (todo) log("broll", `${todo} named shots to check by eye: build/verify/*.jpg against "words" in build/verify.json (set "ok": true / false)`);
+  if (bad.length) log("broll", `marked wrong in build/verify.json: ${bad.join(", ")} - change their keyword or pick and re-run`);
+}
+clearVisionTmp();
+
 writeJson(path.join(BUILD, "broll.json"), plan);
 const all = Object.values(plan).flat();
 const credits = [...new Set(all.map((s) => s.credit).filter(Boolean))];
@@ -752,7 +900,7 @@ const keep = new Set(all.map((s) => s.src).filter(Boolean).map((s) => path.basen
 const brollDir = path.join(PUBLIC, "broll");
 if (fs.existsSync(brollDir)) {
   for (const f of fs.readdirSync(brollDir)) {
-    if ((/^(pexels|pixabay|coverr|dvids|wikimedia|nasa|clip)-/.test(f) || /^adobe-.*\.t\d+\.mp4$/.test(f)) && !keep.has(f) && !f.endsWith(".part")) fs.rmSync(path.join(brollDir, f));
+    if ((/^(pexels|pixabay|coverr|dvids|wikimedia|nasa|youtube|clip)-/.test(f) || /^adobe-.*\.t\d+\.mp4$/.test(f)) && !keep.has(f) && !f.endsWith(".part")) fs.rmSync(path.join(brollDir, f));
   }
 }
 fs.writeFileSync(path.join(BUILD, "credits.txt"), credits.join("\n") + "\n");
@@ -768,6 +916,7 @@ const bySource = {};
 for (const s of all) if (s.assetId) bySource[s.assetId.split("-")[0]] = (bySource[s.assetId.split("-")[0]] ?? 0) + 1;
 if (Object.keys(bySource).length) log("broll", `sources: ${Object.entries(bySource).map(([k, v]) => `${k} ${v}`).join(", ")}`);
 if (credits.some((c) => /CC BY/i.test(c))) log("broll", "CC BY / BY-SA images used: paste build/credits.txt into the video description (required).");
+if (ytWanted.size) log("broll", `youtube: ${ytWanted.size} good Creative Commons matches wait for the maker's file or a license check - build/yt/wanted.json (node scripts/yt-engine.mjs source / import / approve), then re-run`);
 if (credits.some((c) => /^AI-generated/.test(c))) log("broll", "AI images used: if they look real, tick YouTube's altered/synthetic content disclosure.");
 if (exhausted.size && fellBack) {
   log("broll", `${fellBack} shots fell back because ${[...exhausted].join(", ")} hit a rate limit. ` +

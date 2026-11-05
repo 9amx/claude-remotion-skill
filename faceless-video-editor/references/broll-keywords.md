@@ -57,6 +57,8 @@ evenly. That's a guess, so use beats when it matters, always for non-English lin
 | `"ai:a 1950s lab with pigeons in boxes"` | generated still (OPENAI_API_KEY). For things that can't be filmed; never to "show" a real event. Disclose if it looks real |
 | `"file:intro.mp4"` / `"file:chart.png"` | user's own asset in `public/` |
 | `"file:clips/talk.mp4#12.5-16"` | just that part of your own or licensed video (seconds, or `#1:05-1:09`); cut once, exactly |
+| `"yt:Supra MK4 drag race"` | YouTube Creative Commons only (license-checked; used once its file is authorized, see youtube-cc-engine.md) |
+| `"Supra MK4 night drive -mk5 -a90 -toy"` | `-word` excludes near misses: never searched, and any result naming one is dropped. Different generations (MK4/MK5, E46/F80, 8th/10th gen), far-off years and models / toys / games are dropped automatically |
 | `"adobe:430358060"` | an Adobe Stock clip licensed through the Adobe connector and added with `scripts/adobe-stock.mjs` (see footage-sources.md) |
 
 Scene-level `"visual": "kinetic"` skips B-roll entirely (animated background) -

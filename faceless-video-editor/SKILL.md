@@ -326,8 +326,37 @@ automatic pick:
    A fact, number, place or quote with no honest footage: make the beat a `graphic`.
 4. Continue: `node scripts/auto.mjs --from=broll` (downloads, frame-checks,
    renders, masters, checks).
+5. **Check every named shot by eye (mandatory).** After the footage step,
+   `build/verify/<shot>.jpg` holds 3 frames of each shot whose keyword names
+   something real (a model, company, place, year; `archive:` / `yt:`), and
+   `build/verify.json` the words spoken over it. Open each sheet: is it THAT
+   thing (the right model and generation, the right place, the right era),
+   not just something like it? Set `"ok": true`, or `false` and fix the keyword
+   (more specific, `-word` exclusions) or the pick, and re-run `--from=broll`.
+   Nothing named goes to render with `"ok": null` or `false`. The picture check
+   (below) can't do this part: it sees "a sports car", not "a 1993 Supra".
 
-Without picks the fetcher still chooses automatically (relevance-scored, with
+**Keywords that find the right thing** (`references/broll-keywords.md`): name
+it exactly (model + generation + color + action + angle: "Toyota Supra MK4
+orange front three-quarter driving"), and exclude near misses with `-word`:
+`"Supra MK4 night drive -mk5 -a90 -toy"`. Exclusions are never searched; any
+result whose title/tags contain one is dropped. Results are also dropped
+automatically when they name a different generation of the same family (MK4 vs
+MK5, E46 vs F80, 8th vs 10th gen), only years far from the keyword's year, or a
+model / toy / game (`scripts/match-rules.mjs`).
+
+**The picture check** (`scripts/vision.mjs`, CLIP on the CPU; needs the
+optional `@huggingface/transformers`, installed by `npm install`, model ~150 MB
+downloaded once): thumbnails rank the candidates before download; every
+downloaded clip must show its keyword (3 frames, `visionMin` 0.4) or the next
+result is tried; long clips are trimmed to the stretch that shows the keyword
+best, not a fixed spot. It compares each frame with "a photo of <keyword>"
+against junk (meme, blurred phone video, text overlay, talking head, cartoon,
+game, toy, title card) and near misses (a race vs a car just driving, an engine
+vs the outside of a car). Review picks are never second-guessed. Off with
+`"vision": false`.
+
+Without picks the fetcher still chooses automatically (relevance-scored, picture-checked, with
 black / green-screen clips rejected), so `npm run auto` works end to end; the
 review is how you get from "plausible" to "accurate". It never uses a random
 clip: a result that shares too few words with the keyword (`brollMinRelevance`,
@@ -498,6 +527,7 @@ at once (`references/youtube-upload.md`, Batch + schedule; about 6 uploads a day
 - `references/editing-playbook.md` - every edit tool, when to use it, niche recipes, hook archetypes, sound design.
 - `references/broll-keywords.md` - turning lines into searchable, filmable keywords; beats; motion graphics.
 - `references/footage-sources.md` - which source for which line, Adobe Stock through the connector, archives, paid libraries.
+- `references/youtube-cc-engine.md` - Falcon Motion YouTube Engine: script -> Creative Commons YouTube clips, license-checked, cut and packaged for an editor (`scripts/yt-engine.mjs`).
 - `references/voice-and-audio.md` - providers, voices per language, music, loudness.
 - `references/long-form.md` - chapters, retention for 10-40 min, B-roll at scale, chunked rendering.
 - `references/project-schema.md` - every project.json field and what it does.
